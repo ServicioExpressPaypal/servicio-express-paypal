@@ -7,7 +7,8 @@ const siteConfig = {
   atmRate: 0.03, // costo por retiro de tarjeta, repartido entre los clientes
   atmWithdrawalFee: 10.45, // costo real de un retiro; tope para que nadie pague de mas
   wiseFixedFee: 7.41, // costo fijo de Wise para el envio internacional
-  nicaraguaBankFee: 5, // estimado de lo que cobra el banco receptor en Nicaragua; ajustalo cuando lo confirmes
+  nicaraguaBankFee: 25, // cargo fijo del banco receptor en Nicaragua por giro internacional
+  nicaraguaBankPercent: 0.004, // porcentaje que cobra el banco receptor sobre el monto del giro
   serviceModes: {
     express: {
       label: "Servicio express",
@@ -66,7 +67,11 @@ function getMode() {
 
 function deliveryFee(mode, amount) {
   if (mode.feeModel === "wise") {
-    return siteConfig.wiseFixedFee + siteConfig.nicaraguaBankFee;
+    return (
+      siteConfig.wiseFixedFee +
+      siteConfig.nicaraguaBankFee +
+      amount * siteConfig.nicaraguaBankPercent
+    );
   }
   return Math.min(amount * siteConfig.atmRate, siteConfig.atmWithdrawalFee);
 }
