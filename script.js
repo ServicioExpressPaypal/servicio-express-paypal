@@ -14,7 +14,7 @@ const siteConfig = {
       label: "Servicio express",
       rate: 0.05,
       feeModel: "atm",
-      deliveryLabel: "Costo por retiro de tarjeta",
+      deliveryLabel: "Comisión por procesamiento",
       minAmount: 50,
       maxAmount: 200,
       deliveryTime: "menos de 24 horas",
@@ -23,7 +23,7 @@ const siteConfig = {
       label: "Transferencia local",
       rate: 0.03,
       feeModel: "atm",
-      deliveryLabel: "Costo por retiro de tarjeta",
+      deliveryLabel: "Comisión por procesamiento",
       minAmount: 50,
       maxAmount: 500,
       deliveryTime: "1 a 2 días hábiles",
@@ -113,34 +113,41 @@ function calculateExchange() {
   amountInput.min = minAmount;
   amountInput.max = maxAmount;
 
+  deliveryFeeLabel.textContent = mode.deliveryLabel;
+  serviceFeeLabel.textContent = `${mode.label} ${formatRate(mode.rate)}`;
+
+  const isValid = amount >= minAmount && amount <= maxAmount;
+
+  // Fuera de rango: no se muestra el calculo, solo el mensaje.
+  if (!isValid) {
+    latestCalculation = null;
+    paypalFeeOutput.textContent = money(0);
+    deliveryFeeOutput.textContent = money(0);
+    serviceFeeAmount.textContent = money(0);
+    totalFeeOutput.textContent = money(0);
+    netAmountOutput.textContent = money(0);
+
+    if (!amount) {
+      note.textContent = `Ingresa un monto entre ${money(minAmount)} y ${money(maxAmount)} para calcular.`;
+      note.classList.remove("warning");
+    } else {
+      note.textContent = `En ${mode.label} el monto debe estar entre ${money(minAmount)} y ${money(maxAmount)}.`;
+      note.classList.add("warning");
+    }
+    return;
+  }
+
   const paypalFee = amount * siteConfig.paypalPercentFee;
   const deliveryCost = deliveryFee(mode, amount);
   const serviceFee = amount * mode.rate;
   const totalFee = paypalFee + deliveryCost + serviceFee;
   const net = Math.max(0, amount - totalFee);
-  const isValid = amount >= minAmount && amount <= maxAmount;
 
   paypalFeeOutput.textContent = money(paypalFee);
-  deliveryFeeLabel.textContent = mode.deliveryLabel;
   deliveryFeeOutput.textContent = money(deliveryCost);
-  serviceFeeLabel.textContent = `${mode.label} ${formatRate(mode.rate)}`;
   serviceFeeAmount.textContent = money(serviceFee);
   totalFeeOutput.textContent = money(totalFee);
   netAmountOutput.textContent = money(net);
-
-  if (!amount) {
-    latestCalculation = null;
-    note.textContent = `Ingresa un monto entre ${money(minAmount)} y ${money(maxAmount)} para calcular.`;
-    note.classList.remove("warning");
-    return;
-  }
-
-  if (!isValid) {
-    latestCalculation = null;
-    note.textContent = `En ${mode.label} el monto debe estar entre ${money(minAmount)} y ${money(maxAmount)}.`;
-    note.classList.add("warning");
-    return;
-  }
 
   latestCalculation = {
     amount,
