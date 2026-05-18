@@ -4,16 +4,16 @@ const siteConfig = {
   facebookUrl: "https://www.facebook.com/profile.php?id=61590018872357",
   defaultMessage: "Hola, vi su página web y quiero cambiar saldo PayPal.",
   paypalPercentFee: 0.0785,
-  atmRate: 0.03, // comision por retiro en cajero repartida entre los clientes; bajala cuando crezca tu volumen
-  atmWithdrawalFee: 10.45, // costo real de un retiro; tope para que nadie pague de mas por el cajero
-  swiftFixedFee: 25, // costo fijo de un envio SWIFT: Wise + bancos corresponsales + parte fija del banco receptor
-  swiftPercentFee: 0.004, // porcentaje aproximado que cobra el banco receptor en Nicaragua
+  atmRate: 0.03, // costo por retiro de tarjeta, repartido entre los clientes
+  atmWithdrawalFee: 10.45, // costo real de un retiro; tope para que nadie pague de mas
+  wiseFixedFee: 7.41, // costo fijo de Wise para el envio internacional
+  nicaraguaBankFee: 5, // estimado de lo que cobra el banco receptor en Nicaragua; ajustalo cuando lo confirmes
   serviceModes: {
     express: {
       label: "Servicio express",
       rate: 0.05,
       feeModel: "atm",
-      deliveryLabel: "Costo de retiro en cajero",
+      deliveryLabel: "Costo por retiro de tarjeta",
       minAmount: 50,
       maxAmount: 200,
       deliveryTime: "menos de 24 horas",
@@ -22,15 +22,15 @@ const siteConfig = {
       label: "Transferencia local",
       rate: 0.03,
       feeModel: "atm",
-      deliveryLabel: "Costo de transferencia local",
+      deliveryLabel: "Costo por retiro de tarjeta",
       minAmount: 50,
       maxAmount: 500,
       deliveryTime: "1 a 2 días hábiles",
     },
     international: {
       label: "Transferencia internacional",
-      rate: 0.015,
-      feeModel: "swift",
+      rate: 0.02,
+      feeModel: "wise",
       deliveryLabel: "Costo de envío internacional",
       minAmount: 500,
       maxAmount: 3000,
@@ -65,8 +65,8 @@ function getMode() {
 }
 
 function deliveryFee(mode, amount) {
-  if (mode.feeModel === "swift") {
-    return siteConfig.swiftFixedFee + amount * siteConfig.swiftPercentFee;
+  if (mode.feeModel === "wise") {
+    return siteConfig.wiseFixedFee + siteConfig.nicaraguaBankFee;
   }
   return Math.min(amount * siteConfig.atmRate, siteConfig.atmWithdrawalFee);
 }
