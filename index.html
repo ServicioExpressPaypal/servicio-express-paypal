@@ -182,7 +182,15 @@
 
         <div class="calculator-card" aria-label="Calculadora de saldo PayPal">
           <label>
-            Monto PayPal a cambiar
+            ¿Qué deseas calcular?
+            <select id="calcDirection">
+              <option value="forward" selected>Cuánto recibo (desde monto PayPal)</option>
+              <option value="reverse">Cuánto enviar (desde monto a recibir)</option>
+            </select>
+          </label>
+
+          <label>
+            <span id="amountInputLabel">Monto PayPal a cambiar</span>
             <input
               id="calcAmount"
               type="number"
@@ -225,7 +233,7 @@
               <strong id="totalFee">$0.00</strong>
             </div>
             <div class="receive-total">
-              <span>Recibirías aproximadamente</span>
+              <span id="netLabel">Recibirías aproximadamente</span>
               <strong id="netAmount">$0.00</strong>
             </div>
           </div>
@@ -233,28 +241,6 @@
           <p class="calculator-note" id="calculatorNote">
             Ingresa un monto entre $50 y $500 para calcular.
           </p>
-
-          <div class="reverse-calc" aria-label="Calculadora inversa">
-            <p class="reverse-title">¿Quieres recibir un monto exacto?</p>
-            <label>
-              Monto que quieres recibir
-              <input
-                id="reverseAmount"
-                type="number"
-                min="1"
-                step="0.01"
-                inputmode="decimal"
-                placeholder="Ejemplo: 200"
-              />
-            </label>
-            <div class="reverse-result">
-              <span>Deben enviarte por PayPal</span>
-              <strong id="reverseGross">$0.00</strong>
-            </div>
-            <p class="reverse-note" id="reverseNote">
-              Se calcula con la modalidad seleccionada arriba.
-            </p>
-          </div>
 
           <button class="button primary calculator-button" id="calculatorWhatsapp" type="button">
             <i data-lucide="send" aria-hidden="true"></i>

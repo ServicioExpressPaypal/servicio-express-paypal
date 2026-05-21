@@ -112,8 +112,24 @@ function setActionLinks() {
   });
 }
 
+function getCalcDirection() {
+  const select = document.querySelector("#calcDirection");
+  return select && select.value === "reverse" ? "reverse" : "forward";
+}
+
+function computeFees(mode, gross) {
+  const paypal = gross * siteConfig.paypalPercentFee + siteConfig.paypalFixedFee;
+  const delivery = deliveryFee(mode, gross);
+  const service = gross * mode.rate;
+  const total = paypal + delivery + service;
+  const net = Math.max(0, gross - total);
+  return { paypal, delivery, service, total, net };
+}
+
 function calculateExchange() {
   const amountInput = document.querySelector("#calcAmount");
+  const amountInputLabel = document.querySelector("#amountInputLabel");
+  const netLabel = document.querySelector("#netLabel");
   const paypalFeeOutput = document.querySelector("#paypalFee");
   const deliveryFeeLabel = document.querySelector("#deliveryFeeLabel");
   const deliveryFeeOutput = document.querySelector("#deliveryFee");
@@ -125,20 +141,40 @@ function calculateExchange() {
 
   if (!amountInput) return;
 
+  const direction = getCalcDirection();
   const mode = getMode();
-  const minAmount = mode.minAmount;
-  const maxAmount = mode.maxAmount;
-  const amount = parseMoney(amountInput.value);
+  const inputAmount = parseMoney(amountInput.value);
 
-  amountInput.min = minAmount;
-  amountInput.max = maxAmount;
-
+  if (amountInputLabel) {
+    amountInputLabel.textContent =
+      direction === "reverse" ? "Monto que quieres recibir" : "Monto PayPal a cambiar";
+  }
+  if (netLabel) {
+    netLabel.textContent =
+      direction === "reverse" ? "Debes enviar por PayPal" : "Recibirías aproximadamente";
+  }
   deliveryFeeLabel.textContent = mode.deliveryLabel;
   serviceFeeLabel.textContent = `${mode.label} ${formatRate(mode.rate)}`;
 
-  const isValid = amount >= minAmount && amount <= maxAmount;
+  // En modo forward limitamos el input al rango de la modalidad.
+  // En modo reverse el input es el neto deseado: dejamos el rango abierto y validamos via JS.
+  if (direction === "forward") {
+    amountInput.min = mode.minAmount;
+    amountInput.max = mode.maxAmount;
+  } else {
+    amountInput.removeAttribute("min");
+    amountInput.removeAttribute("max");
+  }
 
-  // Fuera de rango: no se muestra el calculo, solo el mensaje.
+  let gross;
+  if (direction === "reverse") {
+    gross = inputAmount > 0 ? reverseGross(mode, inputAmount) || 0 : 0;
+  } else {
+    gross = inputAmount;
+  }
+
+  const isValid = gross > 0 && gross >= mode.minAmount && gross <= mode.maxAmount;
+
   if (!isValid) {
     latestCalculation = null;
     paypalFeeOutput.textContent = money(0);
@@ -147,97 +183,57 @@ function calculateExchange() {
     totalFeeOutput.textContent = money(0);
     netAmountOutput.textContent = money(0);
 
-    if (!amount) {
-      note.textContent = `Ingresa un monto entre ${money(minAmount)} y ${money(maxAmount)} para calcular.`;
+    if (inputAmount <= 0) {
+      note.textContent =
+        direction === "reverse"
+          ? `Ingresa el monto que quieres recibir.`
+          : `Ingresa un monto entre ${money(mode.minAmount)} y ${money(mode.maxAmount)} para calcular.`;
       note.classList.remove("warning");
+    } else if (direction === "reverse") {
+      note.textContent = `Para recibir ${money(inputAmount)} en ${mode.label} habría que enviar ${money(gross)}, fuera del rango (${money(mode.minAmount)}–${money(mode.maxAmount)}).`;
+      note.classList.add("warning");
     } else {
-      note.textContent = `En ${mode.label} el monto debe estar entre ${money(minAmount)} y ${money(maxAmount)}.`;
+      note.textContent = `En ${mode.label} el monto debe estar entre ${money(mode.minAmount)} y ${money(mode.maxAmount)}.`;
       note.classList.add("warning");
     }
     return;
   }
 
-  const paypalFee = amount * siteConfig.paypalPercentFee + siteConfig.paypalFixedFee;
-  const deliveryCost = deliveryFee(mode, amount);
-  const serviceFee = amount * mode.rate;
-  const totalFee = paypalFee + deliveryCost + serviceFee;
-  const net = Math.max(0, amount - totalFee);
+  const fees = computeFees(mode, gross);
 
-  paypalFeeOutput.textContent = money(paypalFee);
-  deliveryFeeOutput.textContent = money(deliveryCost);
-  serviceFeeAmount.textContent = money(serviceFee);
-  totalFeeOutput.textContent = money(totalFee);
-  netAmountOutput.textContent = money(net);
+  paypalFeeOutput.textContent = money(fees.paypal);
+  deliveryFeeOutput.textContent = money(fees.delivery);
+  serviceFeeAmount.textContent = money(fees.service);
+  totalFeeOutput.textContent = money(fees.total);
+  netAmountOutput.textContent = direction === "reverse" ? money(gross) : money(fees.net);
 
   latestCalculation = {
-    amount,
-    serviceFee,
+    gross,
+    net: fees.net,
     serviceLabel: mode.label,
     serviceRate: mode.rate,
     deliveryTime: mode.deliveryTime,
-    paypalFee,
-    totalFee,
-    net,
+    paypalFee: fees.paypal,
+    totalFee: fees.total,
+    direction,
   };
   note.textContent = `Estimado rápido. Tiempo estimado: ${mode.deliveryTime}. El detalle final se confirma por WhatsApp.`;
   note.classList.remove("warning");
 }
 
-function calculateReverse() {
-  const input = document.querySelector("#reverseAmount");
-  const grossOutput = document.querySelector("#reverseGross");
-  const note = document.querySelector("#reverseNote");
-  if (!input || !grossOutput || !note) return;
-
-  const mode = getMode();
-  const desired = parseMoney(input.value);
-
-  if (!desired) {
-    grossOutput.textContent = money(0);
-    note.textContent = `Ingresa el monto que quieres recibir. Modalidad: ${mode.label}.`;
-    note.classList.remove("warning");
-    return;
-  }
-
-  const gross = reverseGross(mode, desired);
-  if (gross === null || !Number.isFinite(gross) || gross <= 0) {
-    grossOutput.textContent = money(0);
-    note.textContent = "No se puede calcular con esos valores.";
-    note.classList.add("warning");
-    return;
-  }
-
-  grossOutput.textContent = money(gross);
-
-  if (gross < mode.minAmount) {
-    note.textContent = `El envío de ${money(gross)} queda por debajo del mínimo de ${mode.label} (${money(mode.minAmount)}).`;
-    note.classList.add("warning");
-  } else if (gross > mode.maxAmount) {
-    note.textContent = `El envío de ${money(gross)} excede el máximo de ${mode.label} (${money(mode.maxAmount)}). Cambia de modalidad.`;
-    note.classList.add("warning");
-  } else {
-    note.textContent = `Si te envían ${money(gross)} en ${mode.label}, recibirás aproximadamente ${money(desired)}.`;
-    note.classList.remove("warning");
-  }
-}
-
 function wireCalculator() {
   const amountInput = document.querySelector("#calcAmount");
   const serviceModeInput = document.querySelector("#serviceMode");
+  const directionInput = document.querySelector("#calcDirection");
   const calculatorButton = document.querySelector("#calculatorWhatsapp");
-  const reverseInput = document.querySelector("#reverseAmount");
 
   if (!amountInput || !serviceModeInput || !calculatorButton) return;
 
-  [amountInput, serviceModeInput].forEach((input) => {
+  [amountInput, serviceModeInput, directionInput].forEach((input) => {
+    if (!input) return;
     input.addEventListener("input", calculateExchange);
     input.addEventListener("change", calculateExchange);
   });
-
-  if (reverseInput) {
-    reverseInput.addEventListener("input", calculateReverse);
-    serviceModeInput.addEventListener("change", calculateReverse);
-  }
 
   calculatorButton.addEventListener("click", () => {
     calculateExchange();
@@ -249,11 +245,11 @@ function wireCalculator() {
 
     const lines = [
       "Hola, quiero cambiar saldo PayPal.",
-      `Monto a cambiar: ${money(latestCalculation.amount)}`,
+      `Monto PayPal a enviar: ${money(latestCalculation.gross)}`,
+      `Monto a recibir: ${money(latestCalculation.net)}`,
       `Modalidad: ${latestCalculation.serviceLabel}`,
       `Tiempo estimado: ${latestCalculation.deliveryTime}`,
       `Comisión total estimada: ${money(latestCalculation.totalFee)}`,
-      `Recibiría aproximadamente: ${money(latestCalculation.net)}`,
       "Deseo confirmar el detalle final y el enlace de pago.",
     ];
 
@@ -261,7 +257,6 @@ function wireCalculator() {
   });
 
   calculateExchange();
-  calculateReverse();
 }
 
 // Calculadora de retiro Payoneer en cajeros de Nicaragua
