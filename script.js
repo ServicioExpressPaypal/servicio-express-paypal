@@ -3,7 +3,8 @@ const siteConfig = {
   whatsappNumber: "50586199889",
   facebookUrl: "https://www.facebook.com/profile.php?id=61590018872357",
   defaultMessage: "Hola, vi su página web y quiero cambiar saldo PayPal.",
-  paypalPercentFee: 0.0785,
+  paypalPercentFee: 0.054, // PayPal estandar internacional: 5.4% sobre el monto
+  paypalFixedFee: 0.30, // PayPal estandar internacional: $0.30 fijo por transaccion
   atmRate: 0.03, // costo por retiro de tarjeta, repartido entre los clientes
   atmWithdrawalFee: 10.45, // costo real de un retiro; tope para que nadie pague de mas
   wiseFixedFee: 7.41, // costo fijo de Wise para el envio internacional
@@ -61,10 +62,11 @@ function getMode() {
 function reverseGross(mode, desiredNet) {
   if (!Number.isFinite(desiredNet) || desiredNet <= 0) return null;
   const p = siteConfig.paypalPercentFee;
+  const ppFixed = siteConfig.paypalFixedFee;
   const s = mode.rate;
 
   if (mode.feeModel === "wise") {
-    const fixed = siteConfig.wiseFixedFee + siteConfig.bankMinFee;
+    const fixed = ppFixed + siteConfig.wiseFixedFee + siteConfig.bankMinFee;
     const denom = 1 - p - s;
     if (denom <= 0) return null;
     return (desiredNet + fixed) / denom;
@@ -73,14 +75,14 @@ function reverseGross(mode, desiredNet) {
   // atm: prueba caso sin tope; si excede, usa el caso con tope fijo.
   const noCapDenom = 1 - p - s - siteConfig.atmRate;
   if (noCapDenom > 0) {
-    const noCapGross = desiredNet / noCapDenom;
+    const noCapGross = (desiredNet + ppFixed) / noCapDenom;
     if (noCapGross * siteConfig.atmRate <= siteConfig.atmWithdrawalFee) {
       return noCapGross;
     }
   }
   const capDenom = 1 - p - s;
   if (capDenom <= 0) return null;
-  return (desiredNet + siteConfig.atmWithdrawalFee) / capDenom;
+  return (desiredNet + ppFixed + siteConfig.atmWithdrawalFee) / capDenom;
 }
 
 function deliveryFee(mode, amount) {
@@ -155,7 +157,7 @@ function calculateExchange() {
     return;
   }
 
-  const paypalFee = amount * siteConfig.paypalPercentFee;
+  const paypalFee = amount * siteConfig.paypalPercentFee + siteConfig.paypalFixedFee;
   const deliveryCost = deliveryFee(mode, amount);
   const serviceFee = amount * mode.rate;
   const totalFee = paypalFee + deliveryCost + serviceFee;
@@ -262,12 +264,6 @@ function wireCalculator() {
   calculateReverse();
 }
 
-// Calculadora general de PayPal (comision estandar internacional)
-const paypalCalcConfig = {
-  percent: 0.054,
-  fixed: 0.30,
-};
-
 // Calculadora de retiro Payoneer en cajeros de Nicaragua
 const payoneerCalcConfig = {
   atmFixedFee: 3.15, // comision fija Payoneer
@@ -288,9 +284,9 @@ function calcPaypalReceive() {
     feeOutput.textContent = money(0);
     return;
   }
-  const denom = 1 - paypalCalcConfig.percent;
+  const denom = 1 - siteConfig.paypalPercentFee;
   if (denom <= 0) return;
-  const gross = (net + paypalCalcConfig.fixed) / denom;
+  const gross = (net + siteConfig.paypalFixedFee) / denom;
   const fee = gross - net;
   grossOutput.textContent = money(gross);
   feeOutput.textContent = money(fee);
@@ -308,7 +304,7 @@ function calcPaypalSend() {
     netOutput.textContent = money(0);
     return;
   }
-  const fee = gross * paypalCalcConfig.percent + paypalCalcConfig.fixed;
+  const fee = gross * siteConfig.paypalPercentFee + siteConfig.paypalFixedFee;
   const net = Math.max(0, gross - fee);
   feeOutput.textContent = money(fee);
   netOutput.textContent = money(net);
