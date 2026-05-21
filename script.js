@@ -271,7 +271,7 @@ const paypalCalcConfig = {
 // Calculadora de retiro Payoneer en cajeros de Nicaragua
 const payoneerCalcConfig = {
   atmFixedFee: 3.15, // comision fija Payoneer
-  atmPercentFee: 0.0185, // 1.85% del monto Payoneer
+  atmPercentFee: 0.01855, // 1.855% del monto Payoneer
   atmOperatorFee: 6, // cargo del cajero en Nicaragua por uso de tarjeta extranjera
   atmDenomination: 20,
 };
@@ -362,7 +362,8 @@ function calcPayoneer() {
   feeOutput.textContent = money(payoneerFee);
   operatorFeeOutput.textContent = money(c.atmOperatorFee);
   remainingOutput.textContent = money(remaining);
-  note.textContent = `Retiras $${withdraw} en efectivo (${bills} billete${bills === 1 ? "" : "s"} de $${c.atmDenomination}). Comisiones: $${c.atmFixedFee.toFixed(2)} Payoneer + ${(c.atmPercentFee * 100).toFixed(2)}% del monto + $${c.atmOperatorFee.toFixed(2)} cargo del cajero.`;
+  const pctStr = (c.atmPercentFee * 100).toFixed(3).replace(/\.?0+$/, "");
+  note.textContent = `Retiras $${withdraw} en efectivo (${bills} billete${bills === 1 ? "" : "s"} de $${c.atmDenomination}). Comisiones: $${c.atmFixedFee.toFixed(2)} Payoneer + ${pctStr}% del monto + $${c.atmOperatorFee.toFixed(2)} cargo del cajero.`;
   note.classList.remove("warning");
 }
 
