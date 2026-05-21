@@ -317,7 +317,14 @@
         </p>
         <article class="payoneer-card-result">
           <label>
-            Monto disponible en la tarjeta
+            ¿Qué deseas calcular?
+            <select id="poDirection">
+              <option value="forward" selected>Cuánto recibo (desde mi saldo)</option>
+              <option value="reverse">Cuánto necesito tener (desde monto a recibir)</option>
+            </select>
+          </label>
+          <label>
+            <span id="poInputLabel">Monto disponible en la tarjeta</span>
             <input
               id="poBalance"
               type="number"
@@ -329,7 +336,7 @@
           </label>
           <div class="payoneer-results" aria-live="polite">
             <div>
-              <span>Puedes retirar (cajero)</span>
+              <span id="poWithdrawLabel">Puedes retirar (cajero)</span>
               <strong id="poWithdraw">$0.00</strong>
             </div>
             <div>
@@ -341,7 +348,7 @@
               <strong id="poOperatorFee">$0.00</strong>
             </div>
             <div class="payoneer-remaining">
-              <span>Queda en la tarjeta</span>
+              <span id="poRemainingLabel">Queda en la tarjeta</span>
               <strong id="poRemaining">$0.00</strong>
             </div>
           </div>

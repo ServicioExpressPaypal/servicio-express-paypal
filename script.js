@@ -307,6 +307,10 @@ function calcPaypalSend() {
 
 function calcPayoneer() {
   const balanceInput = document.querySelector("#poBalance");
+  const directionInput = document.querySelector("#poDirection");
+  const inputLabel = document.querySelector("#poInputLabel");
+  const withdrawLabel = document.querySelector("#poWithdrawLabel");
+  const remainingLabel = document.querySelector("#poRemainingLabel");
   const withdrawOutput = document.querySelector("#poWithdraw");
   const feeOutput = document.querySelector("#poFee");
   const operatorFeeOutput = document.querySelector("#poOperatorFee");
@@ -315,20 +319,67 @@ function calcPayoneer() {
   if (!balanceInput || !withdrawOutput || !feeOutput || !operatorFeeOutput || !remainingOutput || !note) return;
 
   const c = payoneerCalcConfig;
-  const balance = parseMoney(balanceInput.value);
+  const direction = directionInput && directionInput.value === "reverse" ? "reverse" : "forward";
+  const inputAmount = parseMoney(balanceInput.value);
 
-  if (balance <= 0) {
+  if (inputLabel) {
+    inputLabel.textContent = direction === "reverse" ? "Monto que quieres recibir" : "Monto disponible en la tarjeta";
+  }
+  if (withdrawLabel) {
+    withdrawLabel.textContent = direction === "reverse" ? "Vas a retirar (cajero)" : "Puedes retirar (cajero)";
+  }
+  if (remainingLabel) {
+    remainingLabel.textContent = direction === "reverse" ? "Necesitas tener en la tarjeta" : "Queda en la tarjeta";
+  }
+
+  const pctStr = (c.atmPercentFee * 100).toFixed(3).replace(/\.?0+$/, "");
+
+  if (inputAmount <= 0) {
     withdrawOutput.textContent = money(0);
     feeOutput.textContent = money(0);
     operatorFeeOutput.textContent = money(0);
     remainingOutput.textContent = money(0);
-    note.textContent = `Ingresa el saldo de tu tarjeta. Los cajeros en Nicaragua dispensan en múltiplos de $${c.atmDenomination}.`;
+    note.textContent = direction === "reverse"
+      ? `Ingresa el monto que quieres recibir en efectivo. Los cajeros en Nicaragua dispensan en múltiplos de $${c.atmDenomination}.`
+      : `Ingresa el saldo de tu tarjeta. Los cajeros en Nicaragua dispensan en múltiplos de $${c.atmDenomination}.`;
     note.classList.remove("warning");
     return;
   }
 
-  // W*(1 + atmPercentFee) + atmFixedFee + atmOperatorFee <= balance
-  // W debe ser multiplo de la denominacion.
+  if (direction === "reverse") {
+    // Reverse: input = monto deseado en efectivo. Redondea al multiplo de la denominacion.
+    const withdraw = Math.max(0, Math.floor(inputAmount / c.atmDenomination) * c.atmDenomination);
+
+    if (withdraw === 0) {
+      withdrawOutput.textContent = money(0);
+      feeOutput.textContent = money(0);
+      operatorFeeOutput.textContent = money(0);
+      remainingOutput.textContent = money(0);
+      note.textContent = `El mínimo a retirar es $${c.atmDenomination}. Los cajeros no dispensan menos.`;
+      note.classList.add("warning");
+      return;
+    }
+
+    const payoneerFee = c.atmFixedFee + c.atmPercentFee * withdraw;
+    const requiredBalance = withdraw + payoneerFee + c.atmOperatorFee;
+    const bills = withdraw / c.atmDenomination;
+
+    withdrawOutput.textContent = money(withdraw);
+    feeOutput.textContent = money(payoneerFee);
+    operatorFeeOutput.textContent = money(c.atmOperatorFee);
+    remainingOutput.textContent = money(requiredBalance);
+
+    let msg = `Para retirar $${withdraw} en efectivo (${bills} billete${bills === 1 ? "" : "s"} de $${c.atmDenomination}), necesitas ${money(requiredBalance)} en la tarjeta. Comisiones: $${c.atmFixedFee.toFixed(2)} Payoneer + ${pctStr}% del monto + $${c.atmOperatorFee.toFixed(2)} cargo del cajero.`;
+    if (withdraw !== inputAmount) {
+      msg += ` Redondeé tu monto $${inputAmount} a $${withdraw} (múltiplo de $${c.atmDenomination}).`;
+    }
+    note.textContent = msg;
+    note.classList.remove("warning");
+    return;
+  }
+
+  // Forward: input = saldo en la tarjeta. Calcula maximo retirable.
+  const balance = inputAmount;
   const fixedTotal = c.atmFixedFee + c.atmOperatorFee;
   const maxRaw = (balance - fixedTotal) / (1 + c.atmPercentFee);
   let withdraw = Math.floor(maxRaw / c.atmDenomination) * c.atmDenomination;
@@ -353,7 +404,6 @@ function calcPayoneer() {
   feeOutput.textContent = money(payoneerFee);
   operatorFeeOutput.textContent = money(c.atmOperatorFee);
   remainingOutput.textContent = money(remaining);
-  const pctStr = (c.atmPercentFee * 100).toFixed(3).replace(/\.?0+$/, "");
   note.textContent = `Retiras $${withdraw} en efectivo (${bills} billete${bills === 1 ? "" : "s"} de $${c.atmDenomination}). Comisiones: $${c.atmFixedFee.toFixed(2)} Payoneer + ${pctStr}% del monto + $${c.atmOperatorFee.toFixed(2)} cargo del cajero.`;
   note.classList.remove("warning");
 }
@@ -369,7 +419,9 @@ function wirePaypalCalc() {
 
 function wirePayoneerCalc() {
   const input = document.querySelector("#poBalance");
+  const direction = document.querySelector("#poDirection");
   if (input) input.addEventListener("input", calcPayoneer);
+  if (direction) direction.addEventListener("change", calcPayoneer);
   calcPayoneer();
 }
 
