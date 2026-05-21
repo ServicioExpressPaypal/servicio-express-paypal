@@ -20,15 +20,6 @@ const siteConfig = {
       maxAmount: 200,
       deliveryTime: "menos de 24 horas",
     },
-    transfer: {
-      label: "Transferencia local",
-      rate: 0.03,
-      feeModel: "atm",
-      deliveryLabel: "Comisión por procesamiento",
-      minAmount: 50,
-      maxAmount: 500,
-      deliveryTime: "1 a 2 días hábiles",
-    },
     international: {
       label: "Transferencia internacional",
       rate: 0.02,
