@@ -57,6 +57,32 @@ function getMode() {
   return siteConfig.serviceModes[select && select.value] || siteConfig.serviceModes.express;
 }
 
+// Resuelve el monto a enviar por PayPal para netear `desiredNet` con la modalidad dada.
+function reverseGross(mode, desiredNet) {
+  if (!Number.isFinite(desiredNet) || desiredNet <= 0) return null;
+  const p = siteConfig.paypalPercentFee;
+  const s = mode.rate;
+
+  if (mode.feeModel === "wise") {
+    const fixed = siteConfig.wiseFixedFee + siteConfig.bankMinFee;
+    const denom = 1 - p - s;
+    if (denom <= 0) return null;
+    return (desiredNet + fixed) / denom;
+  }
+
+  // atm: prueba caso sin tope; si excede, usa el caso con tope fijo.
+  const noCapDenom = 1 - p - s - siteConfig.atmRate;
+  if (noCapDenom > 0) {
+    const noCapGross = desiredNet / noCapDenom;
+    if (noCapGross * siteConfig.atmRate <= siteConfig.atmWithdrawalFee) {
+      return noCapGross;
+    }
+  }
+  const capDenom = 1 - p - s;
+  if (capDenom <= 0) return null;
+  return (desiredNet + siteConfig.atmWithdrawalFee) / capDenom;
+}
+
 function deliveryFee(mode, amount) {
   if (mode.feeModel === "wise") {
     const bankFee = Math.min(
@@ -155,10 +181,49 @@ function calculateExchange() {
   note.classList.remove("warning");
 }
 
+function calculateReverse() {
+  const input = document.querySelector("#reverseAmount");
+  const grossOutput = document.querySelector("#reverseGross");
+  const note = document.querySelector("#reverseNote");
+  if (!input || !grossOutput || !note) return;
+
+  const mode = getMode();
+  const desired = parseMoney(input.value);
+
+  if (!desired) {
+    grossOutput.textContent = money(0);
+    note.textContent = `Ingresa el monto que quieres recibir. Modalidad: ${mode.label}.`;
+    note.classList.remove("warning");
+    return;
+  }
+
+  const gross = reverseGross(mode, desired);
+  if (gross === null || !Number.isFinite(gross) || gross <= 0) {
+    grossOutput.textContent = money(0);
+    note.textContent = "No se puede calcular con esos valores.";
+    note.classList.add("warning");
+    return;
+  }
+
+  grossOutput.textContent = money(gross);
+
+  if (gross < mode.minAmount) {
+    note.textContent = `El envío de ${money(gross)} queda por debajo del mínimo de ${mode.label} (${money(mode.minAmount)}).`;
+    note.classList.add("warning");
+  } else if (gross > mode.maxAmount) {
+    note.textContent = `El envío de ${money(gross)} excede el máximo de ${mode.label} (${money(mode.maxAmount)}). Cambia de modalidad.`;
+    note.classList.add("warning");
+  } else {
+    note.textContent = `Si te envían ${money(gross)} en ${mode.label}, recibirás aproximadamente ${money(desired)}.`;
+    note.classList.remove("warning");
+  }
+}
+
 function wireCalculator() {
   const amountInput = document.querySelector("#calcAmount");
   const serviceModeInput = document.querySelector("#serviceMode");
   const calculatorButton = document.querySelector("#calculatorWhatsapp");
+  const reverseInput = document.querySelector("#reverseAmount");
 
   if (!amountInput || !serviceModeInput || !calculatorButton) return;
 
@@ -166,6 +231,11 @@ function wireCalculator() {
     input.addEventListener("input", calculateExchange);
     input.addEventListener("change", calculateExchange);
   });
+
+  if (reverseInput) {
+    reverseInput.addEventListener("input", calculateReverse);
+    serviceModeInput.addEventListener("change", calculateReverse);
+  }
 
   calculatorButton.addEventListener("click", () => {
     calculateExchange();
@@ -189,6 +259,7 @@ function wireCalculator() {
   });
 
   calculateExchange();
+  calculateReverse();
 }
 
 setActionLinks();

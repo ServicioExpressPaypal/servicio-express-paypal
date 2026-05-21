@@ -511,6 +511,57 @@ h3 {
   font-weight: 850;
 }
 
+.reverse-calc {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  background: rgba(237, 245, 255, 0.7);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
+.reverse-title {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 950;
+  font-size: 1rem;
+}
+
+.reverse-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.reverse-result span {
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.reverse-result strong {
+  color: var(--navy);
+  font-size: 1.4rem;
+  white-space: nowrap;
+}
+
+.reverse-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.reverse-note.warning {
+  color: #a9441f;
+  font-weight: 850;
+}
+
 .calculator-button {
   width: 100%;
 }
