@@ -1,6 +1,6 @@
 const siteConfig = {
   businessName: "Servicio Express Saldo PayPal Nicaragua",
-  whatsappNumber: "50581980244",
+  whatsappNumber: "50586199889",
   facebookUrl: "https://www.facebook.com/profile.php?id=61590018872357",
   defaultMessage: "Hola, vi su página web y quiero cambiar saldo PayPal.",
   paypalPercentFee: 0.0785,
