@@ -271,7 +271,7 @@ const paypalCalcConfig = {
 // Calculadora de retiro Payoneer en cajeros de Nicaragua
 const payoneerCalcConfig = {
   atmFixedFee: 3.15, // comision fija Payoneer
-  atmPercentFee: 0.018, // 1.8% del monto Payoneer
+  atmPercentFee: 0.0185, // 1.85% del monto Payoneer
   atmOperatorFee: 6, // cargo del cajero en Nicaragua por uso de tarjeta extranjera
   atmDenomination: 20,
 };
