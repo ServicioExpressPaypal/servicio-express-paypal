@@ -17,7 +17,7 @@ const siteConfig = {
       feeModel: "atm",
       deliveryLabel: "Comisión por procesamiento",
       minAmount: 50,
-      maxAmount: 200,
+      maxAmount: 500,
       deliveryTime: "menos de 24 horas",
     },
     international: {
