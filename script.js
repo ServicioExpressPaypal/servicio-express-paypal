@@ -262,8 +262,123 @@ function wireCalculator() {
   calculateReverse();
 }
 
+// Calculadora general de PayPal (comision estandar internacional)
+const paypalCalcConfig = {
+  percent: 0.054,
+  fixed: 0.30,
+};
+
+// Calculadora de retiro Payoneer en cajeros de Nicaragua
+const payoneerCalcConfig = {
+  atmFixedFee: 3.15,
+  atmPercentFee: 0.018,
+  atmDenomination: 20,
+};
+
+function calcPaypalReceive() {
+  const netInput = document.querySelector("#ppReceiveNet");
+  const grossOutput = document.querySelector("#ppReceiveGross");
+  const feeOutput = document.querySelector("#ppReceiveFee");
+  if (!netInput || !grossOutput || !feeOutput) return;
+
+  const net = parseMoney(netInput.value);
+  if (net <= 0) {
+    grossOutput.textContent = money(0);
+    feeOutput.textContent = money(0);
+    return;
+  }
+  const denom = 1 - paypalCalcConfig.percent;
+  if (denom <= 0) return;
+  const gross = (net + paypalCalcConfig.fixed) / denom;
+  const fee = gross - net;
+  grossOutput.textContent = money(gross);
+  feeOutput.textContent = money(fee);
+}
+
+function calcPaypalSend() {
+  const grossInput = document.querySelector("#ppSendGross");
+  const feeOutput = document.querySelector("#ppSendFee");
+  const netOutput = document.querySelector("#ppSendNet");
+  if (!grossInput || !feeOutput || !netOutput) return;
+
+  const gross = parseMoney(grossInput.value);
+  if (gross <= 0) {
+    feeOutput.textContent = money(0);
+    netOutput.textContent = money(0);
+    return;
+  }
+  const fee = gross * paypalCalcConfig.percent + paypalCalcConfig.fixed;
+  const net = Math.max(0, gross - fee);
+  feeOutput.textContent = money(fee);
+  netOutput.textContent = money(net);
+}
+
+function calcPayoneer() {
+  const balanceInput = document.querySelector("#poBalance");
+  const withdrawOutput = document.querySelector("#poWithdraw");
+  const feeOutput = document.querySelector("#poFee");
+  const remainingOutput = document.querySelector("#poRemaining");
+  const note = document.querySelector("#poNote");
+  if (!balanceInput || !withdrawOutput || !feeOutput || !remainingOutput || !note) return;
+
+  const c = payoneerCalcConfig;
+  const balance = parseMoney(balanceInput.value);
+
+  if (balance <= 0) {
+    withdrawOutput.textContent = money(0);
+    feeOutput.textContent = money(0);
+    remainingOutput.textContent = money(0);
+    note.textContent = `Ingresa el saldo de tu tarjeta. Los cajeros en Nicaragua dispensan en múltiplos de $${c.atmDenomination}.`;
+    note.classList.remove("warning");
+    return;
+  }
+
+  // El retiro W debe cumplir: W*(1 + atmPercentFee) + atmFixedFee <= balance
+  // y ser multiplo de la denominacion.
+  const maxRaw = (balance - c.atmFixedFee) / (1 + c.atmPercentFee);
+  let withdraw = Math.floor(maxRaw / c.atmDenomination) * c.atmDenomination;
+  if (!Number.isFinite(withdraw) || withdraw < 0) withdraw = 0;
+
+  if (withdraw === 0) {
+    const minNeeded = c.atmDenomination + c.atmFixedFee + c.atmPercentFee * c.atmDenomination;
+    withdrawOutput.textContent = money(0);
+    feeOutput.textContent = money(0);
+    remainingOutput.textContent = money(balance);
+    note.textContent = `Saldo insuficiente. Para retirar al menos $${c.atmDenomination} en cajero necesitas ~${money(minNeeded)} cubriendo comisiones.`;
+    note.classList.add("warning");
+    return;
+  }
+
+  const fee = c.atmFixedFee + c.atmPercentFee * withdraw;
+  const remaining = balance - withdraw - fee;
+  const bills = withdraw / c.atmDenomination;
+
+  withdrawOutput.textContent = money(withdraw);
+  feeOutput.textContent = money(fee);
+  remainingOutput.textContent = money(remaining);
+  note.textContent = `Retiras $${withdraw} en efectivo (${bills} billete${bills === 1 ? "" : "s"} de $${c.atmDenomination}). Comisión: $${c.atmFixedFee.toFixed(2)} fijo + ${(c.atmPercentFee * 100).toFixed(2)}% del monto.`;
+  note.classList.remove("warning");
+}
+
+function wirePaypalCalc() {
+  const receiveInput = document.querySelector("#ppReceiveNet");
+  const sendInput = document.querySelector("#ppSendGross");
+  if (receiveInput) receiveInput.addEventListener("input", calcPaypalReceive);
+  if (sendInput) sendInput.addEventListener("input", calcPaypalSend);
+  calcPaypalReceive();
+  calcPaypalSend();
+}
+
+function wirePayoneerCalc() {
+  const input = document.querySelector("#poBalance");
+  if (input) input.addEventListener("input", calcPayoneer);
+  calcPayoneer();
+}
+
 setActionLinks();
 wireCalculator();
+wirePaypalCalc();
+wirePayoneerCalc();
 
 if (window.lucide) {
   window.lucide.createIcons();

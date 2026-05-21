@@ -674,3 +674,147 @@ textarea:focus {
     display: grid;
   }
 }
+
+.paypal-calc-section,
+.payoneer-calc-section {
+  width: min(1180px, calc(100% - 36px));
+  margin: 0 auto;
+  padding: clamp(40px, 6vw, 80px) 0;
+}
+
+.paypal-calc-intro,
+.payoneer-calc-intro {
+  margin: 0 0 28px;
+  color: var(--muted);
+  line-height: 1.7;
+  max-width: 760px;
+}
+
+.paypal-calc-intro strong,
+.payoneer-calc-intro strong {
+  color: var(--ink);
+}
+
+.paypal-calc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.paypal-block {
+  display: grid;
+  gap: 14px;
+  padding: clamp(20px, 4vw, 30px);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 32px rgba(16, 36, 51, 0.05);
+}
+
+.paypal-block h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.paypal-block-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.paypal-output {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.paypal-output span {
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.paypal-output strong {
+  color: var(--navy);
+  font-size: 1.25rem;
+  white-space: nowrap;
+}
+
+.payoneer-card-result {
+  display: grid;
+  gap: 16px;
+  padding: clamp(20px, 4vw, 34px);
+  background:
+    linear-gradient(180deg, rgba(237, 245, 255, 0.76), rgba(255, 255, 255, 0.98)),
+    #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.payoneer-results {
+  display: grid;
+  gap: 10px;
+}
+
+.payoneer-results > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 54px;
+  padding: 13px 15px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.payoneer-results span {
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.payoneer-results strong {
+  color: var(--navy);
+  font-size: 1.12rem;
+  white-space: nowrap;
+}
+
+.payoneer-remaining {
+  background: var(--navy) !important;
+  border-color: var(--navy) !important;
+}
+
+.payoneer-remaining span,
+.payoneer-remaining strong {
+  color: #ffffff !important;
+}
+
+.payoneer-remaining strong {
+  font-size: clamp(1.3rem, 3vw, 1.8rem) !important;
+}
+
+.payoneer-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.payoneer-note.warning {
+  color: #a9441f;
+  font-weight: 850;
+}
+
+@media (max-width: 920px) {
+  .paypal-calc-grid {
+    grid-template-columns: 1fr;
+  }
+}

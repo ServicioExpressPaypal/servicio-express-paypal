@@ -260,6 +260,104 @@
           </button>
         </div>
       </section>
+
+      <section class="paypal-calc-section" id="calculadora-paypal">
+        <div class="section-heading">
+          <p class="eyebrow">Calculadora general</p>
+          <h2>Calculadora PayPal</h2>
+        </div>
+        <p class="paypal-calc-intro">
+          Comisión estándar de PayPal: <strong>5.4% + $0.30 fijos</strong>. Úsala para saber cuánto enviar para que llegue un neto, o cuánto descuenta PayPal de un envío.
+        </p>
+        <div class="paypal-calc-grid">
+          <article class="paypal-block">
+            <h3>PayPal para Recibir</h3>
+            <p class="paypal-block-desc">Calcula cuánto hay que enviar para que el destinatario reciba un neto definido.</p>
+            <label>
+              Para recibir
+              <input
+                id="ppReceiveNet"
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                placeholder="Ejemplo: 100"
+              />
+            </label>
+            <div class="paypal-output">
+              <span>Hay que enviar</span>
+              <strong id="ppReceiveGross">$0.00</strong>
+            </div>
+            <div class="paypal-output">
+              <span>La comisión es de</span>
+              <strong id="ppReceiveFee">$0.00</strong>
+            </div>
+          </article>
+          <article class="paypal-block">
+            <h3>PayPal para Enviar</h3>
+            <p class="paypal-block-desc">Calcula cuánto descuenta PayPal y cuánto llega realmente al otro lado.</p>
+            <label>
+              Si se envían
+              <input
+                id="ppSendGross"
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                placeholder="Ejemplo: 100"
+              />
+            </label>
+            <div class="paypal-output">
+              <span>La comisión es de</span>
+              <strong id="ppSendFee">$0.00</strong>
+            </div>
+            <div class="paypal-output">
+              <span>Se reciben</span>
+              <strong id="ppSendNet">$0.00</strong>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="payoneer-calc-section" id="calculadora-payoneer">
+        <div class="section-heading">
+          <p class="eyebrow">Calculadora Payoneer</p>
+          <h2>Retiro real en cajero de Nicaragua</h2>
+        </div>
+        <p class="payoneer-calc-intro">
+          Comisión Payoneer por retiro en cajero: <strong>$3.15 fijo + 1.8% del monto</strong>. En Nicaragua los cajeros dispensan en denominaciones de $20, así que el retiro real siempre se redondea hacia abajo al múltiplo de 20 más cercano.
+        </p>
+        <article class="payoneer-card-result">
+          <label>
+            Monto disponible en la tarjeta
+            <input
+              id="poBalance"
+              type="number"
+              min="0"
+              step="0.01"
+              inputmode="decimal"
+              placeholder="Ejemplo: 200"
+            />
+          </label>
+          <div class="payoneer-results" aria-live="polite">
+            <div>
+              <span>Puedes retirar (cajero)</span>
+              <strong id="poWithdraw">$0.00</strong>
+            </div>
+            <div>
+              <span>Comisión Payoneer</span>
+              <strong id="poFee">$0.00</strong>
+            </div>
+            <div class="payoneer-remaining">
+              <span>Queda en la tarjeta</span>
+              <strong id="poRemaining">$0.00</strong>
+            </div>
+          </div>
+          <p class="payoneer-note" id="poNote">
+            Los cajeros en Nicaragua dispensan en múltiplos de $20.
+          </p>
+        </article>
+      </section>
     </main>
 
     <footer class="site-footer">
