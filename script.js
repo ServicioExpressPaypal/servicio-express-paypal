@@ -346,6 +346,11 @@ function calcPayoneer() {
     return;
   }
 
+  // Payoneer redondea la comision variable al centavo antes de sumarla.
+  function payoneerFeeFor(w) {
+    return c.atmFixedFee + Math.round(c.atmPercentFee * w * 100) / 100;
+  }
+
   if (direction === "reverse") {
     // Reverse: input = monto deseado en efectivo. Redondea al multiplo de la denominacion.
     const withdraw = Math.max(0, Math.floor(inputAmount / c.atmDenomination) * c.atmDenomination);
@@ -360,7 +365,7 @@ function calcPayoneer() {
       return;
     }
 
-    const payoneerFee = c.atmFixedFee + c.atmPercentFee * withdraw;
+    const payoneerFee = payoneerFeeFor(withdraw);
     const requiredBalance = withdraw + payoneerFee + c.atmOperatorFee;
     const bills = withdraw / c.atmDenomination;
 
@@ -385,6 +390,12 @@ function calcPayoneer() {
   let withdraw = Math.floor(maxRaw / c.atmDenomination) * c.atmDenomination;
   if (!Number.isFinite(withdraw) || withdraw < 0) withdraw = 0;
 
+  // Por el redondeo a centavos de la comision variable, a veces alcanza para una denominacion mas.
+  const tryHigher = withdraw + c.atmDenomination;
+  if (tryHigher + payoneerFeeFor(tryHigher) + c.atmOperatorFee <= balance + 0.0001) {
+    withdraw = tryHigher;
+  }
+
   if (withdraw === 0) {
     const minNeeded = c.atmDenomination + fixedTotal + c.atmPercentFee * c.atmDenomination;
     withdrawOutput.textContent = money(0);
@@ -396,7 +407,7 @@ function calcPayoneer() {
     return;
   }
 
-  const payoneerFee = c.atmFixedFee + c.atmPercentFee * withdraw;
+  const payoneerFee = payoneerFeeFor(withdraw);
   const remaining = balance - withdraw - payoneerFee - c.atmOperatorFee;
   const bills = withdraw / c.atmDenomination;
 
