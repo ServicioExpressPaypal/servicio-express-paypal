@@ -17,7 +17,9 @@ const siteConfig = {
       rate: 0.05,
       feeModel: "atm",
       deliveryLabel: "Comisión por procesamiento",
-      minAmount: 50,
+      // Debajo de $150 el 5% de servicio no cubre los costos reales del retiro ATM
+      // ($9.15 fijo de fee Payoneer + cajero); el punto de equilibrio real esta en ~$146.
+      minAmount: 150,
       maxAmount: 500,
       deliveryTime: "menos de 24 horas",
     },
@@ -120,7 +122,7 @@ function getCalcDirection() {
 function computeFees(mode, gross) {
   const paypal = gross * siteConfig.paypalPercentFee + siteConfig.paypalFixedFee;
   const delivery = deliveryFee(mode, gross);
-  const service = gross * mode.rate;
+  const service = Math.max(gross * mode.rate, 5);
   const total = paypal + delivery + service;
   const net = Math.max(0, gross - total);
   return { paypal, delivery, service, total, net };
