@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Tema claro/oscuro: se aplica antes del render para evitar parpadeo -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {}
+      })();
+    </script>
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-DJJFBY99JX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-DJJFBY99JX');
+    </script>
+
+    <meta
+      name="description"
+      content="Aviso legal y términos del servicio de Saldo Express Nicaragua. Servicio de cambio independiente, no afiliado a PayPal Inc."
+    />
+    <title>Aviso Legal | Saldo Express Nicaragua</title>
+    <link rel="canonical" href="https://saldoexpressnicaragua.com/aviso-legal.html" />
+    <link rel="stylesheet" href="styles.css?v=5" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Saldo Express Nicaragua">
+        <img class="brand-mark" src="assets/logo-saldo-express.png" alt="Saldo Express Nicaragua" />
+        <span>
+          <strong>Saldo Express</strong>
+          <small>Nicaragua</small>
+        </span>
+      </a>
+
+      <nav class="nav-links" aria-label="Navegación principal">
+        <a href="/#servicio">Servicio</a>
+        <a href="/#proceso">Proceso</a>
+        <a href="/#calculadora">Calculadora</a>
+      </nav>
+
+      <div class="header-right">
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="Cambiar entre tema claro y oscuro">
+          <span class="icon-moon"><i data-lucide="moon" aria-hidden="true"></i></span>
+          <span class="icon-sun"><i data-lucide="sun" aria-hidden="true"></i></span>
+        </button>
+        <a class="header-action" data-whatsapp href="#">
+          <i data-lucide="message-circle" aria-hidden="true"></i>
+          Cotizar
+        </a>
+      </div>
+    </header>
+
+    <main class="legal-wrap">
+      <p class="eyebrow">Información legal</p>
+      <h1>Aviso Legal y Términos del Servicio</h1>
+      <p class="legal-updated">Última actualización: 24 de mayo de 2026</p>
+
+      <h2>1. Identificación y naturaleza del servicio</h2>
+      <p>
+        Saldo Express Nicaragua ("Saldo Express", "nosotros") es un servicio independiente de
+        cambio de saldo digital. Operamos en Nicaragua facilitando la conversión de saldo de
+        plataformas digitales a efectivo o transferencia bancaria local, en córdobas o dólares.
+      </p>
+
+      <h2>2. Independencia y marcas registradas</h2>
+      <p>
+        Saldo Express es un servicio de cambio independiente. <strong>No estamos afiliados,
+        patrocinados, respaldados ni asociados oficialmente con PayPal Inc., Payoneer Inc. ni con
+        ninguna entidad bancaria.</strong> No brindamos soporte técnico oficial de cuentas
+        (bloqueos, contraseñas, reclamos o disputas). "PayPal", "Payoneer" y los nombres de los
+        bancos mencionados son marcas registradas de sus respectivos dueños y se utilizan
+        únicamente con fines descriptivos.
+      </p>
+
+      <h2>3. Cotizaciones, tasas y comisiones</h2>
+      <ul>
+        <li>Los montos mostrados en las calculadoras de este sitio son <strong>estimados informativos</strong> y no constituyen una oferta vinculante.</li>
+        <li>El monto neto final, la comisión y la tasa de cambio se confirman por WhatsApp <strong>antes</strong> de realizar cualquier transacción.</li>
+        <li>Las tasas y comisiones pueden variar según el monto, el método de entrega y las condiciones del mercado.</li>
+      </ul>
+
+      <h2>4. Prevención de fraude y verificación</h2>
+      <p>Por seguridad de ambas partes:</p>
+      <ul>
+        <li>Solo realizamos transferencias a cuentas bancarias cuyo titular coincida con el titular de la cuenta emisora del saldo.</li>
+        <li>Podemos solicitar información o comprobantes para validar la legitimidad de la operación.</li>
+        <li>Nos reservamos el derecho de rechazar cualquier transacción que consideremos sospechosa o que incumpla estos términos.</li>
+      </ul>
+
+      <h2>5. Limitación de responsabilidad</h2>
+      <p>Saldo Express no se hace responsable por:</p>
+      <ul>
+        <li>Retenciones, bloqueos o decisiones tomadas por PayPal, Payoneer, bancos u otros terceros sobre las cuentas de los usuarios.</li>
+        <li>Demoras ajenas a nuestro control (tiempos bancarios, mantenimiento de plataformas, etc.).</li>
+        <li>El uso indebido del servicio por parte del usuario o el incumplimiento de los términos aquí descritos.</li>
+      </ul>
+
+      <h2>6. Privacidad y datos</h2>
+      <p>
+        Para prestar el servicio podemos recibir y tratar los datos que el usuario nos proporcione
+        de forma voluntaria (nombre, datos bancarios, correo de la plataforma y contacto de
+        WhatsApp), utilizados únicamente para procesar su transacción. No vendemos ni compartimos
+        estos datos con terceros, salvo lo estrictamente necesario para completar la operación o
+        por requerimiento legal.
+      </p>
+      <p>
+        Este sitio utiliza <strong>Google Analytics</strong> para medir el tráfico de forma
+        agregada, lo que implica el uso de cookies. Puedes desactivar las cookies desde la
+        configuración de tu navegador.
+      </p>
+
+      <h2>7. Aceptación</h2>
+      <p>
+        Al utilizar nuestro servicio, el usuario declara haber leído y aceptado este aviso legal y
+        los términos aquí descritos.
+      </p>
+
+      <h2>8. Contacto</h2>
+      <p>
+        WhatsApp: <strong>+505 8619 9889</strong><br />
+        Sitio web: <strong>saldoexpressnicaragua.com</strong>
+      </p>
+
+      <a class="legal-back" href="/">
+        <i data-lucide="arrow-left" aria-hidden="true"></i>
+        Volver al inicio
+      </a>
+    </main>
+
+    <footer class="site-footer">
+      <p>© 2026 Saldo Express Nicaragua. Servicio de cambio independiente, no afiliado, patrocinado ni asociado con PayPal Inc. Todas las marcas registradas pertenecen a sus respectivos dueños.</p>
+      <p>Bancos: BAC · Banpro · Lafise · BDF · Ficohsa · Nicaragua</p>
+    </footer>
+
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="script.js?v=3"></script>
+  </body>
+</html>
