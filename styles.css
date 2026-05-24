@@ -225,13 +225,6 @@ a {
   text-align: center;
 }
 
-.hero-logo {
-  width: clamp(170px, 28vw, 250px);
-  height: auto;
-  margin: 0 auto 6px;
-  border-radius: 18px;
-}
-
 .hero h1 {
   margin: 0 auto;
 }
@@ -593,6 +586,13 @@ h3 {
 .calculator-note.warning {
   color: #a9441f;
   font-weight: 850;
+}
+
+.calc-fineprint {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 .reverse-calc {
