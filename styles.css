@@ -1,17 +1,19 @@
 :root {
-  --ink: #061b44;
-  --muted: #536985;
-  --line: #d7e2f1;
-  --paper: #f7fbff;
-  --soft: #edf5ff;
+  /* Paleta Saldo Express: naranja energético + gris pizarra / carbón.
+     Se conservan los nombres de variables; los valores son la nueva marca. */
+  --ink: #15181c; /* carbon: titulos y texto oscuro */
+  --muted: #5b6675; /* gris pizarra: texto secundario */
+  --line: #e4e7ec; /* borde claro neutro */
+  --paper: #f7f8fa; /* fondo claro neutro */
+  --soft: #fff3ea; /* tinte naranja suave */
   --field: #ffffff;
-  --navy: #001846;
-  --navy-2: #002567;
-  --blue: #005fe8;
-  --blue-2: #0c82ff;
-  --cyan: #12b6ea;
+  --navy: #15181c; /* (carbon) fondos oscuros */
+  --navy-2: #20262e; /* (carbon claro) gradientes */
+  --blue: #f26c1f; /* (naranja) acento primario / CTAs */
+  --blue-2: #ff8a3d; /* (naranja claro) */
+  --cyan: #ff8a3d; /* (naranja claro) gradientes / acentos */
   --whatsapp: #22c55e;
-  --shadow: 0 24px 70px rgba(0, 24, 70, 0.18);
+  --shadow: 0 24px 70px rgba(20, 24, 29, 0.2);
 }
 
 * {
@@ -113,12 +115,12 @@ a {
 .button.primary {
   color: #ffffff;
   background: linear-gradient(135deg, var(--blue), var(--cyan));
-  box-shadow: 0 12px 28px rgba(0, 95, 232, 0.24);
+  box-shadow: 0 12px 28px rgba(242, 108, 31, 0.3);
 }
 
 .button.secondary {
   color: #ffffff;
-  background: rgba(0, 24, 70, 0.78);
+  background: rgba(21, 24, 28, 0.55);
   border-color: rgba(255, 255, 255, 0.42);
 }
 
@@ -139,33 +141,47 @@ a {
 
 .hero {
   position: relative;
-  min-height: auto;
   overflow: hidden;
-  display: block;
-  padding: 0;
-  background: var(--navy);
-}
-
-.hero-image {
-  position: relative;
-  width: 100%;
-  height: auto;
-  object-fit: contain;
-  object-position: center;
-  background: #ffffff;
-}
-
-.hero-overlay {
-  display: none;
+  padding: clamp(40px, 7vw, 88px) clamp(18px, 4vw, 56px) clamp(48px, 8vw, 96px);
+  background:
+    radial-gradient(circle at 82% 0%, rgba(242, 108, 31, 0.22), transparent 46%),
+    linear-gradient(135deg, #15181c, #20262e);
+  color: #ffffff;
 }
 
 .hero-content {
   position: relative;
   z-index: 1;
-  width: min(1180px, calc(100% - 36px));
+  width: min(820px, 100%);
   margin: 0 auto;
-  padding: clamp(28px, 5vw, 46px) 0 clamp(34px, 6vw, 58px);
-  color: #ffffff;
+  text-align: center;
+}
+
+.hero-logo {
+  width: clamp(170px, 28vw, 250px);
+  height: auto;
+  margin: 0 auto 6px;
+  border-radius: 18px;
+}
+
+.hero h1 {
+  margin: 0 auto;
+}
+
+.hero .hero-copy {
+  margin: 22px auto 0;
+}
+
+.hero .hero-actions {
+  justify-content: center;
+}
+
+.hero-disclaimer {
+  margin: 24px auto 0;
+  max-width: 560px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 .eyebrow {
@@ -178,7 +194,7 @@ a {
 }
 
 .hero .eyebrow {
-  color: #dff3ff;
+  color: var(--orange-2, #ff8a3d);
 }
 
 h1,
@@ -337,8 +353,8 @@ h3 {
   min-height: 480px;
   object-fit: contain;
   background:
-    radial-gradient(circle at 36% 30%, rgba(18, 182, 234, 0.18), transparent 32%),
-    linear-gradient(135deg, #ffffff, #eef6ff);
+    radial-gradient(circle at 64% 28%, rgba(242, 108, 31, 0.22), transparent 38%),
+    linear-gradient(135deg, #15181c, #20262e);
   border-radius: 8px;
   box-shadow: var(--shadow);
   padding: clamp(18px, 4vw, 48px);
@@ -599,11 +615,13 @@ textarea:focus {
 
 .site-footer {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 8px;
   padding: 28px clamp(18px, 4vw, 56px);
-  color: #dce7e5;
+  color: #c3ccd6;
   background: var(--navy);
+  font-size: 0.9rem;
+  line-height: 1.6;
 }
 
 .site-footer p {
