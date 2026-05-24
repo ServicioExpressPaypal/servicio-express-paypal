@@ -1,19 +1,41 @@
 :root {
-  /* Paleta Saldo Express: naranja energético + gris pizarra / carbón.
-     Se conservan los nombres de variables; los valores son la nueva marca. */
-  --ink: #15181c; /* carbon: titulos y texto oscuro */
-  --muted: #5b6675; /* gris pizarra: texto secundario */
-  --line: #e4e7ec; /* borde claro neutro */
-  --paper: #f7f8fa; /* fondo claro neutro */
-  --soft: #fff3ea; /* tinte naranja suave */
+  /* Paleta Saldo Express (tema claro): naranja energético + gris pizarra / carbón. */
+  color-scheme: light;
+  --ink: #15181c;
+  --muted: #5b6675;
+  --line: #e4e7ec;
+  --paper: #f7f8fa;
+  --soft: #fff3ea;
   --field: #ffffff;
-  --navy: #15181c; /* (carbon) fondos oscuros */
-  --navy-2: #20262e; /* (carbon claro) gradientes */
-  --blue: #f26c1f; /* (naranja) acento primario / CTAs */
-  --blue-2: #ff8a3d; /* (naranja claro) */
-  --cyan: #ff8a3d; /* (naranja claro) gradientes / acentos */
+  --surface: #ffffff; /* tarjetas y paneles */
+  --surface-tint: #eef2f7; /* tinte superior de tarjetas con gradiente */
+  --header-bg: rgba(251, 252, 251, 0.92);
+  --header-border: rgba(219, 228, 231, 0.9);
+  --navy: #15181c; /* fondos oscuros de acento */
+  --navy-2: #20262e;
+  --blue: #f26c1f; /* naranja: acento primario / CTAs */
+  --blue-2: #ff8a3d;
+  --cyan: #ff8a3d;
   --whatsapp: #22c55e;
   --shadow: 0 24px 70px rgba(20, 24, 29, 0.2);
+}
+
+:root[data-theme="dark"] {
+  /* Tema oscuro: el naranja se mantiene, las superficies se invierten. */
+  color-scheme: dark;
+  --ink: #eef1f4;
+  --muted: #9aa6b2;
+  --line: #2b323b;
+  --paper: #0f1216;
+  --soft: #241a12;
+  --field: #1a1f26;
+  --surface: #181d23;
+  --surface-tint: #20262e;
+  --header-bg: rgba(15, 18, 22, 0.9);
+  --header-border: rgba(255, 255, 255, 0.08);
+  --navy: #1f262e;
+  --navy-2: #283039;
+  --shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
 }
 
 * {
@@ -51,8 +73,8 @@ a {
   gap: 20px;
   min-height: 76px;
   padding: 14px clamp(18px, 4vw, 56px);
-  background: rgba(251, 252, 251, 0.92);
-  border-bottom: 1px solid rgba(219, 228, 231, 0.9);
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--header-border);
   backdrop-filter: blur(14px);
 }
 
@@ -95,6 +117,52 @@ a {
 
 .nav-links a:hover {
   color: var(--ink);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  color: var(--blue);
+  border-color: var(--blue);
+}
+
+.theme-toggle span {
+  display: inline-flex;
+}
+
+.theme-toggle svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 2.2;
+}
+
+.theme-toggle .icon-sun {
+  display: none;
+}
+
+:root[data-theme="dark"] .theme-toggle .icon-sun {
+  display: inline-flex;
+}
+
+:root[data-theme="dark"] .theme-toggle .icon-moon {
+  display: none;
 }
 
 .header-action,
@@ -254,7 +322,7 @@ h3 {
   gap: 12px;
   min-height: 82px;
   padding: 20px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--blue);
   font-weight: 850;
 }
@@ -280,7 +348,7 @@ h3 {
 .service-card {
   min-height: 230px;
   padding: 26px;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: 0 10px 32px rgba(16, 36, 51, 0.05);
@@ -366,8 +434,8 @@ h3 {
   right: 24px;
   bottom: 24px;
   padding: 20px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(219, 228, 231, 0.9);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 8px;
   backdrop-filter: blur(12px);
 }
@@ -451,8 +519,8 @@ h3 {
   gap: 16px;
   padding: clamp(20px, 4vw, 34px);
   background:
-    linear-gradient(180deg, rgba(237, 245, 255, 0.76), rgba(255, 255, 255, 0.98)),
-    #ffffff;
+    linear-gradient(180deg, var(--surface-tint), var(--surface)),
+    var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
@@ -489,13 +557,13 @@ h3 {
   gap: 16px;
   min-height: 54px;
   padding: 13px 15px;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
 
 .calculator-results strong {
-  color: var(--navy);
+  color: var(--ink);
   font-size: 1.12rem;
   white-space: nowrap;
 }
@@ -549,7 +617,7 @@ h3 {
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
@@ -723,7 +791,7 @@ textarea:focus {
   display: grid;
   gap: 14px;
   padding: clamp(20px, 4vw, 30px);
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: 0 10px 32px rgba(16, 36, 51, 0.05);
@@ -747,7 +815,7 @@ textarea:focus {
   justify-content: space-between;
   gap: 16px;
   padding: 12px 14px;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
@@ -759,7 +827,7 @@ textarea:focus {
 }
 
 .paypal-output strong {
-  color: var(--navy);
+  color: var(--ink);
   font-size: 1.25rem;
   white-space: nowrap;
 }
@@ -769,8 +837,8 @@ textarea:focus {
   gap: 16px;
   padding: clamp(20px, 4vw, 34px);
   background:
-    linear-gradient(180deg, rgba(237, 245, 255, 0.76), rgba(255, 255, 255, 0.98)),
-    #ffffff;
+    linear-gradient(180deg, var(--surface-tint), var(--surface)),
+    var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
@@ -788,7 +856,7 @@ textarea:focus {
   gap: 16px;
   min-height: 54px;
   padding: 13px 15px;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
@@ -800,7 +868,7 @@ textarea:focus {
 }
 
 .payoneer-results strong {
-  color: var(--navy);
+  color: var(--ink);
   font-size: 1.12rem;
   white-space: nowrap;
 }

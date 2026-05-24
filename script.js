@@ -430,10 +430,24 @@ function wirePayoneerCalc() {
   calcPayoneer();
 }
 
+function wireThemeToggle() {
+  const btn = document.querySelector("#themeToggle");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    const root = document.documentElement;
+    const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try {
+      localStorage.setItem("theme", next);
+    } catch (e) {}
+  });
+}
+
 setActionLinks();
 wireCalculator();
 wirePaypalCalc();
 wirePayoneerCalc();
+wireThemeToggle();
 
 if (window.lucide) {
   window.lucide.createIcons();

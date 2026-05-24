@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!-- Tema claro/oscuro: se aplica antes del render para evitar parpadeo -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-DJJFBY99JX"></script>
     <script>
@@ -34,7 +47,7 @@
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css?v=3" />
+    <link rel="stylesheet" href="styles.css?v=4" />
   </head>
   <body>
     <header class="site-header">
@@ -58,10 +71,16 @@
         <a href="#calculadora-payoneer">Calculadora Payoneer</a>
       </nav>
 
-      <a class="header-action" data-whatsapp href="#">
-        <i data-lucide="message-circle" aria-hidden="true"></i>
-        Cotizar
-      </a>
+      <div class="header-right">
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="Cambiar entre tema claro y oscuro">
+          <span class="icon-moon"><i data-lucide="moon" aria-hidden="true"></i></span>
+          <span class="icon-sun"><i data-lucide="sun" aria-hidden="true"></i></span>
+        </button>
+        <a class="header-action" data-whatsapp href="#">
+          <i data-lucide="message-circle" aria-hidden="true"></i>
+          Cotizar
+        </a>
+      </div>
     </header>
 
     <main id="inicio">
@@ -394,6 +413,6 @@
     </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js?v=2"></script>
+    <script src="script.js?v=3"></script>
   </body>
 </html>
