@@ -12,7 +12,7 @@ const siteConfig = {
   serviceModes: {
     express: {
       label: "Servicio express",
-      rate: 0.05,
+      rate: 0.03,
       feeModel: "atm",
       deliveryLabel: "Comisión por procesamiento",
       minAmount: 50,
@@ -148,7 +148,7 @@ function calculateExchange() {
       direction === "reverse" ? "Debes enviar por PayPal" : "Recibirías aproximadamente";
   }
   deliveryFeeLabel.textContent = mode.deliveryLabel;
-  serviceFeeLabel.textContent = `${mode.label} ${formatRate(mode.rate)}`;
+  serviceFeeLabel.textContent = mode.label;
 
   // En modo forward limitamos el input al rango de la modalidad.
   // En modo reverse el input es el neto deseado: dejamos el rango abierto y validamos via JS.
