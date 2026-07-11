@@ -257,7 +257,7 @@ function wireCalculator() {
 const payoneerCalcConfig = {
   atmFixedFee: 3.15, // comision fija Payoneer
   atmPercentFee: 0.01855, // 1.855% del monto Payoneer
-  atmOperatorFee: 6, // cargo del cajero en Nicaragua por uso de tarjeta extranjera
+  atmOperatorFee: 7, // cargo del cajero en Nicaragua por uso de tarjeta extranjera
   atmDenomination: 20,
 };
 
