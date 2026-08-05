@@ -54,7 +54,7 @@
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body>
     <header class="site-header">
@@ -73,6 +73,7 @@
       <nav class="nav-links" aria-label="Navegación principal">
         <a href="#servicio">Servicio</a>
         <a href="#proceso">Proceso</a>
+        <a href="#tarifas">Tarifas</a>
         <a href="#calculadora">Calculadora</a>
         <a href="#calculadora-paypal">Calculadora PayPal</a>
         <a href="#calculadora-payoneer">Calculadora Payoneer</a>
@@ -215,6 +216,144 @@
         </article>
       </section>
 
+      <section class="quote-table-section" id="tarifas">
+        <div class="section-heading quote-table-heading">
+          <div>
+            <p class="eyebrow">Cotización rápida</p>
+            <h2>Mira cuánto recibirías</h2>
+          </div>
+          <p>
+            Montos netos estimados después de las comisiones. Elige la modalidad que
+            corresponde a tu saldo PayPal y consulta el detalle final por WhatsApp.
+          </p>
+        </div>
+
+        <div class="quote-table-grid">
+          <article class="quote-plan quote-plan-featured">
+            <header class="quote-plan-header">
+              <div class="quote-plan-icon" aria-hidden="true">
+                <i data-lucide="zap"></i>
+              </div>
+              <div>
+                <span class="quote-plan-range">De $50 a $500</span>
+                <h3>Servicio express</h3>
+                <p>Recibe tu pago en menos de 24 horas.</p>
+              </div>
+            </header>
+
+            <div class="quote-table-wrap">
+              <table class="quote-table">
+                <caption class="sr-only">Estimados del servicio express</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Saldo PayPal</th>
+                    <th scope="col">Recibes aproximadamente</th>
+                  </tr>
+                </thead>
+                <tbody data-quote-table="express">
+                  <tr data-amount="50">
+                    <th scope="row">$50.00</th>
+                    <td data-quote-net>$44.00</td>
+                  </tr>
+                  <tr data-amount="100">
+                    <th scope="row">$100.00</th>
+                    <td data-quote-net>$88.30</td>
+                  </tr>
+                  <tr data-amount="200">
+                    <th scope="row">$200.00</th>
+                    <td data-quote-net>$176.90</td>
+                  </tr>
+                  <tr data-amount="300">
+                    <th scope="row">$300.00</th>
+                    <td data-quote-net>$265.50</td>
+                  </tr>
+                  <tr data-amount="400">
+                    <th scope="row">$400.00</th>
+                    <td data-quote-net>$355.65</td>
+                  </tr>
+                  <tr data-amount="500">
+                    <th scope="row">$500.00</th>
+                    <td data-quote-net>$447.25</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <a
+              class="button primary quote-plan-action"
+              data-whatsapp
+              data-whatsapp-message="Hola, vi la tabla del servicio express y quiero cotizar mi saldo PayPal."
+              href="#"
+            >
+              <i data-lucide="message-circle" aria-hidden="true"></i>
+              Cotizar servicio express
+            </a>
+          </article>
+
+          <article class="quote-plan">
+            <header class="quote-plan-header">
+              <div class="quote-plan-icon" aria-hidden="true">
+                <i data-lucide="landmark"></i>
+              </div>
+              <div>
+                <span class="quote-plan-range">Más de $500 hasta $3,000</span>
+                <h3>Transferencia internacional</h3>
+                <p>Para montos mayores, de 2 a 6 días hábiles.</p>
+              </div>
+            </header>
+
+            <div class="quote-table-wrap">
+              <table class="quote-table">
+                <caption class="sr-only">Estimados por transferencia internacional</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Saldo PayPal</th>
+                    <th scope="col">Recibes aproximadamente</th>
+                  </tr>
+                </thead>
+                <tbody data-quote-table="international">
+                  <tr data-amount="600">
+                    <th scope="row">$600.00</th>
+                    <td data-quote-net>$546.93</td>
+                  </tr>
+                  <tr data-amount="1000">
+                    <th scope="row">$1,000.00</th>
+                    <td data-quote-net>$916.69</td>
+                  </tr>
+                  <tr data-amount="1500">
+                    <th scope="row">$1,500.00</th>
+                    <td data-quote-net>$1,378.89</td>
+                  </tr>
+                  <tr data-amount="2000">
+                    <th scope="row">$2,000.00</th>
+                    <td data-quote-net>$1,841.09</td>
+                  </tr>
+                  <tr data-amount="3000">
+                    <th scope="row">$3,000.00</th>
+                    <td data-quote-net>$2,765.49</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <a
+              class="button primary quote-plan-action"
+              data-whatsapp
+              data-whatsapp-message="Hola, vi la tabla de transferencia internacional y quiero cotizar un monto mayor de saldo PayPal."
+              href="#"
+            >
+              <i data-lucide="message-circle" aria-hidden="true"></i>
+              Cotizar monto mayor
+            </a>
+          </article>
+        </div>
+
+        <p class="quote-table-note">
+          Los valores son estimados en USD. El monto neto exacto, el tipo de cambio a
+          córdobas y cualquier comisión interbancaria se confirman antes de realizar la operación.
+        </p>
+      </section>
+
       <section class="calculator-section" id="calculadora">
         <div class="calculator-copy">
           <p class="eyebrow">Calcula tu estimado</p>
@@ -226,7 +365,7 @@
           <ul class="requirement-list">
             <li>Cuenta PayPal verificada.</li>
             <li>Express: $50 a $500, menos de 24 horas.</li>
-            <li>Internacional: $500 a $3,000, 2 a 6 días hábiles.</li>
+            <li>Internacional: más de $500 a $3,000, 2 a 6 días hábiles.</li>
           </ul>
           <p class="calc-fineprint">
             Nota: las comisiones por transferencia interbancaria entre bancos locales las asume el cliente.
@@ -419,6 +558,6 @@
     </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js?v=4"></script>
+    <script src="script.js?v=5"></script>
   </body>
 </html>

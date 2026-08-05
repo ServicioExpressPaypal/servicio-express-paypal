@@ -322,7 +322,8 @@ h3 {
 
 .section,
 .split-section,
-.calculator-section {
+.calculator-section,
+.quote-table-section {
   width: min(1180px, calc(100% - 36px));
   margin: 0 auto;
   padding: clamp(58px, 8vw, 100px) 0;
@@ -467,6 +468,162 @@ h3 {
 .trust-band p {
   color: #b7cbd1;
   margin-bottom: 0;
+}
+
+.quote-table-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+  gap: clamp(24px, 5vw, 64px);
+  align-items: end;
+}
+
+.quote-table-heading > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.04rem;
+  line-height: 1.7;
+}
+
+.quote-table-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.quote-plan {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: clamp(20px, 4vw, 30px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(16, 36, 51, 0.06);
+}
+
+.quote-plan-featured {
+  border-color: rgba(242, 108, 31, 0.55);
+  box-shadow: 0 18px 48px rgba(242, 108, 31, 0.13);
+}
+
+.quote-plan-header {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 22px;
+}
+
+.quote-plan-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--navy), var(--blue));
+  border-radius: 8px;
+}
+
+.quote-plan-icon svg {
+  width: 23px;
+  height: 23px;
+}
+
+.quote-plan-range {
+  display: inline-flex;
+  margin-bottom: 5px;
+  color: var(--blue);
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.quote-plan h3 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.5vw, 1.55rem);
+}
+
+.quote-plan-header p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.quote-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.quote-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.quote-table th,
+.quote-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.quote-table thead th {
+  color: var(--muted);
+  background: var(--surface-tint);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.quote-table thead th:first-child,
+.quote-table tbody th {
+  text-align: left;
+}
+
+.quote-table thead th:last-child,
+.quote-table tbody td {
+  text-align: right;
+}
+
+.quote-table tbody th {
+  color: var(--ink);
+  font-weight: 850;
+}
+
+.quote-table tbody td {
+  color: var(--blue);
+  font-size: 1.08rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.quote-table tbody tr:last-child th,
+.quote-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.quote-plan-action {
+  width: 100%;
+  margin-top: auto;
+}
+
+.quote-table-note {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .calculator-section {
@@ -760,12 +917,20 @@ textarea:focus {
   .service-grid,
   .split-section,
   .trust-band,
-  .calculator-section {
+  .calculator-section,
+  .quote-table-grid,
+  .quote-table-heading {
     grid-template-columns: 1fr;
   }
 
   .service-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .nav-links {
+    display: none;
   }
 }
 

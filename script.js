@@ -24,7 +24,7 @@ const siteConfig = {
       rate: 0.02,
       feeModel: "wise",
       deliveryLabel: "Costo de envío internacional",
-      minAmount: 500,
+      minAmount: 500.01,
       maxAmount: 3000,
       deliveryTime: "2 a 6 días hábiles",
     },
@@ -91,9 +91,9 @@ function deliveryFee(mode, amount) {
 }
 
 function setActionLinks() {
-  const whatsappUrl = `${whatsappBase}?text=${encodeURIComponent(siteConfig.defaultMessage)}`;
-
   document.querySelectorAll("[data-whatsapp]").forEach((link) => {
+    const message = link.dataset.whatsappMessage || siteConfig.defaultMessage;
+    const whatsappUrl = `${whatsappBase}?text=${encodeURIComponent(message)}`;
     link.href = whatsappUrl;
     link.target = "_blank";
     link.rel = "noopener";
@@ -118,6 +118,22 @@ function computeFees(mode, gross) {
   const total = paypal + delivery + service;
   const net = Math.max(0, gross - total);
   return { paypal, delivery, service, total, net };
+}
+
+function renderQuickQuoteTables() {
+  document.querySelectorAll("[data-quote-table]").forEach((tableBody) => {
+    const mode = siteConfig.serviceModes[tableBody.dataset.quoteTable];
+    if (!mode) return;
+
+    tableBody.querySelectorAll("[data-amount]").forEach((row) => {
+      const amount = Number.parseFloat(row.dataset.amount);
+      const netCell = row.querySelector("[data-quote-net]");
+      if (!Number.isFinite(amount) || amount <= 0 || !netCell) return;
+
+      const fees = computeFees(mode, amount);
+      netCell.textContent = money(fees.net);
+    });
+  });
 }
 
 function calculateExchange() {
@@ -444,6 +460,7 @@ function wireThemeToggle() {
 }
 
 setActionLinks();
+renderQuickQuoteTables();
 wireCalculator();
 wirePaypalCalc();
 wirePayoneerCalc();
