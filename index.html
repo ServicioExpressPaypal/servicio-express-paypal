@@ -35,28 +35,28 @@
     ></script>
     <meta
       name="description"
-      content="¿Tienes saldo en PayPal y necesitas efectivo en Nicaragua? En Saldo Express cambiamos tu saldo PayPal a córdobas o dólares y te transferimos a BAC, Banpro, Lafise, BDF o Ficohsa. Rápido, seguro y con comisión transparente. Servicio independiente, no afiliado a PayPal Inc."
+      content="Calculadoras gratuitas para estimar comisiones de PayPal, escenarios de monto neto y retiros Payoneer en cajeros de Nicaragua."
     />
-    <title>Saldo Express Nicaragua | Cambiar Saldo PayPal a Efectivo</title>
+    <title>Calculadoras PayPal y Payoneer Nicaragua | Saldo Express Nicaragua</title>
     <meta name="google-site-verification" content="IU5kX58Ab8iUFS7wdxvx37GROEwxKRrHE7p4I_E3Ytk" />
     <link rel="canonical" href="https://saldoexpressnicaragua.com/" />
 
-    <!-- Open Graph (Facebook / WhatsApp) -->
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://saldoexpressnicaragua.com/" />
-    <meta property="og:title" content="Saldo Express Nicaragua | Cambiar Saldo PayPal a Efectivo" />
+    <meta property="og:title" content="Calculadoras PayPal y Payoneer Nicaragua" />
     <meta
       property="og:description"
-      content="Cambiamos tu saldo PayPal a córdobas o dólares y te transferimos a tu banco local en minutos. Servicio independiente, no afiliado a PayPal Inc."
+      content="Estima comisiones de PayPal, escenarios de monto neto y retiros Payoneer en cajeros de Nicaragua."
     />
     <meta property="og:image" content="https://saldoexpressnicaragua.com/assets/logo-saldo-express.png?v=3" />
     <meta property="og:locale" content="es_NI" />
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="stylesheet" href="styles.css?v=7" />
+    <link rel="stylesheet" href="styles.css?v=8" />
   </head>
-  <body>
+  <body class="calculator-page">
     <header class="site-header">
       <a class="brand" href="#inicio" aria-label="Saldo Express Nicaragua">
         <img
@@ -66,17 +66,14 @@
         />
         <span>
           <strong>Saldo Express</strong>
-          <small>Nicaragua</small>
+          <small>Calculadoras</small>
         </span>
       </a>
 
       <nav class="nav-links" aria-label="Navegación principal">
-        <a href="#servicio">Servicio</a>
-        <a href="#proceso">Proceso</a>
-        <a href="#tarifas">Tarifas</a>
-        <a href="#calculadora">Calculadora</a>
-        <a href="#calculadora-paypal">Calculadora PayPal</a>
-        <a href="#calculadora-payoneer">Calculadora Payoneer</a>
+        <a href="#estimador">Estimador</a>
+        <a href="#calculadora-paypal">PayPal</a>
+        <a href="#calculadora-payoneer">Payoneer</a>
       </nav>
 
       <div class="header-right">
@@ -84,305 +81,62 @@
           <span class="icon-moon"><i data-lucide="moon" aria-hidden="true"></i></span>
           <span class="icon-sun"><i data-lucide="sun" aria-hidden="true"></i></span>
         </button>
-        <a class="header-action" data-whatsapp href="#">
-          <i data-lucide="message-circle" aria-hidden="true"></i>
-          Cotizar
-        </a>
       </div>
     </header>
 
     <main id="inicio">
-      <section class="hero">
-        <div class="hero-content">
-          <p class="eyebrow">Cambiar saldo PayPal a efectivo en Nicaragua</p>
-          <h1>Tu saldo PayPal en efectivo, en minutos</h1>
-          <p class="hero-copy">
-            Convertimos tu saldo de PayPal a córdobas o dólares y te lo transferimos a
-            BAC, Banpro, Lafise, BDF o Ficohsa. Rápido, seguro y con comisión transparente.
-          </p>
-          <div class="hero-actions" aria-label="Acciones principales">
-            <a class="button primary" data-whatsapp href="#">
-              <i data-lucide="phone-call" aria-hidden="true"></i>
-              Cotizar por WhatsApp
-            </a>
-            <a class="button secondary" data-facebook href="#">
-              <i data-lucide="external-link" aria-hidden="true"></i>
-              Ver Facebook
-            </a>
-          </div>
-          <p class="hero-disclaimer">
-            Servicio de cambio independiente. No estamos afiliados, patrocinados ni
-            asociados con PayPal Inc. Todas las marcas registradas pertenecen a sus
-            respectivos dueños.
+      <section class="tools-hero">
+        <div class="tools-hero-inner">
+          <p class="eyebrow">Herramientas de cálculo</p>
+          <h1>Calculadoras PayPal y Payoneer para Nicaragua</h1>
+          <p>
+            Estima comisiones, montos netos y retiros en cajeros antes de mover tu dinero.
+            Los resultados son aproximados y se muestran solo como referencia.
           </p>
         </div>
       </section>
 
-      <section class="quick-info" aria-label="Información rápida">
-        <article>
-          <i data-lucide="clock-3" aria-hidden="true"></i>
-          <span>Pago en minutos</span>
-        </article>
-        <article>
-          <i data-lucide="shield-check" aria-hidden="true"></i>
-          <span>Seguro y transparente</span>
-        </article>
-        <article>
+      <section class="tools-overview" aria-label="Calculadoras disponibles">
+        <a href="#estimador">
+          <i data-lucide="calculator" aria-hidden="true"></i>
+          <span>Estimador de monto neto</span>
+        </a>
+        <a href="#calculadora-paypal">
+          <i data-lucide="percent" aria-hidden="true"></i>
+          <span>Comisión PayPal</span>
+        </a>
+        <a href="#calculadora-payoneer">
           <i data-lucide="landmark" aria-hidden="true"></i>
-          <span>Bancos de Nicaragua</span>
-        </article>
+          <span>Retiro Payoneer en ATM</span>
+        </a>
       </section>
 
-      <section class="section" id="servicio">
-        <div class="section-heading">
-          <p class="eyebrow">Qué hacemos</p>
-          <h2>Cambia tu saldo PayPal a efectivo sin complicarte</h2>
-        </div>
-
-        <div class="service-grid">
-          <article class="service-card">
-            <i data-lucide="arrow-left-right" aria-hidden="true"></i>
-            <h3>Cambio de saldo</h3>
-            <p>Convertimos tu saldo de PayPal a córdobas o dólares al cambio del día.</p>
-          </article>
-          <article class="service-card">
-            <i data-lucide="landmark" aria-hidden="true"></i>
-            <h3>Bancos locales</h3>
-            <p>Transferimos a BAC, Banpro, Lafise, BDF o Ficohsa, o entregamos en efectivo.</p>
-          </article>
-          <article class="service-card">
-            <i data-lucide="receipt" aria-hidden="true"></i>
-            <h3>Comisión transparente</h3>
-            <p>Te confirmamos el monto neto exacto a recibir antes de que envíes nada.</p>
-          </article>
-          <article class="service-card">
-            <i data-lucide="shield-check" aria-hidden="true"></i>
-            <h3>100% seguro</h3>
-            <p>Servicio independiente. Confirmamos cada paso para evitar fraudes y malentendidos.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="split-section" id="proceso">
-        <div class="split-copy">
-          <p class="eyebrow">¿Cómo funciona?</p>
-          <h2>Cambia tu saldo en 3 pasos seguros</h2>
-          <p>
-            Un proceso claro y transparente: te cotizamos el monto neto exacto, envías tu
-            saldo y recibes tu dinero en tu banco local o en efectivo.
-          </p>
-          <dl class="steps">
-            <div>
-              <dt>1</dt>
-              <dd>Cotizas: nos dices cuánto saldo PayPal tienes y te damos el monto neto exacto a recibir.</dd>
-            </div>
-            <div>
-              <dt>2</dt>
-              <dd>Envías: te indicamos cómo enviar tu saldo de forma segura y confirmamos la recepción.</dd>
-            </div>
-            <div>
-              <dt>3</dt>
-              <dd>Recibes: te transferimos a tu banco (BAC, Banpro, Lafise…) o entregamos en efectivo.</dd>
-            </div>
-          </dl>
-        </div>
-        <div class="feature-panel">
-          <img
-            src="assets/logo-saldo-express.png"
-            alt="Saldo Express Nicaragua"
-          />
-          <div class="rate-note">
-            <span>Importante</span>
-            <p>Express se procesa en menos de 24 horas. La transferencia internacional puede tomar de 2 a 6 días hábiles.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="trust-band">
-        <article>
-          <i data-lucide="refresh-cw" aria-hidden="true"></i>
-          <h3>Rapidez</h3>
-          <p>Ideal cuando necesitas convertir saldo PayPal sin esperar procesos largos.</p>
-        </article>
-        <article>
-          <i data-lucide="shield-check" aria-hidden="true"></i>
-          <h3>Seguridad</h3>
-          <p>Se confirma cada paso antes de continuar para evitar malentendidos.</p>
-        </article>
-        <article>
-          <i data-lucide="users" aria-hidden="true"></i>
-          <h3>Para freelancers</h3>
-          <p>Una alternativa para emprendedores, trabajadores remotos y vendedores digitales.</p>
-        </article>
-      </section>
-
-      <section class="quote-table-section" id="tarifas">
-        <div class="section-heading quote-table-heading">
-          <div>
-            <p class="eyebrow">Cotización rápida</p>
-            <h2>Mira cuánto recibirías</h2>
-          </div>
-          <p>
-            Montos netos estimados después de las comisiones. Elige la modalidad que
-            corresponde a tu saldo PayPal y consulta el detalle final por WhatsApp.
-          </p>
-        </div>
-
-        <div class="quote-table-grid">
-          <article class="quote-plan quote-plan-featured">
-            <header class="quote-plan-header">
-              <div class="quote-plan-icon" aria-hidden="true">
-                <i data-lucide="zap"></i>
-              </div>
-              <div>
-                <span class="quote-plan-range">De $50 a $500</span>
-                <h3>Servicio express</h3>
-                <p>Recibe tu pago en menos de 24 horas.</p>
-              </div>
-            </header>
-
-            <div class="quote-table-wrap">
-              <table class="quote-table">
-                <caption class="sr-only">Estimados del servicio express</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Saldo PayPal</th>
-                    <th scope="col">Recibes aproximadamente</th>
-                  </tr>
-                </thead>
-                <tbody data-quote-table="express">
-                  <tr data-amount="50">
-                    <th scope="row">$50.00</th>
-                    <td data-quote-net>$44.00</td>
-                  </tr>
-                  <tr data-amount="100">
-                    <th scope="row">$100.00</th>
-                    <td data-quote-net>$88.30</td>
-                  </tr>
-                  <tr data-amount="200">
-                    <th scope="row">$200.00</th>
-                    <td data-quote-net>$176.90</td>
-                  </tr>
-                  <tr data-amount="300">
-                    <th scope="row">$300.00</th>
-                    <td data-quote-net>$265.50</td>
-                  </tr>
-                  <tr data-amount="400">
-                    <th scope="row">$400.00</th>
-                    <td data-quote-net>$355.65</td>
-                  </tr>
-                  <tr data-amount="500">
-                    <th scope="row">$500.00</th>
-                    <td data-quote-net>$447.25</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <a
-              class="button primary quote-plan-action"
-              data-whatsapp
-              data-whatsapp-message="Hola, vi la tabla del servicio express y quiero cotizar mi saldo PayPal."
-              href="#"
-            >
-              <i data-lucide="message-circle" aria-hidden="true"></i>
-              Cotizar servicio express
-            </a>
-          </article>
-
-          <article class="quote-plan">
-            <header class="quote-plan-header">
-              <div class="quote-plan-icon" aria-hidden="true">
-                <i data-lucide="landmark"></i>
-              </div>
-              <div>
-                <span class="quote-plan-range">Más de $500 hasta $3,000</span>
-                <h3>Transferencia internacional</h3>
-                <p>Para montos mayores, de 2 a 6 días hábiles.</p>
-              </div>
-            </header>
-
-            <div class="quote-table-wrap">
-              <table class="quote-table">
-                <caption class="sr-only">Estimados por transferencia internacional</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Saldo PayPal</th>
-                    <th scope="col">Recibes aproximadamente</th>
-                  </tr>
-                </thead>
-                <tbody data-quote-table="international">
-                  <tr data-amount="600">
-                    <th scope="row">$600.00</th>
-                    <td data-quote-net>$546.93</td>
-                  </tr>
-                  <tr data-amount="1000">
-                    <th scope="row">$1,000.00</th>
-                    <td data-quote-net>$916.69</td>
-                  </tr>
-                  <tr data-amount="1500">
-                    <th scope="row">$1,500.00</th>
-                    <td data-quote-net>$1,378.89</td>
-                  </tr>
-                  <tr data-amount="2000">
-                    <th scope="row">$2,000.00</th>
-                    <td data-quote-net>$1,841.09</td>
-                  </tr>
-                  <tr data-amount="3000">
-                    <th scope="row">$3,000.00</th>
-                    <td data-quote-net>$2,765.49</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <a
-              class="button primary quote-plan-action"
-              data-whatsapp
-              data-whatsapp-message="Hola, vi la tabla de transferencia internacional y quiero cotizar un monto mayor de saldo PayPal."
-              href="#"
-            >
-              <i data-lucide="message-circle" aria-hidden="true"></i>
-              Cotizar monto mayor
-            </a>
-          </article>
-        </div>
-
-        <p class="quote-table-note">
-          Los valores son estimados en USD. El monto neto exacto, el tipo de cambio a
-          córdobas y cualquier comisión interbancaria se confirman antes de realizar la operación.
-        </p>
-      </section>
-
-      <section class="calculator-section" id="calculadora">
+      <section class="calculator-section" id="estimador">
         <div class="calculator-copy">
-          <p class="eyebrow">Calcula tu estimado</p>
-          <h2>Conoce cuánto recibirías antes de consultar</h2>
+          <p class="eyebrow">Estimador</p>
+          <h2>Calcula un monto neto aproximado</h2>
           <p>
-            Ingresa el monto PayPal que deseas cambiar y elige la modalidad. Te mostramos
-            un aproximado rápido antes de escribir por WhatsApp.
+            Ingresa un monto base y selecciona un escenario. La herramienta separa la
+            comisión PayPal, el procesamiento estimado y el margen del escenario.
           </p>
           <ul class="requirement-list">
-            <li>Cuenta PayPal verificada.</li>
-            <li>Express: $50 a $500, menos de 24 horas.</li>
-            <li>Internacional: más de $500 a $3,000, 2 a 6 días hábiles.</li>
+            <li>Escenario express: $50 a $500.</li>
+            <li>Escenario internacional: más de $500 a $3,000.</li>
+            <li>Los resultados son informativos y pueden variar por condiciones externas.</li>
           </ul>
-          <p class="calc-fineprint">
-            Nota: las comisiones por transferencia interbancaria entre bancos locales las asume el cliente.
-          </p>
         </div>
 
-        <div class="calculator-card" aria-label="Calculadora de saldo PayPal">
+        <div class="calculator-card" aria-label="Calculadora de monto neto">
           <label>
             ¿Qué deseas calcular?
             <select id="calcDirection">
-              <option value="forward" selected>Cuánto recibo (desde monto PayPal)</option>
-              <option value="reverse">Cuánto enviar (desde monto a recibir)</option>
+              <option value="forward" selected>Cuánto queda desde un monto base</option>
+              <option value="reverse">Cuánto se necesita desde un neto deseado</option>
             </select>
           </label>
 
           <label>
-            <span id="amountInputLabel">Monto PayPal a cambiar</span>
+            <span id="amountInputLabel">Monto base</span>
             <input
               id="calcAmount"
               type="number"
@@ -395,16 +149,16 @@
           </label>
 
           <label>
-            Modalidad de servicio
+            Escenario
             <select id="serviceMode">
-              <option value="express" selected>Servicio express</option>
-              <option value="international">Transferencia internacional</option>
+              <option value="express" selected>Escenario express</option>
+              <option value="international">Escenario internacional</option>
             </select>
           </label>
 
           <div class="formula-box">
-            <span>Estimado inmediato</span>
-            <strong>El detalle final se confirma por WhatsApp antes del enlace de pago</strong>
+            <span>Resultado estimado</span>
+            <strong>Comisiones separadas para revisar el cálculo con claridad</strong>
           </div>
 
           <div class="calculator-results" aria-live="polite">
@@ -413,11 +167,11 @@
               <strong id="paypalFee">$0.00</strong>
             </div>
             <div>
-              <span id="deliveryFeeLabel">Comisión por procesamiento</span>
+              <span id="deliveryFeeLabel">Procesamiento estimado</span>
               <strong id="deliveryFee">$0.00</strong>
             </div>
             <div>
-              <span id="serviceFeeLabel">Servicio express</span>
+              <span id="serviceFeeLabel">Escenario express</span>
               <strong id="serviceFeeAmount">$0.00</strong>
             </div>
             <div>
@@ -425,7 +179,7 @@
               <strong id="totalFee">$0.00</strong>
             </div>
             <div class="receive-total">
-              <span id="netLabel">Recibirías aproximadamente</span>
+              <span id="netLabel">Monto neto aproximado</span>
               <strong id="netAmount">$0.00</strong>
             </div>
           </div>
@@ -433,26 +187,23 @@
           <p class="calculator-note" id="calculatorNote">
             Ingresa un monto entre $50 y $500 para calcular.
           </p>
-
-          <button class="button primary calculator-button" id="calculatorWhatsapp" type="button">
-            <i data-lucide="send" aria-hidden="true"></i>
-            Consultar este monto por WhatsApp
-          </button>
         </div>
       </section>
 
       <section class="paypal-calc-section" id="calculadora-paypal">
         <div class="section-heading">
-          <p class="eyebrow">Calculadora general</p>
-          <h2>Calculadora PayPal</h2>
+          <p class="eyebrow">Calculadora PayPal</p>
+          <h2>Comisión estándar de PayPal</h2>
         </div>
         <p class="paypal-calc-intro">
-          Comisión estándar de PayPal: <strong>5.4% + $0.30 fijos</strong>. Úsala para saber cuánto enviar para que llegue un neto, o cuánto descuenta PayPal de un envío.
+          Usa esta herramienta para estimar cuánto hay que enviar para recibir un neto,
+          o cuánto descuenta PayPal de un monto enviado. Fórmula usada:
+          <strong>5.4% + $0.30 fijos</strong>.
         </p>
         <div class="paypal-calc-grid">
           <article class="paypal-block">
-            <h3>PayPal para Recibir</h3>
-            <p class="paypal-block-desc">Calcula cuánto hay que enviar para que el destinatario reciba un neto definido.</p>
+            <h3>PayPal para recibir</h3>
+            <p class="paypal-block-desc">Calcula el monto bruto necesario para que llegue un neto definido.</p>
             <label>
               Para recibir
               <input
@@ -474,8 +225,8 @@
             </div>
           </article>
           <article class="paypal-block">
-            <h3>PayPal para Enviar</h3>
-            <p class="paypal-block-desc">Calcula cuánto descuenta PayPal y cuánto llega realmente al otro lado.</p>
+            <h3>PayPal para enviar</h3>
+            <p class="paypal-block-desc">Calcula la comisión y el neto recibido desde un monto enviado.</p>
             <label>
               Si se envían
               <input
@@ -505,14 +256,17 @@
           <h2>Retiro real en cajero de Nicaragua</h2>
         </div>
         <p class="payoneer-calc-intro">
-          Comisión Payoneer por retiro en cajero: <strong>$3.15 fijo + 1.855% del monto</strong>. Los cajeros en Nicaragua cobran <strong>$7 adicionales</strong> por uso de tarjeta extranjera. Las máquinas dispensan en denominaciones de $20, así que el retiro real siempre se redondea hacia abajo al múltiplo de 20 más cercano.
+          Estima cuánto puedes retirar con una tarjeta Payoneer en cajeros de Nicaragua.
+          Fórmula usada: <strong>$3.15 fijo + 1.855% del monto</strong>, más
+          <strong>$7.00</strong> de cargo del cajero. El retiro se redondea al múltiplo
+          de $20 más cercano hacia abajo.
         </p>
         <article class="payoneer-card-result">
           <label>
             ¿Qué deseas calcular?
             <select id="poDirection">
-              <option value="forward" selected>Cuánto recibo (desde mi saldo)</option>
-              <option value="reverse">Cuánto necesito tener (desde monto a recibir)</option>
+              <option value="forward" selected>Cuánto recibo desde mi saldo</option>
+              <option value="reverse">Cuánto necesito tener desde monto a retirar</option>
             </select>
           </label>
           <label>
@@ -528,7 +282,7 @@
           </label>
           <div class="payoneer-results" aria-live="polite">
             <div>
-              <span id="poWithdrawLabel">Puedes retirar (cajero)</span>
+              <span id="poWithdrawLabel">Puedes retirar en cajero</span>
               <strong id="poWithdraw">$0.00</strong>
             </div>
             <div>
@@ -536,7 +290,7 @@
               <strong id="poFee">$0.00</strong>
             </div>
             <div>
-              <span>Cargo del cajero (Nicaragua)</span>
+              <span>Cargo del cajero en Nicaragua</span>
               <strong id="poOperatorFee">$0.00</strong>
             </div>
             <div class="payoneer-remaining">
@@ -552,12 +306,11 @@
     </main>
 
     <footer class="site-footer">
-      <p>© 2026 Saldo Express Nicaragua. Servicio de cambio independiente, no afiliado, patrocinado ni asociado con PayPal Inc. Todas las marcas registradas pertenecen a sus respectivos dueños.</p>
-      <p>Bancos: BAC · Banpro · Lafise · BDF · Ficohsa · Nicaragua</p>
-      <p><a href="aviso-legal.html">Aviso legal y términos del servicio</a></p>
+      <p>© 2026 Saldo Express Nicaragua. Herramientas de cálculo informativas.</p>
+      <p>PayPal y Payoneer son marcas registradas de sus respectivos dueños. Este sitio no está afiliado ni asociado con dichas compañías.</p>
     </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="script.js?v=5"></script>
+    <script src="script.js?v=6"></script>
   </body>
 </html>

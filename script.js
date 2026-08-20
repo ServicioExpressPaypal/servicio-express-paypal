@@ -1,8 +1,5 @@
 const siteConfig = {
-  businessName: "Servicio Express Saldo PayPal Nicaragua",
-  whatsappNumber: "50586199889",
-  facebookUrl: "https://www.facebook.com/profile.php?id=61590018872357",
-  defaultMessage: "Hola, vi su página web y quiero cambiar saldo PayPal.",
+  projectName: "Saldo Express Nicaragua",
   paypalPercentFee: 0.054, // PayPal estandar internacional: 5.4% sobre el monto
   paypalFixedFee: 0.30, // PayPal estandar internacional: $0.30 fijo por transaccion
   atmRate: 0.03, // costo por retiro de tarjeta, repartido entre los clientes
@@ -11,27 +8,26 @@ const siteConfig = {
   wisePercent: 0.0016, // 0.16% sobre el monto; no se cobra la comision del banco del cliente
   serviceModes: {
     express: {
-      label: "Servicio express",
+      label: "Escenario express",
       rate: 0.03,
       feeModel: "atm",
-      deliveryLabel: "Comisión por procesamiento",
+      deliveryLabel: "Procesamiento estimado",
       minAmount: 50,
       maxAmount: 500,
-      deliveryTime: "menos de 24 horas",
+      deliveryTime: "Rango de referencia: $50 a $500",
     },
     international: {
-      label: "Transferencia internacional",
+      label: "Escenario internacional",
       rate: 0.02,
       feeModel: "wise",
-      deliveryLabel: "Costo de envío internacional",
+      deliveryLabel: "Costo internacional estimado",
       minAmount: 500.01,
       maxAmount: 3000,
-      deliveryTime: "2 a 6 días hábiles",
+      deliveryTime: "Rango de referencia: más de $500 a $3,000",
     },
   },
 };
 
-const whatsappBase = `https://wa.me/${siteConfig.whatsappNumber}`;
 let latestCalculation = null;
 
 function money(value) {
@@ -90,22 +86,6 @@ function deliveryFee(mode, amount) {
   return Math.min(amount * siteConfig.atmRate, siteConfig.atmWithdrawalFee);
 }
 
-function setActionLinks() {
-  document.querySelectorAll("[data-whatsapp]").forEach((link) => {
-    const message = link.dataset.whatsappMessage || siteConfig.defaultMessage;
-    const whatsappUrl = `${whatsappBase}?text=${encodeURIComponent(message)}`;
-    link.href = whatsappUrl;
-    link.target = "_blank";
-    link.rel = "noopener";
-  });
-
-  document.querySelectorAll("[data-facebook]").forEach((link) => {
-    link.href = siteConfig.facebookUrl;
-    link.target = "_blank";
-    link.rel = "noopener";
-  });
-}
-
 function getCalcDirection() {
   const select = document.querySelector("#calcDirection");
   return select && select.value === "reverse" ? "reverse" : "forward";
@@ -157,7 +137,7 @@ function calculateExchange() {
 
   if (amountInputLabel) {
     amountInputLabel.textContent =
-      direction === "reverse" ? "Monto que quieres recibir" : "Monto PayPal a cambiar";
+      direction === "reverse" ? "Monto neto deseado" : "Monto base";
   }
   if (netLabel) {
     netLabel.textContent =
@@ -227,7 +207,7 @@ function calculateExchange() {
     totalFee: fees.total,
     direction,
   };
-  note.textContent = `Estimado rápido. Tiempo estimado: ${mode.deliveryTime}. El detalle final se confirma por WhatsApp.`;
+  note.textContent = `Estimado informativo. ${mode.deliveryTime}. Los resultados pueden variar por comisiones externas.`;
   note.classList.remove("warning");
 }
 
@@ -235,35 +215,13 @@ function wireCalculator() {
   const amountInput = document.querySelector("#calcAmount");
   const serviceModeInput = document.querySelector("#serviceMode");
   const directionInput = document.querySelector("#calcDirection");
-  const calculatorButton = document.querySelector("#calculatorWhatsapp");
 
-  if (!amountInput || !serviceModeInput || !calculatorButton) return;
+  if (!amountInput || !serviceModeInput) return;
 
   [amountInput, serviceModeInput, directionInput].forEach((input) => {
     if (!input) return;
     input.addEventListener("input", calculateExchange);
     input.addEventListener("change", calculateExchange);
-  });
-
-  calculatorButton.addEventListener("click", () => {
-    calculateExchange();
-
-    if (!latestCalculation) {
-      amountInput.focus();
-      return;
-    }
-
-    const lines = [
-      "Hola, quiero cambiar saldo PayPal.",
-      `Monto PayPal a enviar: ${money(latestCalculation.gross)}`,
-      `Monto a recibir: ${money(latestCalculation.net)}`,
-      `Modalidad: ${latestCalculation.serviceLabel}`,
-      `Tiempo estimado: ${latestCalculation.deliveryTime}`,
-      `Comisión total estimada: ${money(latestCalculation.totalFee)}`,
-      "Deseo confirmar el detalle final y el enlace de pago.",
-    ];
-
-    window.open(`${whatsappBase}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
   });
 
   calculateExchange();
@@ -459,7 +417,6 @@ function wireThemeToggle() {
   });
 }
 
-setActionLinks();
 renderQuickQuoteTables();
 wireCalculator();
 wirePaypalCalc();
