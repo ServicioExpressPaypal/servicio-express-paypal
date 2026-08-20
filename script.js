@@ -1,5 +1,6 @@
 const siteConfig = {
   projectName: "Saldo Express Nicaragua",
+  whatsappNumber: "50586199889",
   paypalPercentFee: 0.054, // PayPal estandar internacional: 5.4% sobre el monto
   paypalFixedFee: 0.30, // PayPal estandar internacional: $0.30 fijo por transaccion
   atmRate: 0.03, // costo por retiro de tarjeta, repartido entre los clientes
@@ -45,6 +46,29 @@ function parseMoney(value) {
 function formatRate(rate) {
   const pct = rate * 100;
   return `${Number.isInteger(pct) ? pct : pct.toFixed(1)}%`;
+}
+
+function whatsappUrl(message) {
+  return `https://wa.me/${siteConfig.whatsappNumber}?text=${encodeURIComponent(message)}`;
+}
+
+function updateCalculatorWhatsapp() {
+  const whatsappLink = document.querySelector("#calculatorWhatsapp");
+  if (!whatsappLink) return;
+
+  let message =
+    "Hola, vi la calculadora de Saldo Express Nicaragua. Quiero orientación privada sobre opciones para cambiar saldo PayPal.";
+
+  if (latestCalculation) {
+    const isReverse = latestCalculation.direction === "reverse";
+    const summary = isReverse
+      ? `Quiero recibir aproximadamente ${money(latestCalculation.net)} y la calculadora estima que tendría que enviar ${money(latestCalculation.gross)}.`
+      : `Estoy revisando un monto PayPal de ${money(latestCalculation.gross)} y la calculadora estima un neto aproximado de ${money(latestCalculation.net)}.`;
+
+    message = `Hola, vi la calculadora de Saldo Express Nicaragua. ${summary} Escenario: ${latestCalculation.serviceLabel}. Quiero orientación privada y confidencial antes de mover mi saldo.`;
+  }
+
+  whatsappLink.href = whatsappUrl(message);
 }
 
 function getMode() {
@@ -186,6 +210,7 @@ function calculateExchange() {
       note.textContent = `En ${mode.label} el monto debe estar entre ${money(mode.minAmount)} y ${money(mode.maxAmount)}.`;
       note.classList.add("warning");
     }
+    updateCalculatorWhatsapp();
     return;
   }
 
@@ -209,6 +234,7 @@ function calculateExchange() {
   };
   note.textContent = `Estimado informativo. ${mode.deliveryTime}. Los resultados pueden variar por comisiones externas.`;
   note.classList.remove("warning");
+  updateCalculatorWhatsapp();
 }
 
 function wireCalculator() {
