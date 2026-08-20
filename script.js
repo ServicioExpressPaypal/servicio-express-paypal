@@ -12,9 +12,9 @@ const siteConfig = {
       rate: 0.03,
       feeModel: "atm",
       deliveryLabel: "Procesamiento estimado",
-      minAmount: 50,
+      minAmount: 25,
       maxAmount: 500,
-      deliveryTime: "Rango de referencia: $50 a $500",
+      deliveryTime: "Rango de referencia: $25 a $500",
     },
     international: {
       label: "Escenario internacional",
