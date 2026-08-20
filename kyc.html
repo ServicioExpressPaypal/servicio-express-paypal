@@ -17,14 +17,13 @@
       })();
     </script>
 
-    <title>Verificación KYC | Saldo Express Nicaragua</title>
+    <title>Verificación pausada | Saldo Express Nicaragua</title>
     <meta
       name="description"
-      content="Registro privado para verificación de identidad de Saldo Express Nicaragua."
+      content="La verificación de usuarios de Saldo Express Nicaragua está temporalmente pausada."
     />
 
     <link rel="preconnect" href="https://unpkg.com" />
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link rel="stylesheet" href="styles.css?v=9" />
   </head>
   <body class="calculator-page kyc-page">
@@ -37,13 +36,12 @@
         />
         <span>
           <strong>Saldo Express</strong>
-          <small>Verificación</small>
+          <small>Calculadoras</small>
         </span>
       </a>
 
       <nav class="nav-links" aria-label="Navegación principal">
         <a href="/">Calculadoras</a>
-        <a href="/kyc.html">Verificación</a>
       </nav>
 
       <div class="header-right">
@@ -56,183 +54,58 @@
 
     <main>
       <section class="kyc-hero">
-        <p class="eyebrow">Registro privado</p>
-        <h1>Verificación para usuarios de Saldo Express Nicaragua</h1>
+        <p class="eyebrow">Verificación pausada</p>
+        <h1>El registro KYC todavía no está disponible</h1>
         <p>
-          Completa tu registro para revisión manual. Por seguridad, tu nombre legal,
-          PayPal y cuenta bancaria deben pertenecer a la misma persona.
+          Por el momento no estamos recibiendo cédulas, cuentas bancarias ni datos
+          sensibles desde la web. La página queda limitada a calculadoras informativas
+          hasta que el proceso legal y operativo esté listo.
         </p>
       </section>
 
-      <section class="kyc-layout" aria-label="Registro y verificación KYC">
+      <section class="kyc-layout" aria-label="Estado de verificación">
         <aside class="kyc-panel">
-          <p class="eyebrow">Antes de comenzar</p>
-          <h2>Regla principal</h2>
+          <p class="eyebrow">Privacidad primero</p>
+          <h2>No envíes datos sensibles</h2>
           <p>
-            El nombre de tu cédula, el titular de PayPal y el titular de la cuenta
-            bancaria deben coincidir. Si hay diferencias, la solicitud queda en revisión
-            o puede ser rechazada.
+            No compartas contraseñas, códigos de seguridad, accesos de PayPal,
+            datos bancarios completos ni fotos de cédula por formularios no habilitados.
           </p>
           <ul class="requirement-list">
-            <li>No compartas contraseñas ni códigos de seguridad.</li>
-            <li>No se aceptan cuentas de terceros.</li>
-            <li>La aprobación es manual y puede requerir aclaración por WhatsApp.</li>
+            <li>El KYC queda pausado temporalmente.</li>
+            <li>La calculadora pública sigue disponible.</li>
+            <li>La activación se hará solo cuando tú lo autorices.</li>
           </ul>
         </aside>
 
-        <div class="kyc-stack">
-          <article class="kyc-card" id="authCard">
-            <div class="kyc-card-heading">
-              <div>
-                <p class="eyebrow">Acceso</p>
-                <h2>Crear cuenta o iniciar sesión</h2>
-              </div>
-              <span class="status-pill" id="sessionStatus">Sin sesión</span>
+        <article class="kyc-card">
+          <div class="kyc-card-heading">
+            <div>
+              <p class="eyebrow">Estado actual</p>
+              <h2>Sin registro activo</h2>
             </div>
-
-            <form class="kyc-form" id="authForm">
-              <label>
-                Correo electrónico
-                <input id="authEmail" type="email" autocomplete="email" required placeholder="tu-correo@ejemplo.com" />
-              </label>
-              <label>
-                Contraseña
-                <input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="Mínimo 8 caracteres" />
-              </label>
-              <div class="kyc-actions">
-                <button class="button primary" id="signUpButton" type="button">
-                  <i data-lucide="user-plus" aria-hidden="true"></i>
-                  Crear cuenta
-                </button>
-                <button class="button secondary-dark" id="signInButton" type="submit">
-                  <i data-lucide="log-in" aria-hidden="true"></i>
-                  Iniciar sesión
-                </button>
-                <button class="button ghost" id="signOutButton" type="button" hidden>
-                  Cerrar sesión
-                </button>
-              </div>
-            </form>
-            <p class="form-message" id="authMessage" role="status"></p>
-          </article>
-
-          <article class="kyc-card" id="kycCard" hidden>
-            <div class="kyc-card-heading">
-              <div>
-                <p class="eyebrow">KYC</p>
-                <h2>Datos para revisión</h2>
-              </div>
-              <span class="status-pill" id="kycStatus">Pendiente</span>
-            </div>
-
-            <form class="kyc-form" id="kycForm">
-              <div class="form-grid">
-                <label>
-                  Nombre completo según cédula
-                  <input id="legalName" autocomplete="name" required placeholder="Nombre y apellidos" />
-                </label>
-                <label>
-                  Número de cédula
-                  <input id="cedulaNumber" required placeholder="Ejemplo: 001-000000-0000X" />
-                </label>
-                <label>
-                  WhatsApp
-                  <input id="phone" autocomplete="tel" required placeholder="+505 8888 8888" />
-                </label>
-                <label>
-                  Correo PayPal
-                  <input id="paypalEmail" type="email" required placeholder="correo@paypal.com" />
-                </label>
-                <label>
-                  Titular de la cuenta PayPal
-                  <input id="paypalHolder" required placeholder="Debe coincidir con tu cédula" />
-                </label>
-                <label>
-                  Banco
-                  <input id="bankName" required placeholder="Ejemplo: BAC, Ficohsa, Banpro..." />
-                </label>
-                <label>
-                  Número de cuenta bancaria
-                  <input id="bankAccount" required placeholder="Número de cuenta a tu nombre" />
-                </label>
-                <label>
-                  Titular de la cuenta bancaria
-                  <input id="bankHolder" required placeholder="Debe coincidir con tu cédula" />
-                </label>
-              </div>
-
-              <div class="match-box" id="nameMatchBox">
-                <i data-lucide="shield-check" aria-hidden="true"></i>
-                <p>El sistema verificará que los tres nombres coincidan antes de enviar.</p>
-              </div>
-
-              <label class="check-row">
-                <input id="ownAccounts" type="checkbox" required />
-                <span>Confirmo que la cuenta PayPal y la cuenta bancaria están a mi nombre.</span>
-              </label>
-              <label class="check-row">
-                <input id="privacyAccepted" type="checkbox" required />
-                <span>Acepto que mis datos sean usados solo para revisar mi verificación y seguridad del servicio.</span>
-              </label>
-              <label class="check-row">
-                <input id="termsAccepted" type="checkbox" required />
-                <span>Acepto los términos operativos y entiendo que la aprobación es manual.</span>
-              </label>
-
-              <button class="button primary" type="submit">
-                <i data-lucide="send" aria-hidden="true"></i>
-                Enviar verificación
-              </button>
-            </form>
-            <p class="form-message" id="kycMessage" role="status"></p>
-          </article>
-
-          <article class="kyc-card" id="verifiedCard" hidden>
-            <div class="kyc-card-heading">
-              <div>
-                <p class="eyebrow">Usuario verificado</p>
-                <h2>Solicitud de orientación</h2>
-              </div>
-              <span class="status-pill approved">Aprobado</span>
-            </div>
-            <p class="kyc-muted">
-              Tu verificación está aprobada. Puedes solicitar orientación privada por
-              WhatsApp Business con tus datos ya revisados.
-            </p>
-            <a
-              class="button primary"
-              id="verifiedWhatsapp"
-              href="https://wa.me/50586199889?text=Hola%2C%20mi%20KYC%20fue%20aprobado.%20Quiero%20orientaci%C3%B3n%20sobre%20Saldo%20Express%20Nicaragua."
-              target="_blank"
-              rel="noopener"
-            >
-              <i data-lucide="message-circle" aria-hidden="true"></i>
-              Contactar por WhatsApp Business
+            <span class="status-pill blocked">Pausado</span>
+          </div>
+          <p class="kyc-muted">
+            Esta sección está guardada para una posible implementación futura, pero
+            ahora mismo no permite crear usuario, iniciar sesión ni enviar información KYC.
+          </p>
+          <div class="kyc-actions">
+            <a class="button primary" href="/">
+              <i data-lucide="calculator" aria-hidden="true"></i>
+              Volver a las calculadoras
             </a>
-          </article>
-
-          <article class="kyc-card admin-card" id="adminCard" hidden>
-            <div class="kyc-card-heading">
-              <div>
-                <p class="eyebrow">Administración</p>
-                <h2>Revisión manual KYC</h2>
-              </div>
-              <button class="button ghost" id="refreshAdminButton" type="button">Actualizar</button>
-            </div>
-            <div class="admin-list" id="adminList" aria-live="polite"></div>
-          </article>
-        </div>
+          </div>
+        </article>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>© 2026 Saldo Express Nicaragua. Verificación privada para revisión manual.</p>
-      <p>No compartas contraseñas, códigos 2FA ni accesos a PayPal, banco o correo electrónico.</p>
+      <p>© 2026 Saldo Express Nicaragua. Herramientas de cálculo informativas.</p>
+      <p>La verificación de usuarios permanece temporalmente deshabilitada.</p>
     </footer>
 
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js?v=7"></script>
-    <script src="kyc.js?v=1"></script>
   </body>
 </html>
