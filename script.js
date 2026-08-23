@@ -443,12 +443,73 @@ function wireThemeToggle() {
   });
 }
 
+function loadExternalScript(src, options = {}) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    if (options.crossOrigin) script.crossOrigin = options.crossOrigin;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+function wireDeferredThirdPartyScripts() {
+  // Solo se cargan en la página principal; kyc.html está pausada y no necesita terceros.
+  if (!document.querySelector("#estimador")) return;
+
+  let analyticsLoaded = false;
+  let adsLoaded = false;
+
+  const loadAnalytics = () => {
+    if (analyticsLoaded) return;
+    analyticsLoaded = true;
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function gtag() {
+      window.dataLayer.push(arguments);
+    };
+    window.gtag("js", new Date());
+    window.gtag("config", "G-DJJFBY99JX");
+    loadExternalScript("https://www.googletagmanager.com/gtag/js?id=G-DJJFBY99JX").catch(() => {});
+  };
+
+  const loadAds = () => {
+    if (adsLoaded) return;
+    adsLoaded = true;
+    loadExternalScript(
+      "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4388032841027298",
+      { crossOrigin: "anonymous" }
+    ).catch(() => {});
+  };
+
+  const loadAfterInteraction = () => {
+    loadAnalytics();
+    window.setTimeout(loadAds, 1800);
+  };
+
+  ["pointerdown", "keydown", "touchstart"].forEach((eventName) => {
+    window.addEventListener(eventName, loadAfterInteraction, { once: true, passive: true });
+  });
+
+  window.addEventListener(
+    "load",
+    () => {
+      window.setTimeout(loadAnalytics, 2500);
+      window.setTimeout(loadAds, 9000);
+    },
+    { once: true }
+  );
+}
+
 renderQuickQuoteTables();
 wireCalculator();
 wirePaypalCalc();
 wirePayoneerCalc();
 wireThemeToggle();
-
-if (window.lucide) {
-  window.lucide.createIcons();
-}
+wireDeferredThirdPartyScripts();
