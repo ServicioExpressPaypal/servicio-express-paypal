@@ -1066,6 +1066,13 @@ textarea:focus {
   .service-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .calculator-section,
+  .calculator-card,
+  .calculator-card label {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
 }
 
 @media (max-width: 1100px) {
