@@ -1,0 +1,20 @@
+{
+  "environment": "staging",
+  "account_id": "ebdaa532a0c27ffc2148d1598a7f774b",
+  "d1": {
+    "database_name": "saldo-express-staging",
+    "database_id": "1ac8d941-9732-40a9-a757-9dc6e6c35490",
+    "binding": "DB"
+  },
+  "r2": {
+    "bucket_name": "saldo-express-kyc-staging",
+    "binding": "DOCUMENTS",
+    "public_access": false
+  },
+  "customer_registration_enabled": false,
+  "worker_deployed": true,
+  "worker_name": "saldo-express-portal",
+  "portal_url": "https://portal.saldoexpressnicaragua.com",
+  "kyc_uploads_enabled": false,
+  "email_provider": "disabled"
+}

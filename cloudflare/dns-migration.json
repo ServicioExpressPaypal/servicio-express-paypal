@@ -1,0 +1,34 @@
+{
+  "domain": "saldoexpressnicaragua.com",
+  "account_id": "ebdaa532a0c27ffc2148d1598a7f774b",
+  "zone_id": "8d611d397a3ffeda7623c2bb73b477ec",
+  "status": "active",
+  "zone_plan": "free",
+  "observed_at": "2026-09-25T01:22:09Z",
+  "source": "Authoritative DNS queries and complete Northwest DNS Settings inventory",
+  "backup_complete": true,
+  "provider_record_ttl": "Auto for A/CNAME; 1 hr for old apex NS",
+  "provider_empty_record_types": ["AAAA", "TXT", "SRV", "CAA", "MX"],
+  "cloudflare_authoritative_answers_verified": true,
+  "registrar_nameservers_saved_by_user": true,
+  "parent_delegation_verified": true,
+  "https_checks": {"apex": 200, "www": "301 to apex, then 200", "pilot": 200},
+  "cloudflare_activation_check_requested": true,
+  "old_nameservers": [
+    "ns1.hosting.businessidentity.llc",
+    "ns2.hosting.businessidentity.llc"
+  ],
+  "new_nameservers": [
+    "rayden.ns.cloudflare.com",
+    "sue.ns.cloudflare.com"
+  ],
+  "records": [
+    {"type": "A", "name": "saldoexpressnicaragua.com", "content": "185.199.108.153", "ttl": 300, "proxied": false},
+    {"type": "A", "name": "saldoexpressnicaragua.com", "content": "185.199.109.153", "ttl": 300, "proxied": false},
+    {"type": "A", "name": "saldoexpressnicaragua.com", "content": "185.199.110.153", "ttl": 300, "proxied": false},
+    {"type": "A", "name": "saldoexpressnicaragua.com", "content": "185.199.111.153", "ttl": 300, "proxied": false},
+    {"type": "CNAME", "name": "www.saldoexpressnicaragua.com", "content": "servicioexpresspaypal.github.io", "ttl": 300, "proxied": false}
+  ],
+  "negative_queries": ["apex AAAA", "apex MX", "apex TXT", "apex CAA", "apex DS", "_dmarc TXT"],
+  "notes": "User saved nameservers. Verified Northwest UI, .com parent delegation and 1.1.1.1. Cloudflare API subsequently confirmed active. Apex and www remain on GitHub Pages with DNS-only records. The new portal subdomain is separately managed by a Worker custom domain. No mail or DNSSEC settings changed. Old apex NS records were not copied to Cloudflare."
+}

@@ -1,0 +1,13 @@
+node_modules/
+.wrangler/
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+_site/
+.DS_Store
+cloudflare/portal/dist/
+cloudflare/portal/.test-build/
+cloudflare/portal/worker-configuration.d.ts

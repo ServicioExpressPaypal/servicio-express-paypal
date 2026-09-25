@@ -1,0 +1,106 @@
+.workspace {
+  min-height: 100vh;
+}
+#navigation {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.onboarding {
+  padding-top: 36px;
+}
+.onboarding > .text-button {
+  margin-top: 16px;
+}
+.onboarding > h1,
+.onboarding > p {
+  margin-bottom: 18px;
+}
+.auth-tabs {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 26px;
+}
+.auth-tabs button {
+  padding: 10px 0;
+  border-bottom: 2px solid transparent;
+}
+.auth-tabs [aria-selected="true"] {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.ticket-list {
+  display: grid;
+  gap: 0;
+}
+.ticket-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  width: 100%;
+}
+.ticket-row small {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.ticket-id {
+  font:
+    12px ui-monospace,
+    monospace;
+  overflow-wrap: anywhere;
+}
+.estimate {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 16px 0;
+}
+.estimate strong {
+  display: block;
+  font-size: 24px;
+  margin-top: 4px;
+}
+.notice {
+  margin: 16px 0;
+}
+.mfa-secret {
+  word-break: break-all;
+  font:
+    13px ui-monospace,
+    monospace;
+}
+.document-grid img {
+  max-width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+}
+.errors {
+  color: #a22525;
+}
+#main form {
+  min-width: 0;
+}
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+@media (max-width: 640px) {
+  .app-header {
+    gap: 14px;
+  }
+  #navigation {
+    gap: 6px;
+  }
+  .ticket-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .onboarding {
+    padding-top: 16px;
+  }
+}

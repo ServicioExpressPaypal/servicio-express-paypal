@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "saldo-express-portal",
+  "account_id": "ebdaa532a0c27ffc2148d1598a7f774b",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-09-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "routes": [
+    { "pattern": "portal.saldoexpressnicaragua.com", "custom_domain": true },
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "saldo-express-staging",
+      "database_id": "1ac8d941-9732-40a9-a757-9dc6e6c35490",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    { "binding": "DOCUMENTS", "bucket_name": "saldo-express-kyc-staging" },
+  ],
+  "vars": {
+    "APP_URL": "https://portal.saldoexpressnicaragua.com",
+    "REGISTRATION_OPEN": "false",
+    "KYC_OPEN": "false",
+    "EMAIL_PROVIDER": "disabled",
+    "EMAIL_FROM": "Saldo Express <cuentas@saldoexpressnicaragua.com>",
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "invocation_logs": false },
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 },
+  },
+}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Mi cuenta | Saldo Express</title>
+    <link rel="icon" href="/logo.jpg" />
+    <link rel="stylesheet" href="/portal.css" />
+    <link rel="stylesheet" href="/app.css" />
+    <script defer src="/lucide.min.js"></script>
+    <script defer src="/calculator-core.js"></script>
+    <script defer src="/accounts.js"></script>
+    <script defer src="/app.js"></script>
+  </head>
+  <body>
+    <div class="workspace">
+      <header class="app-header">
+        <a class="brand" href="https://saldoexpressnicaragua.com"
+          ><img src="/logo.jpg" width="38" height="38" alt="" /><span
+            ><strong>Saldo Express</strong><small>Nicaragua</small></span
+          ></a
+        >
+        <nav id="navigation" aria-label="Secciones"></nav>
+      </header>
+      <div class="feedback-bar">
+        <div id="toast" role="status" aria-live="polite"></div>
+      </div>
+      <main id="main" tabindex="-1"><p role="status">Cargando...</p></main>
+      <footer>
+        Saldo Express Nicaragua<a href="https://wa.me/50586199889"
+          >Atención al cliente</a
+        >
+      </footer>
+    </div>
+    <dialog id="dialog" aria-labelledby="dialog-title">
+      <div class="dialog-header">
+        <h2 id="dialog-title"></h2>
+        <button
+          id="close-dialog"
+          class="icon-button"
+          title="Cerrar"
+          aria-label="Cerrar"
+        >
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div id="dialog-body"></div>
+    </dialog>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "saldo-express-portal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "npm run build && wrangler dev --port 8791",
+    "check": "wrangler types --strict-vars false && tsc --noEmit",
+    "test": "npm run build && wrangler deploy --dry-run --outdir .test-build && node --test tests/portal.test.mjs",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "better-auth": "1.7.6"
+  },
+  "devDependencies": {
+    "@better-auth/utils": "0.4.2",
+    "@types/node": "26.6.2",
+    "esbuild": "0.28.2",
+    "miniflare": "5.20260923.0-alpha",
+    "prettier": "3.9.9",
+    "typescript": "7.0.2",
+    "wrangler": "4.139.0"
+  }
+}
