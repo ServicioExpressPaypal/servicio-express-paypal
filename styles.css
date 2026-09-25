@@ -1069,9 +1069,20 @@ textarea:focus {
 
   .calculator-section,
   .calculator-card,
+  .calculator-contact,
   .calculator-card label {
     grid-template-columns: minmax(0, 1fr);
     min-width: 0;
+  }
+
+  .calculator-button {
+    white-space: normal;
+    text-align: center;
+    padding: 10px 14px;
+  }
+
+  .calculator-button svg {
+    flex-shrink: 0;
   }
 }
 
