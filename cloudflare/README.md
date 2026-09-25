@@ -14,6 +14,9 @@ recursos de otros proyectos de la cuenta.
 - El correo administrador esta configurado como secreto del Worker; no se publica
   en el frontend. Su cuenta aun no ha sido creada ni verificada.
 - GitHub Pages sigue alojando la pagina; el dominio mantiene su registrador.
+- Resend configurado: dominio verificado, clave de solo envio limitada al dominio
+  guardada como secreto del Worker. Correo de verificacion real entregado a Gmail;
+  la cuenta temporal de prueba fue eliminada. No se contrato un plan de pago.
 - La zona `saldoexpressnicaragua.com` esta creada en Cloudflare (plan gratuito),
   activa. Los cuatro registros A de GitHub Pages y el CNAME
   de `www` estan copiados con proxy desactivado.
@@ -25,8 +28,7 @@ recursos de otros proyectos de la cuenta.
 
 ## Antes de recibir datos
 
-1. Resolver el envio de correo: la consulta a Email Sending fue rechazada con
-   `Unauthorized` (2036). Esto no permite afirmar que el servicio este activado.
+1. Mantener Resend como proveedor de correo. Cloudflare Email Sending no se utiliza.
 2. Completar aviso de privacidad y terminos, conservacion/eliminacion y respaldos.
 3. Crear y verificar cuenta del administrador y configurar su autenticador.
 4. Comprobar el flujo con correo real antes de abrir registro y documentos.

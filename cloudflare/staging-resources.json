@@ -16,5 +16,7 @@
   "worker_name": "saldo-express-portal",
   "portal_url": "https://portal.saldoexpressnicaragua.com",
   "kyc_uploads_enabled": false,
-  "email_provider": "disabled"
+  "email_provider": "resend",
+  "email_domain_verified": true,
+  "email_delivery_smoke_test": "passed"
 }

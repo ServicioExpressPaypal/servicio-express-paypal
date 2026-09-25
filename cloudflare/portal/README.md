@@ -23,16 +23,25 @@ Worker separado de GitHub Pages: https://portal.saldoexpressnicaragua.com
 
 ## Cerrado por defecto
 
-`REGISTRATION_OPEN=false`, `KYC_OPEN=false`, `EMAIL_PROVIDER=disabled`.
+`REGISTRATION_OPEN=false`, `KYC_OPEN=false`, `EMAIL_PROVIDER=resend`.
 Son controles del servidor, no restricciones cosmeticas de la interfaz.
+
+Resend ya esta conectado al dominio verificado `saldoexpressnicaragua.com`.
+Remitente: `Saldo Express <cuentas@saldoexpressnicaragua.com>`. La clave
+`RESEND_API_KEY` tiene solo permiso de envio para este dominio y esta cifrada
+en Cloudflare; no se guarda en Git. DKIM y los CNAME `send` y `rsend` estan
+configurados en DNS, junto con DMARC en modo observacion (`p=none`).
+
+Prueba real: `/api/auth/send-verification-email` del Worker desplegado devolvio
+exito y Resend registro `Delivered` hacia Gmail. Se elimino la cuenta temporal
+sin contrasena ni permisos utilizada en la prueba; no quedaron usuarios, tickets
+ni registros de verificacion. Esto prueba transporte de correo, no apertura
+publica, entrega siempre en bandeja principal ni el flujo completo de registro.
 
 Antes de abrir:
 
-1. Habilitar correo transaccional y comprobar entrega real. Email Sending devolvio
-   Unauthorized (2036) por CLI y API. Revisar el panel, sin asumir que pagar
-   resuelve ese error. Para Cloudflare: dominio remitente verificado, binding
-   `send_email` llamado `EMAIL`, `EMAIL_PROVIDER=cloudflare`. Para Resend:
-   dominio verificado, secreto `RESEND_API_KEY`, `EMAIL_PROVIDER=resend`.
+1. Conservar el dominio verificado y el secreto de Resend. Vigilar cuotas y fallos
+   del proveedor. Cloudflare Email Sending no se utiliza ni se contrato para esto.
 2. Completar responsable, domicilio, contacto, derechos, tratamiento internacional,
    plazos y procedimiento de conservacion/eliminacion. Los textos importados de
    `accounts.js` siguen siendo BORRADORES de demo: sustituir y versionar antes
@@ -81,7 +90,7 @@ npx wrangler d1 migrations apply saldo-express-staging --remote
 npm run deploy
 ```
 
-Secretos `BETTER_AUTH_SECRET` y `ADMIN_EMAIL` ya configurados en Cloudflare.
+Secretos `BETTER_AUTH_SECRET`, `ADMIN_EMAIL` y `RESEND_API_KEY` configurados en Cloudflare.
 No regenerar el secreto al desplegar: invalidaria sesiones y secretos MFA cifrados.
 `wrangler secret bulk` admite JSON por stdin sin incluirlo en Git.
 La migracion inicial de Better Auth se genera con `node scripts/generate-auth.mjs`
@@ -99,3 +108,5 @@ https://better-auth.com/docs/authentication/email-password
 https://better-auth.com/docs/plugins/2fa
 https://developers.cloudflare.com/workers/static-assets/
 https://developers.cloudflare.com/email-service/api/send-emails/workers-api/
+https://resend.com/docs/dashboard/domains/introduction
+https://resend.com/docs/dashboard/api-keys/introduction
