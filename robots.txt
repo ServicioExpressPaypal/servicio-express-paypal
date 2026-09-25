@@ -2,5 +2,6 @@ User-agent: *
 Allow: /
 Disallow: /kyc.html
 Disallow: /_archive/
+Disallow: /_pilot/
 
 Sitemap: https://saldoexpressnicaragua.com/sitemap.xml

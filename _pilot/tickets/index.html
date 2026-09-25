@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Piloto | Saldo Express Nicaragua</title>
+    <link rel="icon" href="../../assets/logo-saldo-express-header.jpg" />
+    <link rel="stylesheet" href="portal.css" />
+    <script defer src="lucide.min.js"></script>
+    <script defer src="domain.js"></script>
+    <script defer src="../../calculator-core.js"></script>
+    <script defer src="accounts.js"></script>
+    <script defer src="account-ui.js"></script>
+    <script defer src="portal.js"></script>
+  </head>
+  <body>
+    <div class="pilot-bar">
+      <span
+        ><strong>Demo local</strong> · Sin cuentas reales. Usa datos y fotos
+        ficticios; se borran al recargar.</span
+      >
+      <div class="demo-controls">
+        <div class="role-switch" aria-label="Vista de demostración">
+          <button data-role="client" aria-pressed="true">Cliente</button
+          ><button data-role="admin" aria-pressed="false">Administrador</button>
+        </div>
+        <button
+          id="reset"
+          class="icon-button"
+          aria-label="Restablecer demostración"
+          title="Restablecer demostración"
+        >
+          <i data-lucide="rotate-ccw"></i>
+        </button>
+      </div>
+    </div>
+    <div class="workspace">
+      <header class="app-header">
+        <a href="../../index.html" class="brand"
+          ><img
+            src="../../assets/logo-saldo-express-header.jpg"
+            width="38"
+            height="38"
+            alt=""
+          /><span
+            ><strong>Saldo Express</strong><small>Nicaragua</small></span
+          ></a
+        >
+        <nav id="navigation" aria-label="Secciones"></nav>
+        <span id="session-label" class="muted"></span>
+      </header>
+      <div class="feedback-bar"><div id="toast" role="status" aria-live="polite"></div></div>
+      <main id="main" tabindex="-1"></main>
+      <footer>
+        Saldo Express Nicaragua
+        <span>Prototipo local · Sin pagos ni envío de documentos</span>
+      </footer>
+    </div>
+    <dialog id="dialog" aria-labelledby="dialog-title">
+      <div class="dialog-header">
+        <h2 id="dialog-title"></h2>
+        <button
+          id="close-dialog"
+          class="icon-button"
+          aria-label="Cerrar"
+          title="Cerrar"
+        >
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div id="dialog-body"></div>
+    </dialog>
+  </body>
+</html>

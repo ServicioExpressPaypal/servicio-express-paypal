@@ -1,33 +1,4 @@
-const siteConfig = {
-  projectName: "Saldo Express Nicaragua",
-  whatsappNumber: "50586199889",
-  paypalPercentFee: 0.054, // PayPal estandar internacional: 5.4% sobre el monto
-  paypalFixedFee: 0.30, // PayPal estandar internacional: $0.30 fijo por transaccion
-  atmRate: 0.03, // costo por retiro de tarjeta, repartido entre los clientes
-  atmWithdrawalFee: 10.45, // costo real de un retiro; tope para que nadie pague de mas
-  wiseFixedFee: 7.41, // costo fijo de Wise para el envio internacional
-  wisePercent: 0.0016, // 0.16% sobre el monto; no se cobra la comision del banco del cliente
-  serviceModes: {
-    express: {
-      label: "Escenario express",
-      rate: 0.03,
-      feeModel: "atm",
-      deliveryLabel: "Procesamiento estimado",
-      minAmount: 25,
-      maxAmount: 500,
-      deliveryTime: "Rango de referencia: $25 a $500",
-    },
-    international: {
-      label: "Escenario internacional",
-      rate: 0.02,
-      feeModel: "wise",
-      deliveryLabel: "Costo internacional estimado",
-      minAmount: 500.01,
-      maxAmount: 3000,
-      deliveryTime: "Rango de referencia: más de $500 a $3,000",
-    },
-  },
-};
+const { siteConfig, reverseGross, deliveryFee, computeFees } = window.SaldoCalculator;
 
 let latestCalculation = null;
 
@@ -76,52 +47,9 @@ function getMode() {
   return siteConfig.serviceModes[select && select.value] || siteConfig.serviceModes.express;
 }
 
-// Resuelve el monto a enviar por PayPal para netear `desiredNet` con la modalidad dada.
-function reverseGross(mode, desiredNet) {
-  if (!Number.isFinite(desiredNet) || desiredNet <= 0) return null;
-  const p = siteConfig.paypalPercentFee;
-  const ppFixed = siteConfig.paypalFixedFee;
-  const s = mode.rate;
-
-  if (mode.feeModel === "wise") {
-    const fixed = ppFixed + siteConfig.wiseFixedFee;
-    const denom = 1 - p - siteConfig.wisePercent - s;
-    if (denom <= 0) return null;
-    return (desiredNet + fixed) / denom;
-  }
-
-  // atm: prueba caso sin tope; si excede, usa el caso con tope fijo.
-  const noCapDenom = 1 - p - s - siteConfig.atmRate;
-  if (noCapDenom > 0) {
-    const noCapGross = (desiredNet + ppFixed) / noCapDenom;
-    if (noCapGross * siteConfig.atmRate <= siteConfig.atmWithdrawalFee) {
-      return noCapGross;
-    }
-  }
-  const capDenom = 1 - p - s;
-  if (capDenom <= 0) return null;
-  return (desiredNet + ppFixed + siteConfig.atmWithdrawalFee) / capDenom;
-}
-
-function deliveryFee(mode, amount) {
-  if (mode.feeModel === "wise") {
-    return siteConfig.wiseFixedFee + amount * siteConfig.wisePercent;
-  }
-  return Math.min(amount * siteConfig.atmRate, siteConfig.atmWithdrawalFee);
-}
-
 function getCalcDirection() {
   const select = document.querySelector("#calcDirection");
   return select && select.value === "reverse" ? "reverse" : "forward";
-}
-
-function computeFees(mode, gross) {
-  const paypal = gross * siteConfig.paypalPercentFee + siteConfig.paypalFixedFee;
-  const delivery = deliveryFee(mode, gross);
-  const service = gross * mode.rate;
-  const total = paypal + delivery + service;
-  const net = Math.max(0, gross - total);
-  return { paypal, delivery, service, total, net };
 }
 
 function renderQuickQuoteTables() {

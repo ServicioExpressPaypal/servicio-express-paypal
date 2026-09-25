@@ -1,0 +1,47 @@
+name: Publish website
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test accounts, tickets, and calculator
+        run: node --test _pilot/tickets/accounts.test.cjs _pilot/tickets/domain.test.cjs _pilot/tickets/calculator.test.cjs
+      - name: Assemble public files only
+        run: |
+          mkdir -p _site/_pilot/tickets
+          cp index.html kyc.html styles.css script.js calculator-core.js kyc.js robots.txt sitemap.xml CNAME _site/
+          cp -R assets _site/assets
+          cp _pilot/tickets/index.html _pilot/tickets/portal.css _pilot/tickets/portal.js _pilot/tickets/domain.js _pilot/tickets/accounts.js _pilot/tickets/account-ui.js _pilot/tickets/lucide.min.js _pilot/tickets/lucide-LICENSE _site/_pilot/tickets/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
