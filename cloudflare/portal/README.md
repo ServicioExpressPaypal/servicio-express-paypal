@@ -122,7 +122,8 @@ La migracion inicial de Better Auth se genera con `node scripts/generate-auth.mj
 contra SQLite vacio. No sobrescribir migraciones ya aplicadas.
 
 GitHub Pages publica solo archivos autorizados, nunca esta carpeta. Desplegar
-Workers por separado. La pagina principal no enlaza aun el portal cerrado.
+Workers por separado. La pagina principal enlaza el portal desde "Mi cuenta"
+y el pie de pagina; el registro publico permanece cerrado.
 
 `/api/health` comprueba D1 sin exponer datos. Las rutas privadas devuelven 401
 sin sesion; registro devuelve 503 mientras esta cerrado. No hay descarga publica

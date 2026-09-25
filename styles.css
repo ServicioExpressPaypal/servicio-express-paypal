@@ -133,6 +133,30 @@ a {
   gap: 10px;
 }
 
+.portal-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--blue);
+  border-radius: 6px;
+  color: var(--blue);
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.portal-link:hover,
+.portal-link:focus-visible {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.portal-link:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+
 .theme-toggle {
   display: inline-grid;
   place-items: center;
@@ -1056,6 +1080,25 @@ textarea:focus {
     gap: 10px;
     padding: 10px 14px;
     backdrop-filter: none;
+    flex-wrap: wrap;
+  }
+
+  .calculator-page .brand {
+    gap: 8px;
+  }
+
+  .calculator-page .brand strong,
+  .portal-link {
+    font-size: 0.875rem;
+  }
+
+  .portal-link {
+    padding: 0 10px;
+  }
+
+  .calculator-page .header-right {
+    gap: 8px;
+    flex-shrink: 0;
   }
 
   .brand-mark {
