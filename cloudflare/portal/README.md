@@ -63,6 +63,28 @@ documentos reales en el estado actual.
 
 ## Desarrollo y pruebas
 
+### Alta privada del propietario
+
+`ADMIN_SETUP_OPEN=true` habilita la invitacion, no el registro publico. Abrir
+`/?setup=1` y solicitarla: se envia exclusivamente al `ADMIN_EMAIL` del servidor.
+El formulario no permite elegir destinatario ni asignar un rol. La invitacion
+vence en una hora, se almacena como hash en D1 y se reclama atomicamente antes
+de crear la cuenta. Solicitudes repetidas no reemplazan una invitacion vigente.
+Con una cuenta del propietario existente no se envia otra invitacion ni se
+permite sustituir su contrasena por este mecanismo.
+
+El propietario debe abrir el enlace de correo, elegir personalmente su
+contrasena, verificar su correo, iniciar sesion y configurar TOTP y codigos
+de recuperacion. El administrador no necesita cargar su cedula para este alta.
+La cuenta sigue sin acceso a expedientes hasta confirmar MFA. No introducir
+contrasenas, tokens de invitacion ni secretos de autenticador en el chat.
+Despues del alta, establecer `ADMIN_SETUP_OPEN=false` y desplegar.
+
+`legal-review.md` contiene un borrador privado y los datos pendientes de los
+textos legales. No se publica ni se presenta como cumplimiento juridico.
+
+### Comandos
+
 Node 24 o posterior. Desde esta carpeta:
 
 ```sh

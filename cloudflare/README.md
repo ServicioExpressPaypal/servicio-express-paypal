@@ -35,3 +35,8 @@ recursos de otros proyectos de la cuenta.
 
 Registro y documentos estan deshabilitados en el servidor. No enviar documentos
 reales a este entorno. Ver `portal/README.md` para pruebas y puesta en marcha.
+
+El alta privada del administrador se realiza mediante invitacion de un solo uso
+al correo configurado. El propietario elige su contrasena y activa MFA. El
+borrador `portal/legal-review.md` sigue pendiente de domicilio, contacto y
+revision antes de abrir clientes; no se sirve desde la web.

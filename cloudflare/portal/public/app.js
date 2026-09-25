@@ -32,7 +32,10 @@
     timer;
   const params = new URLSearchParams(location.search);
   const resetToken = params.get("token");
-  if (location.search) history.replaceState(null, "", location.pathname);
+  let setupMode = params.get("setup") === "1";
+  let inviteToken = new URLSearchParams(location.hash.slice(1)).get("invite");
+  if (location.search || location.hash)
+    history.replaceState(null, "", location.pathname);
   function icons() {
     window.lucide?.createIcons();
   }
@@ -118,6 +121,7 @@
   }
   async function render() {
     nav();
+    if (!me && setupMode) return adminSetup();
     if (!me) return login();
     if (me.admin && !me.adminReady) return security();
     try {
@@ -133,6 +137,36 @@
       main.innerHTML = `<div class="onboarding"><h1>No pudimos cargar los datos</h1><p>${esc(err.message)}</p><button class="button" id="retry">Volver a intentar</button></div>`;
       $("#retry").onclick = refresh;
     }
+  }
+  function adminSetup() {
+    main.innerHTML = `<div class="onboarding"><h1>${inviteToken ? "Crea tu acceso" : "Acceso de administrador"}</h1>${form("admin-setup", inviteToken ? `${field("Nombre completo", "name", "text", 'autocomplete="name" minlength="2" maxlength="120"')}${field("Contraseña", "password", "password", 'autocomplete="new-password" minlength="12" maxlength="128"')}${field("Repite la contraseña", "confirmation", "password", 'autocomplete="new-password" minlength="12" maxlength="128"')}` : "", inviteToken ? "Crear mi cuenta" : "Enviar invitación")}<button class="text-button" id="setup-login">Ya tengo cuenta</button></div>`;
+    $("#setup-login").onclick = () => {
+      setupMode = false;
+      inviteToken = null;
+      login();
+    };
+    bind("admin-setup", async (f) => {
+      if (!inviteToken) {
+        await api("/api/setup/request", {});
+        toast(
+          "La invitación se envía únicamente al correo del administrador. Si ya tienes cuenta, inicia sesión.",
+        );
+        return;
+      }
+      if (f.get("password") !== f.get("confirmation"))
+        throw new Error("Las contraseñas no coinciden.");
+      await api("/api/setup/complete", {
+        token: inviteToken,
+        name: f.get("name"),
+        password: f.get("password"),
+      });
+      inviteToken = null;
+      setupMode = false;
+      login();
+      toast(
+        "Cuenta creada. Verifica el enlace enviado a tu correo antes de entrar.",
+      );
+    });
   }
   function login(mode = "login") {
     const reset = !!resetToken;

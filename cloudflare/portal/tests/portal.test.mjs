@@ -5,7 +5,7 @@ import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { createOTP } from "@better-auth/utils/otp";
 
 const origin = "https://portal.example.test";
-async function setup(open = true) {
+async function setup(open = true, overrides = {}) {
   const emails = [];
   const mf = new Miniflare(
     convertV4MiniflareOptions({
@@ -25,6 +25,8 @@ async function setup(open = true) {
         EMAIL_PROVIDER: open ? "resend" : "disabled",
         EMAIL_FROM: "cuentas@example.test",
         RESEND_API_KEY: "test-only",
+        ADMIN_SETUP_OPEN: "false",
+        ...overrides,
       },
       outboundService: async (request) => {
         assert.equal(new URL(request.url).host, "api.resend.com");
@@ -34,7 +36,11 @@ async function setup(open = true) {
     }),
   );
   const db = await mf.getD1Database("DB");
-  for (const name of ["0001_auth.sql", "0002_portal.sql"]) {
+  for (const name of [
+    "0001_auth.sql",
+    "0002_portal.sql",
+    "0003_admin_setup.sql",
+  ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
       sql
@@ -144,6 +150,7 @@ test("closed deployment rejects registration, anonymous access and cross-origin 
     assert.equal((await req("/api/health")).status, 200);
     assert.equal((await req("/api/config")).data.registrationOpen, false);
     assert.equal((await req("/api/auth/sign-up/email", {})).status, 503);
+    assert.equal((await req("/api/setup/request", {})).status, 503);
     assert.equal((await req("/api/tickets")).status, 401);
     assert.equal((await req("/api/admin/users")).status, 401);
     assert.equal(
@@ -154,6 +161,128 @@ test("closed deployment rejects registration, anonymous access and cross-origin 
     assert.equal(
       (await req("/api/auth/update-user", { role: "admin" })).status,
       404,
+    );
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("owner invitation is private, expires, single-use and does not open customer registration", async () => {
+  const s = await setup(false, {
+    ADMIN_SETUP_OPEN: "true",
+    EMAIL_PROVIDER: "resend",
+  });
+  try {
+    const req = s.client();
+    assert.equal((await req("/api/setup/request")).status, 405);
+    assert.equal(
+      (await req("/api/setup/request", {}, { origin: "https://evil.example" }))
+        .status,
+      403,
+    );
+    const requested = await req("/api/setup/request", {
+      email: "attacker@example.test",
+    });
+    assert.deepEqual(requested.data, { ok: true });
+    for (let n = 0; n < 30 && !s.emails.length; n++)
+      await new Promise((r) => setTimeout(r, 20));
+    assert.equal(s.emails.length, 1);
+    assert.deepEqual(s.emails[0].to, ["admin@example.test"]);
+    const token = s.emails[0].text.match(/#invite=([a-f0-9]{64})/)[1];
+    const row = await s.db.prepare("SELECT * FROM admin_setup").first();
+    assert.notEqual(row.token_hash, token);
+    assert.equal(row.claimed_at, null);
+    await s.client()("/api/setup/request", {});
+    assert.equal(
+      s.emails.length,
+      1,
+      "concurrent requests do not replace a valid invitation",
+    );
+    assert.equal(
+      (
+        await req("/api/auth/sign-up/email", {
+          email: "admin@example.test",
+          name: "Admin",
+          password: "test-only-password",
+        })
+      ).status,
+      503,
+    );
+    const body = {
+      token,
+      name: "Owner",
+      password: "test-only-password-654321",
+      email: "attacker@example.test",
+      emailVerified: true,
+      role: "admin",
+    };
+    assert.equal(
+      (await req("/api/setup/complete", { ...body, token: "f".repeat(64) }))
+        .status,
+      410,
+    );
+    assert.equal(
+      (await req("/api/setup/complete", { ...body, password: "short" })).status,
+      400,
+    );
+    await s.db.prepare("UPDATE admin_setup SET expires_at=0").run();
+    assert.equal((await s.client()("/api/setup/complete", body)).status, 410);
+    await s.db
+      .prepare("UPDATE admin_setup SET expires_at=?")
+      .bind(Date.now() + 60000)
+      .run();
+    const results = await Promise.all([
+      s.client()("/api/setup/complete", body),
+      s.client()("/api/setup/complete", body),
+    ]);
+    assert.deepEqual(results.map((r) => r.status).sort(), [200, 410]);
+    const users = await s.db
+      .prepare("SELECT email,emailVerified,twoFactorEnabled FROM user")
+      .all();
+    assert.equal(users.results.length, 1);
+    assert.equal(users.results[0].email, "admin@example.test");
+    assert.equal(users.results[0].emailVerified, 0);
+    assert.ok(!users.results[0].twoFactorEnabled);
+    assert.equal((await s.client()("/api/admin/users")).status, 401);
+    assert.equal((await s.client()("/api/setup/complete", body)).status, 410);
+    const count = s.emails.length;
+    await s.client()("/api/setup/request", {});
+    assert.equal(
+      s.emails.length,
+      count,
+      "existing owner cannot be re-invited or replaced",
+    );
+    assert.equal((await req("/api/config")).data.registrationOpen, false);
+    for (
+      let n = 0;
+      n < 30 && !s.emails.some((e) => e.subject === "Verifica tu correo");
+      n++
+    )
+      await new Promise((r) => setTimeout(r, 20));
+    const verification = s.emails.find(
+      (e) => e.subject === "Verifica tu correo",
+    );
+    assert.ok(verification);
+    const url = new URL(verification.text.match(/https:\/\/\S+/)[0]);
+    const owner = s.client();
+    assert.ok(
+      [200, 302].includes((await owner(url.pathname + url.search)).status),
+    );
+    assert.equal(
+      (
+        await owner("/api/auth/sign-in/email", {
+          email: "admin@example.test",
+          password: body.password,
+        })
+      ).status,
+      200,
+    );
+    const me = await owner("/api/me");
+    assert.equal(me.data.admin, true);
+    assert.equal(me.data.adminReady, false);
+    assert.equal(
+      (await owner("/api/admin/users")).status,
+      403,
+      "MFA remains required",
     );
   } finally {
     await s.mf.dispose();

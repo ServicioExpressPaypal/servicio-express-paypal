@@ -1,4 +1,5 @@
 import { createAuth, sendMail } from "./auth";
+import { setupEnabled, inviteAdmin, completeAdminSetup } from "./admin-setup";
 import "../../../calculator-core.js";
 import "../../../_pilot/tickets/domain.js";
 import "../../../_pilot/tickets/accounts.js";
@@ -208,6 +209,23 @@ async function handle(
       kycOpen: env.KYC_OPEN === "true",
     });
   if (!path.startsWith("/api/")) return env.ASSETS.fetch(request);
+  if (path === "/api/setup/request" || path === "/api/setup/complete") {
+    if (request.method !== "POST") fail(405, "Método no permitido.");
+    if (!setupEnabled(env))
+      fail(503, "La configuración privada no está disponible.");
+    await rate(
+      env,
+      `setup:${path}:${request.headers.get("cf-connecting-ip") || "unknown"}`,
+      5,
+      300,
+    );
+    const body = await payload(request);
+    if (path === "/api/setup/request") {
+      await inviteAdmin(env, ctx);
+      return json({ ok: true });
+    }
+    return completeAdminSetup(request, env, ctx, body);
+  }
   const auth = createAuth(env, ctx);
   if (path.startsWith("/api/auth/")) {
     const endpoint = path.slice("/api/auth".length);
