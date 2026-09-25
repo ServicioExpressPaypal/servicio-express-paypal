@@ -31,7 +31,8 @@ reclamaciones hasta comprobar que recibe y se atienden mensajes.
 
 Para mantener una cuenta se utilizan el correo, nombre, hash de la contrasena,
 estado de verificacion, sesiones y datos de seguridad. El acceso administrativo
-requiere doble factor. Las contrasenas no se guardan en texto legible.
+usa correo verificado y contrasena; no exige doble factor por decision del
+propietario. Las contrasenas no se guardan en texto legible.
 
 Cuando se habiliten solicitudes de clientes, se registraran importe, modalidad,
 moneda, banco seleccionado, estimacion, estado y comunicaciones de cada ticket.
@@ -61,7 +62,8 @@ actualmente no existe envio automatico de expedientes a esas plataformas.
 ### Seguridad y cookies
 
 Se utilizan conexiones HTTPS, sesiones con cookies de seguridad, controles de
-acceso, doble factor administrativo y registros de acciones sobre expedientes.
+acceso y registros de acciones sobre expedientes. Revisar las medidas de acceso
+antes de habilitar documentos: actualmente no es obligatorio el doble factor.
 El portal no incorpora publicidad ni seguimiento comercial propio. Los controles
 reducen riesgos, pero no equivalen a una garantia absoluta de seguridad.
 

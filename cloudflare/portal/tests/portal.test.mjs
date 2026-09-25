@@ -288,6 +288,41 @@ test("owner invitation is private, expires, single-use and does not open custome
     await s.mf.dispose();
   }
 });
+test("optional admin MFA preserves verified-owner authorization and KYC closure", async () => {
+  const s = await setup(true, {
+    ADMIN_REQUIRE_MFA: "false",
+    KYC_OPEN: "false",
+  });
+  try {
+    const anonymous = s.client();
+    assert.equal((await anonymous("/api/admin/users")).status, 401);
+    const owner = await s.registered("admin@example.test");
+    const customer = await s.registered("customer@example.test");
+    const me = await owner.req("/api/me");
+    assert.equal(me.data.adminReady, true);
+    assert.equal(me.data.twoFactorEnabled, false);
+    assert.equal((await owner.req("/api/admin/users")).status, 200);
+    assert.equal((await owner.req("/api/tickets")).status, 200);
+    assert.equal((await customer.req("/api/me")).data.adminReady, false);
+    assert.equal((await customer.req("/api/admin/users")).status, 403);
+    assert.equal(
+      (
+        await customer.req("/api/admin/unlock", {
+          adminReady: true,
+          role: "admin",
+        })
+      ).status,
+      403,
+    );
+    assert.equal((await customer.req("/api/profile", dossier())).status, 503);
+    assert.equal(
+      (await anonymous("/api/admin/users", { adminReady: true })).status,
+      401,
+    );
+  } finally {
+    await s.mf.dispose();
+  }
+});
 test("verified auth, private KYC, MFA admin, activation, persistent tickets, quotes and isolation", async () => {
   const s = await setup();
   try {

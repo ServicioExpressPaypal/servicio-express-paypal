@@ -30,7 +30,8 @@
   "vars": {
     "APP_URL": "https://portal.saldoexpressnicaragua.com",
     "REGISTRATION_OPEN": "false",
-    "ADMIN_SETUP_OPEN": "true",
+    "ADMIN_SETUP_OPEN": "false",
+    "ADMIN_REQUIRE_MFA": "false",
     "KYC_OPEN": "false",
     "EMAIL_PROVIDER": "resend",
     "EMAIL_FROM": "Saldo Express <cuentas@saldoexpressnicaragua.com>",

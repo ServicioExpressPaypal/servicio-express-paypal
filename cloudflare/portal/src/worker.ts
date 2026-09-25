@@ -257,19 +257,21 @@ async function handle(
     !!env.ADMIN_EMAIL &&
     user.email.toLowerCase() === env.ADMIN_EMAIL.toLowerCase();
   const profile = await profileFor(env, user.id);
+  const requireMfa = env.ADMIN_REQUIRE_MFA !== "false";
   const grant =
-    admin && user.twoFactorEnabled
+    admin && requireMfa && user.twoFactorEnabled
       ? await env.DB.prepare(
           "SELECT expires_at FROM admin_grants WHERE session_id=? AND expires_at>?",
         )
           .bind(sid, Date.now())
           .first()
       : null;
+  const adminReady = admin && (!requireMfa || !!grant);
   if (path === "/api/me")
     return json({
       user: { id: user.id, email: user.email },
       admin,
-      adminReady: !!grant,
+      adminReady,
       twoFactorEnabled: !!user.twoFactorEnabled,
       profile: {
         status: profile.status,
@@ -299,8 +301,13 @@ async function handle(
     ]);
     return json({ ok: true });
   }
-  if (path.startsWith("/api/admin/") && (!admin || !grant))
-    fail(403, "Confirma tu doble factor para administrar.");
+  if (path.startsWith("/api/admin/") && !adminReady)
+    fail(
+      403,
+      admin
+        ? "Confirma tu doble factor para administrar."
+        : "Acceso reservado al administrador.",
+    );
 
   if (path === "/api/profile" && request.method === "POST") {
     if (env.KYC_OPEN !== "true")

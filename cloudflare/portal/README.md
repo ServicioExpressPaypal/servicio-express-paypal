@@ -7,10 +7,12 @@ Worker separado de GitHub Pages: https://portal.saldoexpressnicaragua.com
 - Better Auth 1.7.6: correo/contrasena, verificacion, recuperacion, sesiones
   HttpOnly y doble factor TOTP. No hay autenticacion propia ni selector de rol.
 - D1: usuarios, sesiones, perfiles, tickets, cotizaciones, historial y avisos.
-- R2 privado: documentos accesibles solo al administrador con doble factor
-  confirmado en esa sesion durante los ultimos 15 minutos.
-- Administrador: correo configurado como secreto, verificacion y MFA. El
-  navegador no puede asignarse permisos. Su cuenta aun no esta creada.
+- R2 privado: documentos accesibles solo al administrador. La recepcion sigue cerrada.
+- Administrador: correo configurado como secreto y cuenta verificada. Por peticion
+  del propietario, `ADMIN_REQUIRE_MFA=false`: acceso con contrasena y correo
+  verificado, sin exigir autenticador. El navegador no puede asignarse permisos.
+  Si la variable se omite o no es `false`, se exige MFA confirmado en la sesion
+  durante los ultimos 15 minutos. Revisar esta decision antes de admitir cedulas.
 - Revision manual del expediente. Cuenta suspendida/cerrada no crea tickets.
 - Calculadora compartida ejecutada tambien en el servidor; se conserva la
   estimacion original y se comprueba la coherencia de la cotizacion final.
@@ -47,8 +49,9 @@ Antes de abrir:
    `accounts.js` siguen siendo BORRADORES de demo: sustituir y versionar antes
    de habilitar documentos reales. Revisar adecuacion de la actividad efectiva
    y condiciones de proveedores; un ticket no cambia esa actividad.
-3. Crear y verificar la cuenta del propietario, configurar autenticador y guardar
-   codigos de recuperacion. No activar cuentas directamente mediante SQL.
+3. La cuenta del propietario ya esta creada y verificada. Se elimino su
+   configuracion TOTP pendiente y el alta privada se cerro (`ADMIN_SETUP_OPEN=false`).
+   No activar cuentas de clientes directamente mediante SQL.
 4. Probar entrega, MFA, recuperacion, revision y tickets desde navegador con el
    proveedor real. Validar CPU de autenticacion con el plan de Workers contratado.
 5. Definir respaldos/restauracion y limpieza de documentos huerfanos ante una caida
@@ -74,9 +77,9 @@ Con una cuenta del propietario existente no se envia otra invitacion ni se
 permite sustituir su contrasena por este mecanismo.
 
 El propietario debe abrir el enlace de correo, elegir personalmente su
-contrasena, verificar su correo, iniciar sesion y configurar TOTP y codigos
-de recuperacion. El administrador no necesita cargar su cedula para este alta.
-La cuenta sigue sin acceso a expedientes hasta confirmar MFA. No introducir
+contrasena, verificar su correo e iniciar sesion. TOTP y codigos de recuperacion
+solo son obligatorios si `ADMIN_REQUIRE_MFA` no es `false`.
+El administrador no necesita cargar su cedula para este alta. No introducir
 contrasenas, tokens de invitacion ni secretos de autenticador en el chat.
 Despues del alta, establecer `ADMIN_SETUP_OPEN=false` y desplegar.
 
