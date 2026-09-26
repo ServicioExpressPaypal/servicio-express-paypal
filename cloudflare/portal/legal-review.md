@@ -1,8 +1,29 @@
 # Saldo Express: textos para revision antes de abrir clientes
 
 Estado: BORRADOR NO PUBLICADO. No constituye dictamen juridico ni confirma
-autorizacion para operar servicios financieros. Version de trabajo: 2026-09-24.
+autorizacion para operar servicios financieros. Version de trabajo: 2026-09-26.
 Este archivo no se incluye en los archivos publicos del portal.
+
+## Cambio de producto solicitado el 26 de septiembre
+
+Nombre comercial solicitado: Certificado de regalo en efectivo. El portal debe
+explicar que se solicita un deposito bancario financiado mediante PayPal y que
+crear el ticket no ejecuta una compra ni emite un saldo o certificado canjeable.
+Este nombre no es una exencion regulatoria ni evidencia de autorizacion de PayPal.
+No se copian limites, comisiones ni plazos de otro comercio como supuesta garantia
+de cumplimiento. Las estimaciones actuales no se han cambiado.
+
+Diseno del perfil actualizado por instruccion del propietario: nombre, banco,
+cuenta, moneda y telefono. Sin numero de cedula, fotografias ni texto libre del
+origen de fondos. Solo titularidad propia.
+Se conserva una declaracion simple, no jurada/notarial. Antes de abrir deben
+validarse necesidad de cada campo, metodo de verificacion, requisitos de debida
+diligencia y licencias que correspondan. No se presenta el formulario como KYC
+legalmente suficiente. El alta y la recepcion de datos siguen cerradas.
+
+El aviso del piloto se sirve desde public/certificate.js y ya no utiliza el
+aviso de demostracion que afirmaba que los datos no salian del navegador.
+El resto de este archivo es material de revision, no texto listo para publicar.
 
 ## Datos y decisiones pendientes
 
@@ -149,7 +170,25 @@ el texto de 2024 como marco consolidado vigente ni afirmar cumplimiento integral
 [Privacidad de Cloudflare](https://www.cloudflare.com/privacypolicy/).
 [Privacidad de Resend](https://resend.com/legal/privacy-policy).
 
-Antes de publicar: completar los campos pendientes, aprobar el texto, versionar
+Antes de abrir el registro: completar los campos pendientes, aprobar el texto, versionar
 las aceptaciones en el servidor, ofrecer consulta previa al registro y probar
 el procedimiento de derechos/eliminacion. Mantener REGISTRATION_OPEN y KYC_OPEN
 en false hasta terminar esos pasos.
+
+## Publicacion informativa del 26 de septiembre de 2026
+
+El titular confirma SoftOhm Systems LLC y autoriza publicar
+info@softohmsystems.com. Expresamente no autoriza publicar domicilio comercial.
+No se considera resuelto el requisito de identificacion/domicilio del responsable
+del articulo 7 de la Ley 787. Pendiente de revision juridica antes de apertura.
+
+Se publican /terminos.html y /privacidad.html en el dominio principal, con enlaces
+desde el portal, describiendo la etapa informativa, las limitaciones y los datos
+reales del sistema. El nombre comercial solicitado es Tarjeta de regalo
+electronica; se explica expresamente el modelo de deposito bancario previsto.
+No hay emision, cobro, canje ni autorizacion regulatoria implementados.
+
+Se retiran los cargadores automaticos de analitica y publicidad de la landing.
+No se elimina informacion existente ni se modifican secretos. Los plazos concretos
+de conservacion, el procedimiento de borrado y las condiciones comerciales siguen
+pendientes; el registro y la recepcion de perfiles permanecen cerrados.

@@ -1,0 +1,118 @@
+// Isolated, in-memory preview. Never loads production credentials or sends mail.
+import { readFile } from "node:fs/promises";
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
+
+const port = Number(process.env.PORT || 8792);
+const origin = `http://127.0.0.1:${port}`;
+const assets = new Set([
+  "index.html",
+  "app.js",
+  "app.css",
+  "certificate.js",
+  "accounts.js",
+  "portal.css",
+  "lucide.min.js",
+  "calculator-core.js",
+  "logo.jpg",
+]);
+const types = {
+  html: "text/html",
+  js: "text/javascript",
+  css: "text/css",
+  jpg: "image/jpeg",
+};
+const mf = new Miniflare(
+  convertV4MiniflareOptions({
+    host: "127.0.0.1",
+    port,
+    modules: true,
+    scriptPath: ".test-build/worker.js",
+    compatibilityDate: "2026-09-24",
+    compatibilityFlags: ["nodejs_compat"],
+    d1Databases: ["DB"],
+    r2Buckets: ["DOCUMENTS"],
+    bindings: {
+      APP_URL: origin,
+      BETTER_AUTH_SECRET: "local-preview-only-not-a-production-secret",
+      ADMIN_EMAIL: "admin@example.test",
+      ADMIN_REQUIRE_MFA: "false",
+      REGISTRATION_OPEN: "true",
+      KYC_OPEN: "true",
+      ADMIN_SETUP_OPEN: "false",
+      EMAIL_PROVIDER: "resend",
+      EMAIL_FROM: "preview@example.test",
+      RESEND_API_KEY: "local-only",
+    },
+    serviceBindings: {
+      ASSETS: async (request) => {
+        const path = new URL(request.url).pathname;
+        const name = path === "/" ? "index.html" : path.slice(1);
+        if (!assets.has(name))
+          return new Response("Not found", { status: 404 });
+        return new Response(
+          await readFile(new URL(`../dist/${name}`, import.meta.url)),
+          {
+            headers: {
+              "content-type": types[name.split(".").pop()],
+              "cache-control": "no-store",
+            },
+          },
+        );
+      },
+    },
+    outboundService: () => Response.json({ id: "local-email-discarded" }),
+  }),
+);
+const db = await mf.getD1Database("DB");
+for (const file of [
+  "0001_auth.sql",
+  "0002_portal.sql",
+  "0003_admin_setup.sql",
+]) {
+  const sql = await readFile(
+    new URL(`../migrations/${file}`, import.meta.url),
+    "utf8",
+  );
+  await db.batch(
+    sql
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => db.prepare(s)),
+  );
+}
+for (const [email, name] of [
+  ["cliente@example.test", "Cliente de Prueba"],
+  ["admin@example.test", "Administrador de Prueba"],
+]) {
+  const response = await mf.dispatchFetch(origin + "/api/auth/sign-up/email", {
+    method: "POST",
+    headers: {
+      origin,
+      "content-type": "application/json",
+      "cf-connecting-ip": "192.0.2.10",
+    },
+    body: JSON.stringify({
+      email,
+      name,
+      password: "SoloPruebas-2026!",
+      callbackURL: origin + "/",
+    }),
+  });
+  if (!response.ok)
+    throw new Error(`Unable to seed preview account: ${response.status}`);
+  await db
+    .prepare("UPDATE user SET emailVerified=1 WHERE email=?")
+    .bind(email)
+    .run();
+}
+console.log(`Vista local con datos ficticios: ${await mf.ready}`);
+console.log(
+  "Cliente: cliente@example.test | Administrador: admin@example.test",
+);
+console.log("Clave exclusiva de esta prueba local: SoloPruebas-2026!");
+for (const signal of ["SIGINT", "SIGTERM"])
+  process.on(signal, async () => {
+    await mf.dispose();
+    process.exit(0);
+  });

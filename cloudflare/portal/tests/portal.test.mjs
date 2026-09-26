@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { createOTP } from "@better-auth/utils/otp";
+import CertificateModel from "../public/certificate.js";
 
 const origin = "https://portal.example.test";
 async function setup(open = true, overrides = {}) {
@@ -122,27 +123,67 @@ async function setup(open = true, overrides = {}) {
   return { mf, db, emails, client, registered };
 }
 function dossier() {
-  const form = new FormData();
-  for (const [key, value] of Object.entries({
+  return {
     name: "Persona de Prueba",
-    cedula: "0010101900001A",
-    source: "Salario",
-    detail: "Ingresos ficticios para pruebas locales.",
+    bank: "LAFISE",
+    bankAccount: "000123456789",
+    currency: "USD",
+    phone: "+50588888888",
     declaration: "on",
     terms: "on",
     privacy: "on",
-  }))
-    form.set(key, value);
-  const png = Uint8Array.from(
-    Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6wSIAAAAASUVORK5CYII=",
-      "base64",
-    ),
-  );
-  for (const side of ["front", "back"])
-    form.set(side, new Blob([png], { type: "image/png" }), "fictional.png");
-  return form;
+    version: CertificateModel.version,
+  };
 }
+test("certificate profile validates minimum data without accepting client-controlled verification", () => {
+  const p = CertificateModel.validate(
+    {
+      ...dossier(),
+      name: " Persona  de Prueba ",
+      phone: "8888-8888",
+      status: "active",
+      acceptedAt: 0,
+    },
+    123,
+  );
+  assert.equal(p.name, "Persona de Prueba");
+  assert.equal(p.cedula, undefined);
+  assert.throws(
+    () =>
+      CertificateModel.validate({ ...dossier(), cedula: "dato-no-admitido" }),
+    /no solicita ni admite/,
+  );
+  assert.throws(
+    () => CertificateModel.validate({ ...dossier(), version: "outdated" }),
+    /aviso cambió/,
+  );
+  assert.equal(p.bankAccount, "000123456789");
+  assert.equal(p.phone, "+50588888888");
+  assert.equal(p.acceptedAt, 123);
+  assert.equal(p.status, undefined);
+  assert.equal(p.front, undefined);
+  for (const key of [
+    "name",
+    "phone",
+    "bank",
+    "bankAccount",
+    "currency",
+    "version",
+    "declaration",
+    "terms",
+    "privacy",
+  ])
+    assert.throws(
+      () => CertificateModel.validate({ ...dossier(), [key]: "" }),
+      key,
+    );
+  assert.throws(() =>
+    CertificateModel.validate({
+      ...dossier(),
+      bankAccount: { value: "123456" },
+    }),
+  );
+});
 test("closed deployment rejects registration, anonymous access and cross-origin mutations", async () => {
   const s = await setup(false);
   try {
@@ -323,7 +364,7 @@ test("optional admin MFA preserves verified-owner authorization and KYC closure"
     await s.mf.dispose();
   }
 });
-test("verified auth, private KYC, MFA admin, activation, persistent tickets, quotes and isolation", async () => {
+test("verified auth, minimal profile, MFA admin, activation, persistent tickets, quotes and isolation", async () => {
   const s = await setup();
   try {
     const a = await s.registered("client-a@example.test"),
@@ -331,9 +372,29 @@ test("verified auth, private KYC, MFA admin, activation, persistent tickets, quo
       admin = await s.registered("admin@example.test");
     assert.equal((await a.req("/api/admin/users")).status, 403);
     assert.equal((await a.req("/api/tickets", { amount: "100" })).status, 403);
+    assert.equal(
+      (await a.req("/api/profile", { ...dossier(), front: "forbidden-photo" }))
+        .status,
+      400,
+    );
+    assert.equal(
+      (
+        await a.req("/api/profile", {
+          ...dossier(),
+          cedula: "dato-no-admitido",
+        })
+      ).status,
+      400,
+    );
     let r = await a.req("/api/profile", dossier());
     assert.equal(r.status, 200, JSON.stringify(r.data));
     assert.equal((await a.req("/api/me")).data.profile.status, "pending");
+    assert.equal((await a.req("/api/tickets", { amount: "100" })).status, 403);
+    assert.equal((await a.req("/api/profile", dossier())).status, 409);
+    assert.equal(
+      (await (await s.mf.getR2Bucket("DOCUMENTS")).list()).objects.length,
+      0,
+    );
     assert.equal(
       (await a.req(`/api/admin/documents/${a.id}/front`)).status,
       403,
@@ -356,10 +417,14 @@ test("verified auth, private KYC, MFA admin, activation, persistent tickets, quo
     r = await admin.req(`/api/admin/users/${a.id}`);
     assert.equal(r.status, 200);
     assert.equal(r.data.dossier.name, "Persona de Prueba");
+    assert.equal(r.data.dossier.cedula, undefined);
     assert.equal(r.data.dossier.front, undefined);
+    assert.equal(r.data.dossier.hasDocuments, false);
+    assert.equal(r.data.dossier.bankAccount, "000123456789");
+    assert.equal(r.data.dossier.version, CertificateModel.version);
     const version = r.data.version;
     r = await admin.req(`/api/admin/documents/${a.id}/front`);
-    assert.equal(r.status, 200);
+    assert.equal(r.status, 404);
     assert.equal(r.headers.get("cache-control"), "no-store");
     r = await admin.req(`/api/admin/users/${a.id}`, {
       action: "activate",
@@ -367,6 +432,15 @@ test("verified auth, private KYC, MFA admin, activation, persistent tickets, quo
       version,
     });
     assert.equal(r.status, 200, JSON.stringify(r.data));
+    const wrongDestination = await a.req("/api/tickets", {
+      amount: "100",
+      mode: "express",
+      bank: "BAC",
+      currency: "USD",
+      consent: true,
+      requestKey: crypto.randomUUID(),
+    });
+    assert.equal(wrongDestination.status, 400);
     assert.equal(
       (
         await admin.req(`/api/admin/users/${a.id}`, {
@@ -469,6 +543,93 @@ test("verified auth, private KYC, MFA admin, activation, persistent tickets, quo
       (await admin.req(`/api/admin/documents/${a.id}/front`)).status,
       403,
     );
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("correction requires fresh approval, preserves legacy files and cannot activate unverified users", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("correction@example.test");
+    const bucket = await s.mf.getR2Bucket("DOCUMENTS");
+    await bucket.put("legacy/front", "fictional legacy document");
+    await s.db
+      .prepare(
+        "UPDATE profiles SET dossier=?,status='correction' WHERE user_id=?",
+      )
+      .bind(JSON.stringify({ front: "legacy/front" }), customer.id)
+      .run();
+    assert.equal(
+      (
+        await customer.req("/api/profile", {
+          ...dossier(),
+          status: "active",
+          acceptedAt: 0,
+        })
+      ).status,
+      200,
+    );
+    let row = await s.db
+      .prepare("SELECT * FROM profiles WHERE user_id=?")
+      .bind(customer.id)
+      .first();
+    assert.equal(row.status, "pending");
+    assert.equal(JSON.parse(row.dossier).front, "legacy/front");
+    assert.ok(JSON.parse(row.dossier).acceptedAt > 0);
+    assert.ok(await bucket.get("legacy/front"));
+    const loaded = await admin.req(`/api/admin/users/${customer.id}`);
+    assert.equal(loaded.data.dossier.hasDocuments, true);
+    assert.equal(loaded.data.dossier.front, undefined);
+    await s.db
+      .prepare("UPDATE user SET emailVerified=0 WHERE id=?")
+      .bind(customer.id)
+      .run();
+    assert.equal(
+      (
+        await admin.req(`/api/admin/users/${customer.id}`, {
+          action: "activate",
+          reason: "Revisión ficticia",
+          version: row.version,
+        })
+      ).status,
+      400,
+    );
+    await s.db
+      .prepare("UPDATE user SET emailVerified=1 WHERE id=?")
+      .bind(customer.id)
+      .run();
+    assert.equal(
+      (
+        await admin.req(`/api/admin/users/${customer.id}`, {
+          action: "correct",
+          reason: "Corregir cuenta de prueba",
+          version: row.version,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await customer.req("/api/profile", { ...dossier(), bank: "Avanz" }))
+        .status,
+      200,
+    );
+    row = await s.db
+      .prepare("SELECT * FROM profiles WHERE user_id=?")
+      .bind(customer.id)
+      .first();
+    assert.equal(row.status, "pending");
+    assert.equal(JSON.parse(row.dossier).bank, "Avanz");
+    assert.equal(
+      (await customer.req("/api/tickets", { amount: "100" })).status,
+      403,
+    );
+    const events = await s.db
+      .prepare("SELECT detail FROM audit_events WHERE target_id=?")
+      .bind(customer.id)
+      .all();
+    assert.ok(!JSON.stringify(events).includes("cedula"));
+    assert.ok(!JSON.stringify(events).includes(dossier().bankAccount));
   } finally {
     await s.mf.dispose();
   }

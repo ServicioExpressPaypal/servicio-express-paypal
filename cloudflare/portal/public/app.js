@@ -1,3 +1,5 @@
+import CertificateModel from "./certificate.js";
+
 (() => {
   "use strict";
   const $ = (s) => document.querySelector(s),
@@ -92,6 +94,16 @@
     icons();
   }
   $("#close-dialog").onclick = () => $("#dialog").close();
+  function legalNotice() {
+    modal(
+      "Términos y privacidad",
+      `<p>Registro cerrado. La tarjeta de regalo electrónica todavía no está disponible para compra, emisión ni canje.</p>
+       <p><a href="https://saldoexpressnicaragua.com/terminos.html" target="_blank" rel="noopener">Términos y condiciones</a></p>
+       <p><a href="https://saldoexpressnicaragua.com/privacidad.html" target="_blank" rel="noopener">Aviso de privacidad</a></p>
+       <p>SoftOhm Systems LLC · <a href="mailto:info@softohmsystems.com">info@softohmsystems.com</a></p>`,
+    );
+  }
+  $("#privacy-notice").onclick = legalNotice;
   async function refresh() {
     config = await api("/api/config");
     try {
@@ -171,6 +183,13 @@
   function login(mode = "login") {
     const reset = !!resetToken;
     main.innerHTML = `<div class="onboarding">${!reset ? `<div class="auth-tabs" role="tablist"><button role="tab" data-auth="login" aria-selected="${mode === "login"}">Iniciar sesión</button><button role="tab" data-auth="signup" aria-selected="${mode === "signup"}">Crear cuenta</button></div>` : ""}<h1>${reset ? "Nueva contraseña" : mode === "signup" ? "Crea tu cuenta" : mode === "recover" ? "Recupera tu acceso" : "Bienvenido"}</h1>${mode === "signup" && !config.registrationOpen ? '<div class="notice">El registro de nuevas cuentas todavía no está abierto.</div>' : form("auth", `${!reset ? field("Correo electrónico", "email", "email", 'autocomplete="email" maxlength="254"') : ""}${mode !== "recover" ? field("Contraseña", "password", "password", `minlength="12" maxlength="128" autocomplete="${reset || mode === "signup" ? "new-password" : "current-password"}"`) : ""}`, reset ? "Guardar contraseña" : mode === "signup" ? "Crear cuenta" : mode === "recover" ? "Enviar enlace" : "Entrar")}${!reset ? '<button class="text-button" id="recover">Olvidé mi contraseña</button>' : ""}</div>`;
+    if (mode === "signup" && !reset) {
+      const note = document.createElement("p");
+      note.className = "notice";
+      note.textContent =
+        "Verifica tu correo y completa tus datos. Tu cuenta quedará pendiente de aprobación manual.";
+      $(".onboarding").append(note);
+    }
     document
       .querySelectorAll("[data-auth]")
       .forEach((b) => (b.onclick = () => login(b.dataset.auth)));
@@ -266,12 +285,12 @@
   }
   function profile() {
     const p = me.profile;
-    main.innerHTML = `<div class="onboarding"><h1>Mi cuenta</h1><p>${esc(me.user.email)}</p><span class="badge">${esc(AccountModel.labels[p.status])}</span>${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}${p.status === "pending" ? "<p>Recibimos tu expediente. Está pendiente de revisión.</p>" : p.status === "active" ? `<p>${esc(p.name)}</p>` : !config.kycOpen ? '<div class="notice">La recepción de documentos todavía no está habilitada.</div>' : ""}</div>`;
+    main.innerHTML = `<div class="onboarding"><h1>Mi cuenta</h1><p>${esc(me.user.email)}</p><span class="badge">${esc(AccountModel.labels[p.status])}</span>${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}${p.status === "pending" ? "<p>Recibimos tus datos. Tu cuenta se activará después de la aprobación manual.</p>" : p.status === "active" ? `<p>${esc(p.name)}</p>` : !config.kycOpen ? '<div class="notice">La recepción de datos para revisión todavía no está habilitada.</div>' : ""}</div>`;
     if (!config.kycOpen || !["incomplete", "correction"].includes(p.status))
       return;
     main.innerHTML = `<div class="onboarding"><h1>Completa tus datos</h1>${form(
       "profile",
-      `${field("Nombre completo", "name", "text", 'autocomplete="name" minlength="5" maxlength="120"')}${field("Número de cédula", "cedula", "text", 'maxlength="18" autocomplete="off"')}${["front", "back"].map((side, i) => field(i ? "Reverso de la cédula" : "Frente de la cédula", side, "file", 'accept="image/jpeg,image/png"')).join("")}<label class="field">Origen de fondos<select name="source" required><option value="">Selecciona</option>${AccountModel.sources.map((s) => `<option>${esc(s)}</option>`).join("")}</select></label><label class="field">Describe el origen de los fondos<textarea name="detail" minlength="15" maxlength="600" required></textarea></label><p>${esc(AccountModel.declaration)}</p>${[
+      `<p>Cuenta bancaria del propio usuario. La activación requiere revisión manual.</p>${field("Nombre completo del titular", "name", "text", 'autocomplete="name" minlength="5" maxlength="120"')}<label class="field">Banco<select name="bank" required><option value="">Selecciona</option>${CertificateModel.banks.map((b) => `<option>${esc(b)}</option>`).join("")}</select></label>${field("Número de cuenta bancaria", "bankAccount", "text", 'inputmode="numeric" autocomplete="off" maxlength="40"')}<label class="field">Moneda de la cuenta<select name="currency" required><option value="">Selecciona</option><option value="USD">Dólares</option><option value="NIO">Córdobas</option></select></label>${field("Teléfono del titular", "phone", "tel", 'autocomplete="tel" maxlength="25"')}<p>${esc(CertificateModel.declaration)}</p>${[
         ["declaration", "Declaro que la información es verdadera."],
         ["terms", "Acepto los términos y condiciones."],
         ["privacy", "Acepto el aviso de privacidad."],
@@ -285,21 +304,23 @@
         )}<button type="button" class="text-button" id="legal">Términos y privacidad</button>`,
       "Enviar a revisión",
     )}</div>`;
-    $("#legal").onclick = () =>
-      modal(
-        "Términos y privacidad",
-        [...AccountModel.terms, ...AccountModel.privacy]
-          .map(([h, t]) => `<h3>${esc(h)}</h3><p>${esc(t)}</p>`)
-          .join(""),
-      );
+    $("#legal").onclick = legalNotice;
     bind("profile", async (f) => {
-      await api("/api/profile", f);
+      await api("/api/profile", {
+        ...Object.fromEntries(f),
+        version: CertificateModel.version,
+      });
       await refresh();
     });
   }
   async function tickets() {
     const rows = await api(me.admin ? "/api/admin/tickets" : "/api/tickets");
     main.innerHTML = `<div class="heading"><h1>${me.admin ? "Solicitudes" : "Mis solicitudes"}</h1>${!me.admin ? `<button class="button primary" id="new-ticket">${icon("plus")}Nueva solicitud</button>` : ""}</div><div class="ticket-list">${rows.length ? rows.map((t) => `<button class="ticket-row" data-ticket="${t.id}"><span><strong>${money(t.amount)}</strong> · ${t.mode === "express" ? "Express" : "Internacional"}<small>${esc(t.full_name || t.bank)} · ${new Date(t.created_at).toLocaleDateString("es-NI")}</small><small class="ticket-id">${esc(t.id)}</small></span><span class="badge ${t.status}">${labels[t.status]}</span></button>`).join("") : '<p class="empty">Todavía no hay solicitudes.</p>'}</div>`;
+    if (!me.admin)
+      $(".heading").insertAdjacentHTML(
+        "afterend",
+        `<p class="product-title">${esc(CertificateModel.title)}</p><p>${esc(CertificateModel.description)}</p>`,
+      );
     if ($("#new-ticket")) $("#new-ticket").onclick = newTicket;
     document
       .querySelectorAll("[data-ticket]")
@@ -311,7 +332,12 @@
   }
   function newTicket() {
     const requestKey = crypto.randomUUID();
-    main.innerHTML = `<div class="onboarding"><h1>Nueva solicitud</h1>${form("ticket", `${field("Saldo disponible en USD", "amount", "number", 'min="25" max="3000" step="0.01"')}<label class="field">Modalidad<select name="mode"><option value="express">Express · $25 a $500</option><option value="international">Internacional · Más de $500</option></select></label><label class="field">Banco<select name="bank">${["BAC", "LAFISE", "Banpro", "BDF", "Ficohsa", "Otro"].map((b) => `<option>${b}</option>`).join("")}</select></label><label class="field">Moneda de destino<select name="currency"><option value="USD">Dólares</option><option value="NIO">Córdobas</option></select></label><div class="estimate" id="estimate">Ingresa el monto.</div><label class="check"><input name="consent" type="checkbox" required>Solicito una cotización no vinculante. Crear el ticket no confirma un pago ni una operación.</label>`, "Enviar solicitud")}<button class="text-button" id="back">Volver</button></div>`;
+    const approvedBank = me.profile.bank,
+      approvedCurrency = me.profile.currency;
+    const destination = approvedBank
+      ? `<p>Cuenta aprobada: ${esc(approvedBank)} · ${esc(approvedCurrency)}</p><input type="hidden" name="bank" value="${esc(approvedBank)}"><input type="hidden" name="currency" value="${esc(approvedCurrency)}">`
+      : `<label class="field">Banco<select name="bank">${CertificateModel.banks.map((b) => `<option>${esc(b)}</option>`).join("")}</select></label><label class="field">Moneda de destino<select name="currency"><option value="USD">Dólares</option><option value="NIO">Córdobas</option></select></label>`;
+    main.innerHTML = `<div class="onboarding"><h1>${esc(CertificateModel.title)}</h1><p>${esc(CertificateModel.description)}</p>${form("ticket", `${field("Importe a enviar por PayPal (USD)", "amount", "number", 'min="25" max="3000" step="0.01"')}<label class="field">Modalidad<select name="mode"><option value="express">Express · $25 a $500</option><option value="international">Internacional · Más de $500</option></select></label>${destination}<div class="estimate" id="estimate">Ingresa el monto.</div><label class="check"><input name="consent" type="checkbox" required>Solicito una cotización no vinculante. Crear el ticket no confirma un pago ni un depósito. El importe a enviar incluye las comisiones estimadas, no es el neto a recibir.</label>`, "Solicitar cotización")}<button class="text-button" id="back">Volver</button></div>`;
     $("#ticket").oninput = () => {
       const f = new FormData($("#ticket"));
       try {
@@ -398,7 +424,7 @@
       p = u.dossier;
     main.innerHTML = `<button class="back" id="back">Usuarios</button><div class="heading"><h1>${esc(u.full_name || "Registro sin completar")}</h1><span class="badge">${esc(AccountModel.labels[u.status])}</span></div>${
       p
-        ? `<div class="data-grid"><div><small>Cédula</small><p>${esc(p.cedula)}</p></div><div><small>Origen de fondos</small><p>${esc(p.source)}</p></div></div><p>${esc(p.detail)}</p><div class="document-grid">${["front", "back"].map((side, i) => `<figure><figcaption>${i ? "Reverso" : "Frente"}</figcaption><img src="/api/admin/documents/${encodeURIComponent(id)}/${side}" alt="${i ? "Reverso" : "Frente"} de la cédula"></figure>`).join("")}</div><p>Consentimiento: ${esc(p.version)} · ${new Date(p.acceptedAt).toLocaleString("es-NI")}</p><div class="actions">${(
+        ? `<div class="data-grid">${p.kind === "cash-certificate" ? `<div><small>Teléfono</small><p>${esc(p.phone)}</p></div><div><small>Banco y moneda</small><p>${esc(p.bank)} · ${esc(p.currency)}</p></div><div><small>Cuenta bancaria del titular</small><p>${esc(p.bankAccount)}</p></div>` : `<div><small>Cédula · Archivo anterior</small><p>${esc(p.cedula)}</p></div><div><small>Origen de fondos</small><p>${esc(p.source)}</p></div>`}</div>${p.kind === "cash-certificate" ? `<p>${esc(p.declaration)}</p><p class="notice">Datos declarados por el usuario. Revisa su coherencia y la titularidad de la cuenta antes de aprobar. Esta revisión no certifica la identidad del usuario.</p>` : `<p>${esc(p.detail)}</p>`}${p.hasDocuments ? `<div class="document-grid">${["front", "back"].map((side, i) => `<figure><figcaption>${i ? "Reverso" : "Frente"} · Archivo anterior</figcaption><img src="/api/admin/documents/${encodeURIComponent(id)}/${side}" alt="${i ? "Reverso" : "Frente"} de la cédula"></figure>`).join("")}</div>` : ""}<p>Consentimiento: ${esc(p.version)} · ${new Date(p.acceptedAt).toLocaleString("es-NI")}</p><div class="actions">${(
             {
               pending: [
                 ["activate", "Activar cuenta"],

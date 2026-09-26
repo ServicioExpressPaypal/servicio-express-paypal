@@ -84,6 +84,17 @@
 #main form {
   min-width: 0;
 }
+.onboarding h1 {
+  font-size: 28px;
+  overflow-wrap: anywhere;
+}
+.product-title {
+  margin-top: 16px;
+  font-weight: 700;
+}
+.data-grid p {
+  overflow-wrap: anywhere;
+}
 input,
 select,
 textarea {

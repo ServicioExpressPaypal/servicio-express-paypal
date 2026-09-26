@@ -3,6 +3,7 @@ import { setupEnabled, inviteAdmin, completeAdminSetup } from "./admin-setup";
 import "../../../calculator-core.js";
 import "../../../_pilot/tickets/domain.js";
 import "../../../_pilot/tickets/accounts.js";
+import CertificateModel from "../public/certificate.js";
 
 // The same tested calculator and state machines power the demo and the API.
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
@@ -277,6 +278,10 @@ async function handle(
         status: profile.status,
         name: profile.full_name,
         reason: profile.reason,
+        bank: profile.dossier ? JSON.parse(profile.dossier).bank : undefined,
+        currency: profile.dossier
+          ? JSON.parse(profile.dossier).currency
+          : undefined,
       },
     });
   if (request.method === "POST") await rate(env, `user:${user.id}`, 30, 60);
@@ -311,78 +316,47 @@ async function handle(
 
   if (path === "/api/profile" && request.method === "POST") {
     if (env.KYC_OPEN !== "true")
-      fail(503, "La recepción de documentos todavía no está habilitada.");
+      fail(
+        503,
+        "La recepción de datos para revisión todavía no está habilitada.",
+      );
     if (!["incomplete", "correction"].includes(profile.status))
       fail(409, "El expediente ya fue enviado.");
     await rate(env, `kyc:${user.id}`, 3, 3600);
-    const bounded = new Request(request, {
-      body: await limitedBody(request, 11 * 1024 * 1024),
-    });
-    let form: FormData;
+    const data = await payload(request);
+    if (["front", "back", "source", "detail"].some((key) => key in data))
+      fail(
+        400,
+        "Este formulario no admite fotografías ni documentos adicionales.",
+      );
+    let p;
     try {
-      form = await bounded.formData();
-    } catch {
-      return fail(400, "Formulario inválido.");
-    }
-    const data = Object.fromEntries(form);
-    const account = {
-      status: "incomplete",
-      verifiedAt: Date.now(),
-      events: [],
-      profile: null,
-    };
-    try {
-      AccountModel.submit(account, data);
+      p = CertificateModel.validate(data);
     } catch (e) {
       return fail(400, (e as Error).message);
     }
-    const keys: string[] = [];
-    const saved: Record<string, string> = {};
-    let committed = false;
-    try {
-      for (const side of ["front", "back"]) {
-        const file = data[side] as File;
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const valid =
-          file.type === "image/png"
-            ? bytes.slice(0, 8).join(",") === "137,80,78,71,13,10,26,10"
-            : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
-        if (!valid) fail(400, "Usa imágenes JPG o PNG válidas.");
-        const key = `${user.id}/${crypto.randomUUID()}/${side}`;
-        await env.DOCUMENTS.put(key, bytes, {
-          httpMetadata: { contentType: file.type },
-        });
-        keys.push(key);
-        saved[side] = key;
-      }
-      const p = account.profile as Record<string, unknown> | null;
-      if (!p) throw new Error("Profile validation did not produce a dossier");
-      const dossier = JSON.stringify({ ...p, ...saved });
-      const result = await env.DB.batch([
-        guardedAudit(
-          env,
-          "profiles",
-          user.id,
-          user.id,
-          profile.version,
-          "profile_submitted",
-        ),
-        env.DB.prepare(
-          "UPDATE profiles SET full_name=?,dossier=?,status='pending',reason='',version=version+1,updated_at=? WHERE user_id=? AND version=? RETURNING user_id",
-        ).bind(p.name, dossier, Date.now(), user.id, profile.version),
-      ]);
-      if (!result[1].results.length)
-        fail(409, "El expediente cambió. Recarga e intenta de nuevo.");
-      committed = true;
-    } catch (e) {
-      if (!committed) for (const key of keys) await env.DOCUMENTS.delete(key);
-      throw e;
-    }
-    // Only the current dossier is retained after a correction.
-    if (profile.dossier) {
-      const old = JSON.parse(profile.dossier);
-      ctx.waitUntil(env.DOCUMENTS.delete([old.front, old.back]));
-    }
+    // Keep references to any legacy documents; changing this form is not a deletion request.
+    const old = profile.dossier ? JSON.parse(profile.dossier) : {};
+    const dossier = JSON.stringify({
+      ...p,
+      ...(old.front ? { front: old.front } : {}),
+      ...(old.back ? { back: old.back } : {}),
+    });
+    const result = await env.DB.batch([
+      guardedAudit(
+        env,
+        "profiles",
+        user.id,
+        user.id,
+        profile.version,
+        "profile_submitted",
+      ),
+      env.DB.prepare(
+        "UPDATE profiles SET full_name=?,dossier=?,status='pending',reason='',version=version+1,updated_at=? WHERE user_id=? AND version=? RETURNING user_id",
+      ).bind(p.name, dossier, Date.now(), user.id, profile.version),
+    ]);
+    if (!result[1].results.length)
+      fail(409, "El expediente cambió. Recarga e intenta de nuevo.");
     return json({ ok: true });
   }
   if (path === "/api/tickets" && request.method === "GET") {
@@ -415,19 +389,23 @@ async function handle(
       return fail(400, (e as Error).message);
     }
     if (
-      !["BAC", "LAFISE", "Banpro", "BDF", "Ficohsa", "Otro"].includes(
-        body.bank,
-      ) ||
+      ![...CertificateModel.banks, "Otro"].includes(body.bank) ||
       !["USD", "NIO"].includes(body.currency) ||
       body.consent !== true
     )
       fail(400, "Revisa el banco, la moneda y el consentimiento.");
+    const approved = profile.dossier ? JSON.parse(profile.dossier) : null;
+    if (
+      approved?.kind === "cash-certificate" &&
+      (body.bank !== approved.bank || body.currency !== approved.currency)
+    )
+      fail(400, "Usa el banco y la moneda de la cuenta aprobada.");
     const id = `SE-${crypto.randomUUID().toUpperCase()}`,
       now = Date.now();
     try {
       await env.DB.batch([
         env.DB.prepare(
-          "INSERT INTO tickets(id,user_id,request_key,amount,mode,bank,currency,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM profiles WHERE user_id=? AND status='active')",
+          "INSERT INTO tickets(id,user_id,request_key,amount,mode,bank,currency,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM profiles WHERE user_id=? AND status='active' AND version=?)",
         ).bind(
           id,
           user.id,
@@ -440,6 +418,7 @@ async function handle(
           now,
           now,
           user.id,
+          profile.version,
         ),
         env.DB.prepare(
           "INSERT INTO notifications(id,ticket_id) VALUES(?,?)",
@@ -476,15 +455,21 @@ async function handle(
       await audit(env, user.id, target!.user_id, "dossier_viewed").run();
       const dossier = target!.dossier ? JSON.parse(target!.dossier) : null;
       if (dossier) {
+        dossier.hasDocuments = !!(dossier.front || dossier.back);
         delete dossier.front;
         delete dossier.back;
       }
       return json({ ...target, dossier });
     }
     const body = await payload(request);
+    const owner = await env.DB.prepare(
+      "SELECT emailVerified FROM user WHERE id=?",
+    )
+      .bind(target!.user_id)
+      .first<{ emailVerified: number }>();
     const account = {
       status: target!.status,
-      verifiedAt: 1,
+      verifiedAt: owner?.emailVerified ? 1 : null,
       profile: target!.dossier,
       events: [],
       reason: "",
@@ -531,9 +516,9 @@ async function handle(
       .bind(documentMatch[1])
       .first<{ dossier: string }>();
     if (!p?.dossier) fail(404, "Documento no encontrado.");
-    const object = await env.DOCUMENTS.get(
-      JSON.parse(p!.dossier)[documentMatch[2]],
-    );
+    const key = JSON.parse(p!.dossier)[documentMatch[2]];
+    if (typeof key !== "string") fail(404, "Documento no encontrado.");
+    const object = await env.DOCUMENTS.get(key);
     if (!object) fail(404, "Documento no encontrado.");
     await audit(
       env,

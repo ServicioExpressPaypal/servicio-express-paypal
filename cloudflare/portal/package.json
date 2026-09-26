@@ -5,6 +5,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "npm run build && wrangler dev --port 8791",
+    "preview": "npm run build && wrangler deploy --dry-run --outdir .test-build && node scripts/preview.mjs",
     "check": "wrangler types --strict-vars false && tsc --noEmit",
     "test": "npm run build && wrangler deploy --dry-run --outdir .test-build && node --test tests/portal.test.mjs",
     "deploy": "npm run build && wrangler deploy"
