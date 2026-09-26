@@ -381,10 +381,9 @@ async function handle(
     await rate(env, `tickets:${user.id}`, 10, 3600);
     let estimate;
     try {
-      estimate = SaldoCalculator.estimate(
-        TicketModel.cents(body.amount),
-        body.mode,
-      );
+      const amount = TicketModel.cents(body.amount);
+      const mode = SaldoCalculator.modeForAmount(amount);
+      estimate = SaldoCalculator.estimate(amount, mode);
     } catch (e) {
       return fail(400, (e as Error).message);
     }
@@ -411,7 +410,7 @@ async function handle(
           user.id,
           body.requestKey,
           estimate.amount,
-          body.mode,
+          estimate.mode,
           body.bank,
           body.currency,
           JSON.stringify(estimate),

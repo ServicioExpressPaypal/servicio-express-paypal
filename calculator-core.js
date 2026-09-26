@@ -12,7 +12,7 @@
     wisePercent: 0.0016,
     serviceModes: {
       express: {
-        label: "Escenario express",
+        label: "Tarjeta de regalo electrónica",
         rate: 0.03,
         feeModel: "atm",
         deliveryLabel: "Procesamiento estimado",
@@ -21,7 +21,7 @@
         deliveryTime: "Rango de referencia: $25 a $500",
       },
       international: {
-        label: "Escenario internacional",
+        label: "Método internacional",
         rate: 0.02,
         feeModel: "wise",
         deliveryLabel: "Costo internacional estimado",
@@ -101,7 +101,25 @@
       currency: "USD",
     };
   }
-  const api = { siteConfig, deliveryFee, computeFees, reverseGross, estimate };
+  function modeForAmount(amountCents) {
+    if (!Number.isSafeInteger(amountCents))
+      throw new Error("Ingresa un monto válido.");
+    for (const [key, mode] of Object.entries(siteConfig.serviceModes))
+      if (
+        amountCents >= Math.round(mode.minAmount * 100) &&
+        amountCents <= Math.round(mode.maxAmount * 100)
+      )
+        return key;
+    throw new Error("Ingresa un monto entre $25 y $3,000.");
+  }
+  const api = {
+    siteConfig,
+    deliveryFee,
+    computeFees,
+    reverseGross,
+    estimate,
+    modeForAmount,
+  };
   root.SaldoCalculator = api;
   if (typeof module !== "undefined") module.exports = api;
 })(globalThis);

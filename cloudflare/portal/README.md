@@ -15,7 +15,7 @@ Worker separado de GitHub Pages: https://portal.saldoexpressnicaragua.com
   Si la variable se omite o no es `false`, se exige MFA confirmado en la sesion
   durante los ultimos 15 minutos. Revisar esta decision antes de admitir clientes.
 - Revision manual del expediente. Cuenta suspendida/cerrada no crea tickets.
-- Certificado de regalo en efectivo: nombre comercial con descripcion expresa
+- Tarjeta de regalo electronica: nombre comercial con descripcion expresa
   del deposito financiado mediante PayPal. El ticket sigue siendo una solicitud
   de cotizacion, no una compra ejecutada ni un instrumento de valor emitido.
 - Perfil minimo: nombre del titular, banco, cuenta, moneda y telefono.
@@ -27,6 +27,9 @@ Worker separado de GitHub Pages: https://portal.saldoexpressnicaragua.com
   regresan a pendiente; banco/moneda del ticket deben coincidir con lo aprobado.
 - Calculadora compartida ejecutada tambien en el servidor; se conserva la
   estimacion original y se comprueba la coherencia de la cotizacion final.
+  El servidor asigna automaticamente tarjeta de regalo hasta USD 500 y Metodo
+  internacional desde USD 500.01; no confia en una modalidad enviada por el cliente.
+  El ticket destaca el valor neto estimado y conserva monto base y costos.
 - Aislamiento por propietario, validacion de origen, limites de solicitudes,
   tamano de solicitudes, idempotencia y control de versiones.
 - Cambios de expediente/ticket e historial en transacciones D1.

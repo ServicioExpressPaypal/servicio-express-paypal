@@ -454,7 +454,7 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     const requestKey = crypto.randomUUID();
     r = await a.req("/api/tickets", {
       amount: "164",
-      mode: "express",
+      mode: "international",
       bank: "LAFISE",
       currency: "USD",
       consent: true,
@@ -468,6 +468,9 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     const persisted = await a.req("/api/tickets/" + id);
     assert.equal(persisted.data.status, "submitted");
     assert.equal(persisted.data.user_id, a.id);
+    assert.equal(persisted.data.mode, "express");
+    assert.equal(persisted.data.estimate.amount, 16400);
+    assert.equal(persisted.data.estimate.net, 14500);
     assert.notEqual(persisted.data.estimate.net, 999999);
     assert.equal((await b.req("/api/tickets/" + id)).status, 404);
     assert.equal(
@@ -486,6 +489,19 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     });
     assert.equal(r.data.id, id);
     assert.equal((await a.req("/api/tickets")).data.length, 1);
+    r = await a.req("/api/tickets", {
+      amount: "600",
+      mode: "express",
+      bank: "LAFISE",
+      currency: "USD",
+      consent: true,
+      requestKey: crypto.randomUUID(),
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    const international = await a.req("/api/tickets/" + r.data.id);
+    assert.equal(international.data.mode, "international");
+    assert.equal(international.data.estimate.amount, 60000);
+    assert.equal((await a.req("/api/tickets")).data.length, 2);
     r = await admin.req("/api/admin/tickets/" + id, {
       action: "reviewing",
       version: 0,
@@ -536,7 +552,7 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     const counts = await s.db
       .prepare("SELECT count(*) AS n FROM tickets")
       .first();
-    assert.equal(counts.n, 1);
+    assert.equal(counts.n, 2);
     await s.db.prepare("UPDATE admin_grants SET expires_at=0").run();
     assert.equal((await admin.req("/api/admin/users")).status, 403);
     assert.equal(

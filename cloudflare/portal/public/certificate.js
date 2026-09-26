@@ -1,9 +1,9 @@
 export default (function () {
   "use strict";
-  const version = "tarjeta-piloto-2026-09-26-v3";
+  const version = "tarjeta-piloto-2026-09-26-v4";
   const title = "Tarjeta de regalo electrónica";
   const description =
-    "Solicitud de un depósito bancario al beneficiario, financiado mediante PayPal y sujeto a revisión y cotización. No es una tarjeta para comprar productos.";
+    "Solicitud de una tarjeta de regalo electrónica cuyo valor se calcula automáticamente. Tras revisión y confirmación, su valor se entregaría mediante depósito a la cuenta bancaria aprobada.";
   const banks = ["LAFISE", "BDF", "Banpro", "BAC", "Ficohsa", "Avanz"];
   const declaration =
     "Declaro que los datos son verdaderos, que soy titular de la cuenta bancaria indicada y que los fondos relacionados con mi solicitud tienen procedencia lícita. Esta declaración no sustituye la verificación que corresponda.";
@@ -11,7 +11,7 @@ export default (function () {
     [
       "Servicio solicitado",
       description +
-        " Crear una cuenta o solicitud no ejecuta un pago ni garantiza un depósito. El nombre comercial no cambia la naturaleza de la operación.",
+        " Hasta $500 se tramita como tarjeta de regalo; un monto mayor genera una solicitud por Método internacional. Crear una cuenta o ticket no ejecuta un pago ni garantiza un depósito.",
     ],
     [
       "Cuenta y revisión",

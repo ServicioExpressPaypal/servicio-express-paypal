@@ -192,3 +192,18 @@ Se retiran los cargadores automaticos de analitica y publicidad de la landing.
 No se elimina informacion existente ni se modifican secretos. Los plazos concretos
 de conservacion, el procedimiento de borrado y las condiciones comerciales siguen
 pendientes; el registro y la recepcion de perfiles permanecen cerrados.
+
+## Ajuste del producto y tickets
+
+La referencia comercial revisada fue el producto "Certificado de Regalo en
+Efectivo" de tuNicaragua. No se copian su tabla de precios ni sus afirmaciones
+como si fueran condiciones de Saldo Express. Se adaptan las condiciones operativas
+confirmadas por el titular: una cuenta bancaria por ticket, cuentas corrientes o
+de ahorro, pago desde PayPal verificado, solo mayores de edad y revision de los
+datos bancarios antes del deposito.
+
+La tarjeta de regalo admite USD 25 a USD 500 por solicitud. Un monto desde
+USD 500.01 se clasifica en el servidor como Metodo internacional, hasta USD 3,000.
+La comision no se publica como tabla fija: se calcula con la configuracion vigente
+y el ticket muestra monto base, costos estimados y valor estimado de la tarjeta.
+El registro y la recepcion de perfiles continuan cerrados.

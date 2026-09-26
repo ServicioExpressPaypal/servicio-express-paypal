@@ -28,6 +28,8 @@ import CertificateModel from "./certificate.js";
     closed: "Cerrada",
     cancelled: "Cancelada",
   };
+  const methodLabel = (mode) =>
+    mode === "express" ? "Tarjeta de regalo" : "Método internacional";
   let me,
     config,
     view = "tickets",
@@ -315,7 +317,7 @@ import CertificateModel from "./certificate.js";
   }
   async function tickets() {
     const rows = await api(me.admin ? "/api/admin/tickets" : "/api/tickets");
-    main.innerHTML = `<div class="heading"><h1>${me.admin ? "Solicitudes" : "Mis solicitudes"}</h1>${!me.admin ? `<button class="button primary" id="new-ticket">${icon("plus")}Nueva solicitud</button>` : ""}</div><div class="ticket-list">${rows.length ? rows.map((t) => `<button class="ticket-row" data-ticket="${t.id}"><span><strong>${money(t.amount)}</strong> · ${t.mode === "express" ? "Express" : "Internacional"}<small>${esc(t.full_name || t.bank)} · ${new Date(t.created_at).toLocaleDateString("es-NI")}</small><small class="ticket-id">${esc(t.id)}</small></span><span class="badge ${t.status}">${labels[t.status]}</span></button>`).join("") : '<p class="empty">Todavía no hay solicitudes.</p>'}</div>`;
+    main.innerHTML = `<div class="heading"><h1>${me.admin ? "Solicitudes" : "Mis solicitudes"}</h1>${!me.admin ? `<button class="button primary" id="new-ticket">${icon("plus")}Nueva solicitud</button>` : ""}</div><div class="ticket-list">${rows.length ? rows.map((t) => `<button class="ticket-row" data-ticket="${t.id}"><span><strong>${money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>Valor estimado · Monto base ${money(t.amount)}</small><small>${esc(t.full_name || t.bank)} · ${new Date(t.created_at).toLocaleDateString("es-NI")}</small><small class="ticket-id">${esc(t.id)}</small></span><span class="badge ${t.status}">${labels[t.status]}</span></button>`).join("") : '<p class="empty">Todavía no hay solicitudes.</p>'}</div>`;
     if (!me.admin)
       $(".heading").insertAdjacentHTML(
         "afterend",
@@ -337,16 +339,15 @@ import CertificateModel from "./certificate.js";
     const destination = approvedBank
       ? `<p>Cuenta aprobada: ${esc(approvedBank)} · ${esc(approvedCurrency)}</p><input type="hidden" name="bank" value="${esc(approvedBank)}"><input type="hidden" name="currency" value="${esc(approvedCurrency)}">`
       : `<label class="field">Banco<select name="bank">${CertificateModel.banks.map((b) => `<option>${esc(b)}</option>`).join("")}</select></label><label class="field">Moneda de destino<select name="currency"><option value="USD">Dólares</option><option value="NIO">Córdobas</option></select></label>`;
-    main.innerHTML = `<div class="onboarding"><h1>${esc(CertificateModel.title)}</h1><p>${esc(CertificateModel.description)}</p>${form("ticket", `${field("Importe a enviar por PayPal (USD)", "amount", "number", 'min="25" max="3000" step="0.01"')}<label class="field">Modalidad<select name="mode"><option value="express">Express · $25 a $500</option><option value="international">Internacional · Más de $500</option></select></label>${destination}<div class="estimate" id="estimate">Ingresa el monto.</div><label class="check"><input name="consent" type="checkbox" required>Solicito una cotización no vinculante. Crear el ticket no confirma un pago ni un depósito. El importe a enviar incluye las comisiones estimadas, no es el neto a recibir.</label>`, "Solicitar cotización")}<button class="text-button" id="back">Volver</button></div>`;
+    main.innerHTML = `<div class="onboarding"><h1>${esc(CertificateModel.title)}</h1><p>${esc(CertificateModel.description)}</p>${form("ticket", `${field("Monto disponible para la compra (USD)", "amount", "number", 'min="25" max="3000" step="0.01"')}<p class="field-hint">Hasta $500 se procesa como tarjeta de regalo. Un monto mayor cambia automáticamente a Método internacional.</p>${destination}<div class="estimate" id="estimate">Ingresa el monto para calcular el valor de la tarjeta.</div><label class="check"><input name="consent" type="checkbox" required>Solicito una cotización no vinculante. Crear el ticket no confirma un pago ni un depósito. El valor mostrado descuenta las comisiones estimadas y está sujeto a revisión.</label>`, "Crear ticket de solicitud")}<button class="text-button" id="back">Volver</button></div>`;
     $("#ticket").oninput = () => {
       const f = new FormData($("#ticket"));
       try {
-        const e = SaldoCalculator.estimate(
-          Math.round(Number(f.get("amount")) * 100),
-          f.get("mode"),
-        );
+        const amount = Math.round(Number(f.get("amount")) * 100);
+        const mode = SaldoCalculator.modeForAmount(amount);
+        const e = SaldoCalculator.estimate(amount, mode);
         $("#estimate").innerHTML =
-          `Neto estimado en USD<strong>${money(e.net)}</strong><small>Costos estimados: ${money(e.total)}. La cotización final está sujeta a revisión.</small>`;
+          `<span class="estimate-method">${methodLabel(mode)}</span>Valor estimado de la tarjeta<strong>${money(e.net)}</strong><small>Monto base: ${money(e.amount)} · Costos estimados: ${money(e.total)}. La cotización final está sujeta a revisión.</small>`;
       } catch (e) {
         $("#estimate").textContent = e.message;
       }
@@ -355,7 +356,6 @@ import CertificateModel from "./certificate.js";
     bind("ticket", async (f) => {
       const result = await api("/api/tickets", {
         amount: f.get("amount"),
-        mode: f.get("mode"),
         bank: f.get("bank"),
         currency: f.get("currency"),
         consent: f.get("consent") === "on",
@@ -368,7 +368,7 @@ import CertificateModel from "./certificate.js";
   async function detail(id) {
     const base = me.admin ? "/api/admin/tickets/" : "/api/tickets/";
     const t = await api(base + id);
-    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><h1>${money(t.amount)}</h1><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="data-grid"><div><small>Banco de destino</small><p>${esc(t.bank)} · ${t.currency}</p></div><div><small>Neto de referencia en USD</small><p>${money(t.estimate.net)}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${new Date(t.quote.expiresAt).toLocaleString("es-NI")}.</p></div>` : ""}<div class="actions">${me.admin ? (t.status === "submitted" ? '<button class="button primary" data-action="reviewing">Iniciar revisión</button>' : t.status === "reviewing" ? '<button class="button primary" id="quote">Emitir cotización</button>' : t.status === "quoted" ? '<button class="button" data-action="closed">Cerrar atención</button>' : "") : ""}${["submitted", "reviewing"].includes(t.status) ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>' : ""}</div><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${new Date(e.created_at).toLocaleString("es-NI")}</small></li>`).join("")}</ol>`;
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado de la tarjeta</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="data-grid"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Banco de destino</small><p>${esc(t.bank)} · ${t.currency}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${new Date(t.quote.expiresAt).toLocaleString("es-NI")}.</p></div>` : ""}<div class="actions">${me.admin ? (t.status === "submitted" ? '<button class="button primary" data-action="reviewing">Iniciar revisión</button>' : t.status === "reviewing" ? '<button class="button primary" id="quote">Emitir cotización</button>' : t.status === "quoted" ? '<button class="button" data-action="closed">Cerrar atención</button>' : "") : ""}${["submitted", "reviewing"].includes(t.status) ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>' : ""}</div><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${new Date(e.created_at).toLocaleString("es-NI")}</small></li>`).join("")}</ol>`;
     $("#back").onclick = render;
     document.querySelectorAll("[data-action]").forEach(
       (b) =>

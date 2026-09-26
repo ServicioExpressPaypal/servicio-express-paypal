@@ -40,6 +40,14 @@ test("limites por modalidad y centavos invalidos se rechazan", () => {
     assert.throws(() => C.estimate(amount, mode));
   assert.doesNotThrow(() => C.estimate(50001, "international"));
 });
+test("la modalidad del ticket se deriva automaticamente por el monto", () => {
+  assert.equal(C.modeForAmount(2500), "express");
+  assert.equal(C.modeForAmount(50000), "express");
+  assert.equal(C.modeForAmount(50001), "international");
+  assert.equal(C.modeForAmount(300000), "international");
+  for (const amount of [2499, 300001, 10000.5])
+    assert.throws(() => C.modeForAmount(amount));
+});
 test("calculo inverso mantiene el neto por ambos lados del tope", () => {
   for (const mode of Object.values(C.siteConfig.serviceModes))
     for (const amount of [25, 100, 164, 200, 348.33, 500, 1500, 3000]) {
