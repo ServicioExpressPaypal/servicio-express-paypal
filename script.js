@@ -29,7 +29,7 @@ function updateCalculatorWhatsapp() {
   if (!whatsappLink) return;
 
   let message =
-    "Hola, vi la calculadora de Saldo Express Nicaragua. Quiero entender una estimación del Certificado de regalo en efectivo.";
+    "Hola, vi la calculadora de Saldo Express Nicaragua. Quiero entender una estimación del Certificado de regalo en efectivo para un familiar o beneficiario en Nicaragua.";
 
   if (latestCalculation) {
     const isReverse = latestCalculation.direction === "reverse";

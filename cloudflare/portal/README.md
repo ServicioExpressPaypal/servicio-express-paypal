@@ -16,13 +16,15 @@ Worker separado de GitHub Pages: https://portal.saldoexpressnicaragua.com
   durante los ultimos 15 minutos. Revisar esta decision antes de admitir clientes.
 - Revision manual del expediente. Cuenta suspendida/cerrada no crea tickets.
 - Certificado de regalo en efectivo: nombre comercial con descripcion expresa
-  del deposito financiado mediante PayPal. El ticket sigue siendo una solicitud
-  de cotizacion, no una compra ejecutada ni un instrumento de valor emitido.
-- Perfil minimo: nombre del titular, banco, cuenta, moneda y telefono.
+  del obsequio para un familiar o beneficiario en Nicaragua. El ticket sigue
+  siendo una solicitud de cotizacion, no una compra ejecutada ni un instrumento
+  de valor emitido.
+- Perfil minimo: nombre y telefono del beneficiario, banco, cuenta y moneda.
   No se solicita ni admite numero de cedula. Sin fotos ni descripcion libre
   del origen de fondos; declaracion
-  simple de veracidad, titularidad y procedencia licita, no declaracion notarial.
-  Solo cuentas propias en esta fase, sin beneficiarios distintos al usuario.
+  simple de veracidad, autorizacion del beneficiario, titularidad de su cuenta y
+  procedencia licita, no declaracion notarial. Un beneficiario y una cuenta a su
+  nombre por solicitud.
 - Correo verificado y aprobacion administrativa obligatorios. Las correcciones
   regresan a pendiente; banco/moneda del ticket deben coincidir con lo aprobado.
 - Calculadora compartida ejecutada tambien en el servidor; se conserva la

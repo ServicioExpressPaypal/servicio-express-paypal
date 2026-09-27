@@ -32,6 +32,8 @@ test("public product name and centered footer stay consistent", () => {
 
   assert.match(home, /Certificado de regalo en efectivo/);
   assert.match(certificate, /Certificado de regalo en efectivo/);
+  assert.match(home, /familiar o beneficiario en Nicaragua/);
+  assert.match(certificate, /familiar o beneficiario en Nicaragua/);
   assert.doesNotMatch(home, /Tarjeta de regalo electrónica/);
   assert.doesNotMatch(certificate, /Tarjeta de regalo electrónica/);
   assert.match(home, /class="footer-inner"/);
@@ -57,6 +59,8 @@ test("terms describe automatic ticket modes without a commission table", () => {
   assert.match(terms, /Método internacional/);
   assert.match(terms, /cuenta de PayPal verificada/);
   assert.match(terms, /valor estimado del certificado/);
+  assert.match(terms, /familiar u otro beneficiario designado en Nicaragua/);
+  assert.match(terms, /una sola\s+cuenta bancaria.*beneficiario/s);
   assert.match(terms, /nombre comercial no cambia/i);
   assert.match(terms, /Banco Central de Nicaragua/);
   assert.doesNotMatch(terms, /<table/i);

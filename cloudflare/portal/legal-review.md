@@ -7,15 +7,17 @@ Este archivo no se incluye en los archivos publicos del portal.
 ## Cambio de producto solicitado el 26 de septiembre
 
 Nombre comercial solicitado: Certificado de regalo en efectivo. El portal debe
-explicar que se solicita un deposito bancario financiado mediante PayPal y que
-crear el ticket no ejecuta una compra ni emite un saldo o certificado canjeable.
+explicar que se solicita como obsequio para un familiar o beneficiario en
+Nicaragua y que crear el ticket no ejecuta una compra ni emite un saldo o
+certificado canjeable.
 Este nombre no es una exencion regulatoria ni evidencia de autorizacion de PayPal.
 No se copian limites, comisiones ni plazos de otro comercio como supuesta garantia
 de cumplimiento. Las estimaciones actuales no se han cambiado.
 
-Diseno del perfil actualizado por instruccion del propietario: nombre, banco,
-cuenta, moneda y telefono. Sin numero de cedula, fotografias ni texto libre del
-origen de fondos. Solo titularidad propia.
+Diseno del perfil actualizado por instruccion del propietario: nombre y telefono
+del beneficiario, banco, cuenta y moneda. Sin numero de cedula, fotografias ni
+texto libre del origen de fondos. Una cuenta a nombre del beneficiario, con
+declaracion de autorizacion del comprador.
 Se conserva una declaracion simple, no jurada/notarial. Antes de abrir deben
 validarse necesidad de cada campo, metodo de verificacion, requisitos de debida
 diligencia y licencias que correspondan. No se presenta el formulario como KYC
@@ -198,9 +200,10 @@ pendientes; el registro y la recepcion de perfiles permanecen cerrados.
 La referencia comercial revisada fue el producto "Certificado de Regalo en
 Efectivo" de tuNicaragua. No se copian su tabla de precios ni sus afirmaciones
 como si fueran condiciones de Saldo Express. Se adaptan las condiciones operativas
-confirmadas por el titular: una cuenta bancaria por ticket, cuentas corrientes o
-de ahorro, pago desde PayPal verificado, solo mayores de edad y revision de los
-datos bancarios antes del deposito.
+confirmadas por el titular: un familiar o beneficiario y una cuenta bancaria a
+su nombre por ticket, cuentas corrientes o de ahorro, pago desde PayPal
+verificado, solo mayores de edad y revision de los datos bancarios antes del
+deposito.
 
 El certificado admite USD 25 a USD 500 por solicitud. Un monto desde
 USD 500.01 se clasifica en el servidor como Metodo internacional, hasta USD 3,000.

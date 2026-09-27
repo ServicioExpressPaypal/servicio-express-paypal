@@ -1,12 +1,12 @@
 export default (function () {
   "use strict";
-  const version = "certificado-efectivo-2026-09-26-v5";
+  const version = "certificado-efectivo-2026-09-26-v6";
   const title = "Certificado de regalo en efectivo";
   const description =
-    "Solicitud prevista de un Certificado de regalo en efectivo cuyo valor se calcula automáticamente. El producto no está disponible; una eventual entrega requeriría revisión, cotización y confirmación previa.";
+    "Solicitud prevista de un Certificado de regalo en efectivo para obsequiar a un familiar o beneficiario en Nicaragua. Su valor se calcula automáticamente. El producto no está disponible; una eventual entrega requeriría revisión, cotización y confirmación previa.";
   const banks = ["LAFISE", "BDF", "Banpro", "BAC", "Ficohsa", "Avanz"];
   const declaration =
-    "Declaro que los datos son verdaderos, que soy titular de la cuenta bancaria indicada y que los fondos relacionados con mi solicitud tienen procedencia lícita. Esta declaración no sustituye la verificación que corresponda.";
+    "Declaro que los datos son verdaderos, que el familiar o beneficiario me autorizó a proporcionarlos, que la cuenta bancaria indicada le pertenece y que los fondos relacionados con mi solicitud tienen procedencia lícita. Esta declaración no sustituye la verificación que corresponda.";
   const notice = [
     [
       "Servicio solicitado",
@@ -15,11 +15,11 @@ export default (function () {
     ],
     [
       "Cuenta y revisión",
-      "Se requiere verificar el correo y obtener aprobación manual. En este piloto solo se admiten cuentas bancarias del propio usuario. La activación permite solicitar cotizaciones; no certifica cumplimiento legal ni autoriza por sí sola una operación.",
+      "Se requiere verificar el correo y obtener aprobación manual. Cada solicitud admite un solo familiar o beneficiario en Nicaragua y una sola cuenta bancaria a su nombre. La activación permite solicitar cotizaciones; no certifica cumplimiento legal ni autoriza por sí sola una operación.",
     ],
     [
       "Datos recopilados",
-      "La cuenta utiliza correo, contraseña almacenada mediante hash, sesiones y registros de seguridad. Para la revisión se solicitan nombre del titular, banco, número de cuenta, moneda y teléfono. No se solicita número de cédula, fotografías de documentos, PIN ni claves bancarias. Los datos proporcionados se guardan en servidores para gestionar la cuenta y las solicitudes.",
+      "La cuenta utiliza correo, contraseña almacenada mediante hash, sesiones y registros de seguridad. Para la revisión se solicitan el nombre y teléfono del familiar o beneficiario, banco, número de cuenta y moneda. El comprador debe contar con autorización para proporcionar esos datos. No se solicita número de cédula, fotografías de documentos, PIN ni claves bancarias. Los datos proporcionados se guardan en servidores para gestionar la cuenta y las solicitudes.",
     ],
     [
       "Acceso y proveedores",
@@ -47,7 +47,7 @@ export default (function () {
       typeof data[key] === "string" ? data[key].trim() : "";
     const name = text("name").replace(/\s+/g, " ");
     if (name.length < 5 || name.length > 120 || name.split(" ").length < 2)
-      throw new Error("Escribe el nombre completo del titular.");
+      throw new Error("Escribe el nombre completo del familiar o beneficiario.");
     const bank = text("bank"),
       currency = text("currency");
     if (!banks.includes(bank) || !["USD", "NIO"].includes(currency))
@@ -69,7 +69,7 @@ export default (function () {
       )
     )
       throw new Error(
-        "Confirma la titularidad, los términos y el aviso de privacidad.",
+        "Confirma la autorización del beneficiario, los términos y el aviso de privacidad.",
       );
     return {
       kind: "cash-certificate",
