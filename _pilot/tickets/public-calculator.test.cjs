@@ -16,34 +16,19 @@ const path = require("node:path");
     await page.goto(
       pathToFileURL(path.resolve(__dirname, "../../index.html")).href,
     );
-    await page.locator("#paypal-receive").fill("100");
-    assert.equal(await page.locator("#paypal-gross").textContent(), "$106.03");
-    assert.equal(
-      await page.locator("#paypal-receive-fee").textContent(),
-      "$6.03",
-    );
-    await page.locator("#paypal-send").fill("100");
-    assert.equal(await page.locator("#paypal-send-fee").textContent(), "$5.70");
-    assert.equal(await page.locator("#paypal-net").textContent(), "$94.30");
-    await page.locator("#payoneer-balance").fill("200");
-    assert.equal(await page.locator("#payoneer-fee").textContent(), "$6.86");
-    assert.equal(await page.locator("#atm-fee").textContent(), "$7.00");
-    assert.equal(
-      await page.locator("#atm-withdrawal").textContent(),
-      "$180.00",
-    );
-    assert.equal(
-      await page.locator("#payoneer-remaining").textContent(),
-      "$6.14",
-    );
-    assert.equal(await page.locator("#calcAmount").count(), 0);
-    assert.equal(await page.locator("#serviceMode").count(), 0);
+    await page.locator("#calcAmount").fill("164");
+    assert.equal(await page.locator("#netAmount").textContent(), "$145.00");
+    await page.locator("#serviceMode").selectOption("international");
+    await page.locator("#calcAmount").fill("600");
+    assert.equal(await page.locator("#netAmount").textContent(), "$546.93");
+    await page.locator("#poBalance").fill("200");
+    assert.equal(await page.locator("#poOperatorFee").textContent(), "$7.00");
     await page.goto(
       pathToFileURL(path.resolve(__dirname, "../../kyc.html")).href,
     );
     assert.deepEqual(errors, []);
     console.log(
-      "OK: informational PayPal and Payoneer calculators, ATM USD 7, and paused KYC page",
+      "OK: public calculator, international mode, ATM USD 7, and paused KYC page",
     );
   } finally {
     await browser.close();
