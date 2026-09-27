@@ -903,13 +903,14 @@ async function handle(
       env.DB.prepare(
         `UPDATE tickets SET ${column}=?,version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id`,
       ).bind(now, now, target!.id, body.version),
-      guardedAudit(
-        env,
-        "tickets",
+      env.DB.prepare(
+        "INSERT INTO audit_events(id,actor_id,target_id,action,detail,created_at) SELECT ?,?,?,?,'',? WHERE changes()=1",
+      ).bind(
+        crypto.randomUUID(),
         user.id,
         target!.id,
-        body.version + 1,
         starting ? "payment_confirmed" : "delivery_confirmed",
+        now,
       ),
     ]);
     if (!result[0].results.length)

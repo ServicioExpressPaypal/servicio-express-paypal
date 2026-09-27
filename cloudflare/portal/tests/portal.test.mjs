@@ -1337,10 +1337,11 @@ test("only admin can start paid international tracking; expiry erases destinatio
       (await admin.req(action, { action: "start", version: 1 })).status,
       409,
     );
-    assert.equal(
-      (await admin.req(action, { action: "start", version: 2 })).status,
-      200,
-    );
+    const confirmations = await Promise.all([
+      admin.req(action, { action: "start", version: 2 }),
+      admin.req(action, { action: "start", version: 2 }),
+    ]);
+    assert.deepEqual(confirmations.map((r) => r.status).sort(), [200, 409]);
     const started = (await customer.req(`/api/tickets/${id}`)).data;
     assert.ok(started.processing_started_at > 0);
     assert.deepEqual(started.quote.businessDays, { min: 2, max: 6 });
