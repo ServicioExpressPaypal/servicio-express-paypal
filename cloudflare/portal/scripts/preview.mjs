@@ -72,6 +72,7 @@ for (const file of [
   "0003_admin_setup.sql",
   "0004_ticket_chat.sql",
   "0005_ticket_destination.sql",
+  "0006_account_notices.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),
@@ -88,6 +89,7 @@ for (const file of [
 for (const [email, name] of [
   ["cliente@example.test", "Cliente de Prueba"],
   ["admin@example.test", "Administrador de Prueba"],
+  ["pendiente@example.test", "Usuario Pendiente"],
 ]) {
   const response = await mf.dispatchFetch(origin + "/api/auth/sign-up/email", {
     method: "POST",
@@ -116,6 +118,9 @@ const customer = await db
   admin = await db
     .prepare("SELECT id FROM user WHERE email='admin@example.test'")
     .first(),
+  pending = await db
+    .prepare("SELECT id FROM user WHERE email='pendiente@example.test'")
+    .first(),
   ticketId = "SE-11111111-1111-4111-8111-111111111111",
   now = Date.now(),
   estimate = {
@@ -130,6 +135,26 @@ const customer = await db
     currency: "USD",
   };
 await db.batch([
+  db
+    .prepare(
+      "INSERT INTO profiles(user_id,status,full_name,dossier,updated_at) VALUES(?,'pending',?,?,?) ON CONFLICT(user_id) DO UPDATE SET status='pending',full_name=excluded.full_name,dossier=excluded.dossier,updated_at=excluded.updated_at",
+    )
+    .bind(
+      pending.id,
+      "Beneficiario Pendiente",
+      JSON.stringify({
+        kind: "cash-certificate",
+        name: "Beneficiario Pendiente",
+        bank: "BAC",
+        bankAccount: "000987654321",
+        currency: "NIO",
+        phone: "+50587777777",
+        declaration: CertificateModel.declaration,
+        version: CertificateModel.version,
+        acceptedAt: now,
+      }),
+      now,
+    ),
   db
     .prepare(
       "INSERT INTO profiles(user_id,status,full_name,dossier,updated_at) VALUES(?,'active',?,?,?) ON CONFLICT(user_id) DO UPDATE SET status='active',full_name=excluded.full_name,dossier=excluded.dossier,updated_at=excluded.updated_at",
@@ -200,7 +225,7 @@ await db.batch([
 ]);
 console.log(`Vista local con datos ficticios: ${await mf.ready}`);
 console.log(
-  "Cliente: cliente@example.test | Administrador: admin@example.test",
+  "Cliente: cliente@example.test | Pendiente: pendiente@example.test | Administrador: admin@example.test",
 );
 console.log("Clave exclusiva de esta prueba local: SoloPruebas-2026!");
 for (const signal of ["SIGINT", "SIGTERM"])

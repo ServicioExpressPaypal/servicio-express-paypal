@@ -224,6 +224,44 @@ async function notify(env: Env, ticketId: string) {
     );
   }
 }
+async function notifyAccountDecision(env: Env, noticeId: string) {
+  if (env.EMAIL_PROVIDER === "disabled") return;
+  const notice = await env.DB.prepare(
+    "SELECT n.status,n.reason,u.email FROM account_notices n JOIN user u ON u.id=n.user_id WHERE n.id=? AND n.delivered=0",
+  )
+    .bind(noticeId)
+    .first<{ status: string; reason: string; email: string }>();
+  if (!notice) return;
+  const label =
+    {
+      correction: "requiere una corrección",
+      active: "fue activada",
+      suspended: "fue suspendida",
+      closed: "fue cerrada",
+    }[notice.status] || "fue actualizada";
+  try {
+    await sendMail(
+      env,
+      notice.email,
+      "Actualización de tu cuenta de Saldo Express",
+      `Tu cuenta ${label}.\n\nMotivo: ${notice.reason}\n\nSi necesitas solicitar una revisión, escribe a info@softohmsystems.com.`,
+    );
+    await env.DB.prepare(
+      "UPDATE account_notices SET delivered=1 WHERE id=?",
+    )
+      .bind(noticeId)
+      .run();
+  } catch {
+    await env.DB.prepare(
+      "UPDATE account_notices SET attempts=attempts+1,next_attempt_at=? WHERE id=?",
+    )
+      .bind(Date.now() + 3600000, noticeId)
+      .run();
+    console.error(
+      JSON.stringify({ event: "account_notice_failed", noticeId }),
+    );
+  }
+}
 async function handle(
   request: Request,
   env: Env,
@@ -497,10 +535,10 @@ async function handle(
   const dossierMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
   if (dossierMatch) {
     const target = await env.DB.prepare(
-      "SELECT * FROM profiles WHERE user_id=?",
+      "SELECT p.*,u.email FROM profiles p JOIN user u ON u.id=p.user_id WHERE p.user_id=?",
     )
       .bind(dossierMatch[1])
-      .first<Profile>();
+      .first<Profile & { email: string }>();
     if (!target) fail(404, "Usuario no encontrado.");
     if (request.method === "GET") {
       await audit(env, user.id, target!.user_id, "dossier_viewed").run();
@@ -510,7 +548,12 @@ async function handle(
         delete dossier.front;
         delete dossier.back;
       }
-      return json({ ...target, dossier });
+      const notices = await env.DB.prepare(
+        "SELECT status,reason,delivered,created_at FROM account_notices WHERE user_id=? ORDER BY created_at DESC LIMIT 20",
+      )
+        .bind(target!.user_id)
+        .all();
+      return json({ ...target, dossier, notices: notices.results });
     }
     const body = await payload(request);
     const owner = await env.DB.prepare(
@@ -533,6 +576,8 @@ async function handle(
     }
     if (body.version !== target!.version)
       fail(409, "El expediente cambió. Recarga antes de decidir.");
+    const now = Date.now(),
+      noticeId = crypto.randomUUID();
     const result = await env.DB.batch([
       guardedAudit(
         env,
@@ -548,13 +593,25 @@ async function handle(
       ).bind(
         account.status,
         account.reason,
-        Date.now(),
+        now,
         target!.user_id,
         body.version,
+      ),
+      env.DB.prepare(
+        "INSERT INTO account_notices(id,user_id,status,reason,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM profiles WHERE user_id=? AND version=?) RETURNING id",
+      ).bind(
+        noticeId,
+        target!.user_id,
+        account.status,
+        account.reason,
+        now,
+        target!.user_id,
+        body.version + 1,
       ),
     ]);
     if (!result[1].results.length)
       fail(409, "El expediente cambió. Recarga antes de decidir.");
+    ctx.waitUntil(notifyAccountDecision(env, noticeId));
     return json({ ok: true });
   }
   const documentMatch = path.match(
@@ -767,5 +824,12 @@ export default {
       .bind(Date.now())
       .all<{ ticket_id: string }>();
     for (const job of jobs.results) ctx.waitUntil(notify(env, job.ticket_id));
+    const accountJobs = await env.DB.prepare(
+      "SELECT id FROM account_notices WHERE delivered=0 AND attempts<5 AND next_attempt_at<=? LIMIT 20",
+    )
+      .bind(Date.now())
+      .all<{ id: string }>();
+    for (const job of accountJobs.results)
+      ctx.waitUntil(notifyAccountDecision(env, job.id));
   },
 } satisfies ExportedHandler<Env>;

@@ -97,3 +97,20 @@ test("each ticket records one beneficiary account and accepted conditions", () =
   assert.match(migration, /bank_account/);
   assert.match(migration, /terms_accepted_at/);
 });
+
+test("admin dashboard keeps account decisions manual and notifies the user", () => {
+  const app = read("cloudflare/portal/public/app.js");
+  const worker = read("cloudflare/portal/src/worker.ts");
+  const migration = read(
+    "cloudflare/portal/migrations/0006_account_notices.sql",
+  );
+  assert.match(app, /Resumen administrativo/);
+  assert.match(app, /Activar cuenta/);
+  assert.match(app, /Suspender cuenta/);
+  assert.match(app, /Cerrar cuenta/);
+  assert.match(app, /Confirmar y avisar/);
+  assert.match(worker, /notifyAccountDecision/);
+  assert.match(worker, /Tu cuenta debe estar activada para crear solicitudes/);
+  assert.match(migration, /CREATE TABLE account_notices/);
+  assert.match(migration, /delivered/);
+});

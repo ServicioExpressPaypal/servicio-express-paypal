@@ -43,6 +43,7 @@ async function setup(open = true, overrides = {}) {
     "0003_admin_setup.sql",
     "0004_ticket_chat.sql",
     "0005_ticket_destination.sql",
+    "0006_account_notices.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -480,6 +481,36 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       version,
     });
     assert.equal(r.status, 200, JSON.stringify(r.data));
+    for (
+      let n = 0;
+      n < 30 &&
+      !s.emails.some(
+        (email) =>
+          email.to.includes("client-a@example.test") &&
+          email.subject.includes("Actualización"),
+      );
+      n++
+    )
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    const activationNotice = s.emails.find(
+      (email) =>
+        email.to.includes("client-a@example.test") &&
+        email.subject.includes("Actualización"),
+    );
+    assert.ok(activationNotice, "account activation notice dispatched");
+    assert.match(activationNotice.text, /Expediente ficticio verificado/);
+    assert.ok(!activationNotice.text.includes(dossier().bankAccount));
+    const activationRow = await s.db
+      .prepare(
+        "SELECT status,reason,delivered FROM account_notices WHERE user_id=? ORDER BY created_at DESC LIMIT 1",
+      )
+      .bind(a.id)
+      .first();
+    assert.deepEqual(activationRow, {
+      status: "active",
+      reason: "Expediente ficticio verificado",
+      delivered: 1,
+    });
     const wrongDestination = await a.req(
       "/api/tickets",
       ticket({ bank: "Banco inexistente" }),
@@ -641,11 +672,12 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
         .status,
       409,
     );
-    await admin.req(`/api/admin/users/${a.id}`, {
+    r = await admin.req(`/api/admin/users/${a.id}`, {
       action: "suspend",
       reason: "Prueba de suspensión",
       version: version + 1,
     });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
     assert.equal(
       (
         await a.req("/api/tickets", {
@@ -658,6 +690,26 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
         })
       ).status,
       403,
+    );
+    r = await admin.req(`/api/admin/users/${a.id}`, {
+      action: "close",
+      reason: "Cierre administrativo de prueba",
+      version: version + 2,
+    });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    const closedAccount = await admin.req(`/api/admin/users/${a.id}`);
+    assert.equal(closedAccount.data.status, "closed");
+    assert.equal(closedAccount.data.notices.length, 3);
+    assert.equal(closedAccount.data.notices[0].status, "closed");
+    assert.equal(
+      (
+        await admin.req(`/api/admin/users/${a.id}`, {
+          action: "reactivate",
+          reason: "No debe reabrirse",
+          version: version + 3,
+        })
+      ).status,
+      400,
     );
     const counts = await s.db
       .prepare("SELECT count(*) AS n FROM tickets")

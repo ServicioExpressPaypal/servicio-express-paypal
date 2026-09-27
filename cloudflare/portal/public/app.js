@@ -40,7 +40,8 @@ import CertificateModel from "./certificate.js";
     ticket.expired ? "Venció " + dateTime(ticket.expires_at) : "Vence " + dateTime(ticket.expires_at);
   let me,
     config,
-    view = "tickets",
+    view = "dashboard",
+    userFilter = "all",
     timer;
   const params = new URLSearchParams(location.search);
   const resetToken = params.get("token");
@@ -126,7 +127,7 @@ import CertificateModel from "./certificate.js";
   function nav() {
     $("#navigation").innerHTML = !me
       ? ""
-      : `${me.admin ? '<button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="users">Usuarios</button>' : '<button class="nav" data-view="tickets">Mis solicitudes</button><button class="nav" data-view="profile">Mi cuenta</button>'}<button class="icon-button" id="logout" title="Cerrar sesión" aria-label="Cerrar sesión">${icon("log-out")}</button>`;
+      : `${me.admin ? '<button class="nav" data-view="dashboard">Resumen</button><button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="users">Usuarios</button>' : '<button class="nav" data-view="tickets">Mis solicitudes</button><button class="nav" data-view="profile">Mi cuenta</button>'}<button class="icon-button" id="logout" title="Cerrar sesión" aria-label="Cerrar sesión">${icon("log-out")}</button>`;
     if ($("#logout"))
       $("#logout").onclick = async () => {
         await api("/api/auth/sign-out", {});
@@ -134,11 +135,14 @@ import CertificateModel from "./certificate.js";
         render();
       };
     document.querySelectorAll("[data-view]").forEach(
-      (b) =>
+      (b) => {
+        b.classList.toggle("active", b.dataset.view === view);
         (b.onclick = () => {
           view = b.dataset.view;
+          if (view === "users") userFilter = "all";
           render();
-        }),
+        });
+      },
     );
   }
   async function render() {
@@ -148,6 +152,7 @@ import CertificateModel from "./certificate.js";
     if (me.admin && !me.adminReady) return security();
     try {
       if (me.admin && view === "users") await users();
+      else if (me.admin && view === "dashboard") await dashboard();
       else if (
         !me.admin &&
         (view === "profile" || me.profile.status !== "active")
@@ -457,62 +462,174 @@ import CertificateModel from "./certificate.js";
       };
     icons();
   }
+  async function dashboard() {
+    const [users, tickets] = await Promise.all([
+      api("/api/admin/users"),
+      api("/api/admin/tickets"),
+    ]);
+    const count = (status) => users.filter((u) => u.status === status).length;
+    const openTickets = tickets.filter(
+      (t) => !["closed", "cancelled", "expired"].includes(t.status),
+    );
+    const pending = users.filter((u) => u.status === "pending");
+    const needsAttention = users.filter((u) =>
+      ["pending", "correction", "suspended"].includes(u.status),
+    );
+    const userPreview = needsAttention.length
+      ? needsAttention
+          .slice(0, 6)
+          .map(
+            (u) =>
+              `<button class="admin-list-row" data-dashboard-user="${esc(u.user_id)}"><span><strong>${esc(u.full_name || "Registro sin completar")}</strong><small>${esc(u.email)}</small></span><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></button>`,
+          )
+          .join("")
+      : '<p class="empty compact">No hay cuentas que requieran atención.</p>';
+    const ticketPreview = openTickets.length
+      ? openTickets
+          .slice(0, 6)
+          .map(
+            (t) =>
+              `<button class="admin-list-row" data-dashboard-ticket="${esc(t.id)}"><span><strong>${money(t.estimate.net)}</strong><small>${esc(t.beneficiary_name || t.full_name || t.bank)} · ${esc(methodLabel(t.mode))}</small></span><span class="badge ${esc(t.status)}">${esc(labels[t.status])}</span></button>`,
+          )
+          .join("")
+      : '<p class="empty compact">No hay solicitudes abiertas.</p>';
+    main.innerHTML = `<div class="heading admin-heading"><div><h1>Resumen administrativo</h1><p>Revisa accesos y solicitudes que necesitan una decisión.</p></div><button class="button" data-dashboard-view="users">Administrar usuarios</button></div><div class="admin-metrics"><button class="metric-card" data-dashboard-view="users" data-user-filter="pending"><small>Pendientes</small><strong>${pending.length}</strong><span>Esperan aprobación manual</span></button><button class="metric-card" data-dashboard-view="users" data-user-filter="active"><small>Activas</small><strong>${count("active")}</strong><span>Pueden crear tickets</span></button><button class="metric-card" data-dashboard-view="users" data-user-filter="suspended"><small>Suspendidas</small><strong>${count("suspended")}</strong><span>No pueden crear tickets</span></button><button class="metric-card" data-dashboard-view="tickets"><small>Solicitudes abiertas</small><strong>${openTickets.length}</strong><span>Requieren seguimiento</span></button></div><div class="dashboard-grid"><section class="dashboard-section"><div class="section-heading"><div><h2>Cuentas que requieren atención</h2><p>Activación, corrección o revisión de una suspensión.</p></div><span>${needsAttention.length}</span></div><div class="admin-list">${userPreview}</div></section><section class="dashboard-section"><div class="section-heading"><div><h2>Solicitudes abiertas</h2><p>Ordenadas por su actividad más reciente.</p></div><span>${openTickets.length}</span></div><div class="admin-list">${ticketPreview}</div></section></div>`;
+    document.querySelectorAll("[data-dashboard-view]").forEach(
+      (button) =>
+        (button.onclick = () => {
+          view = button.dataset.dashboardView;
+          userFilter = button.dataset.userFilter || "all";
+          render();
+        }),
+    );
+    document.querySelectorAll("[data-dashboard-user]").forEach(
+      (button) =>
+        (button.onclick = () =>
+          dossier(button.dataset.dashboardUser).catch((e) => toast(e.message))),
+    );
+    document.querySelectorAll("[data-dashboard-ticket]").forEach(
+      (button) =>
+        (button.onclick = () =>
+          detail(button.dataset.dashboardTicket).catch((e) => toast(e.message))),
+    );
+  }
   async function users() {
     const rows = await api("/api/admin/users");
-    main.innerHTML = `<div class="heading"><h1>Usuarios</h1><span>${rows.length}</span></div>${rows.map((u) => `<button class="ticket-row" data-user="${esc(u.user_id)}"><span>${esc(u.full_name || "Registro sin completar")}<small>${esc(u.email)}</small></span><span class="badge">${esc(AccountModel.labels[u.status])}</span></button>`).join("") || '<p class="empty">Todavía no hay usuarios registrados.</p>'}`;
-    document
-      .querySelectorAll("[data-user]")
-      .forEach(
-        (b) =>
-          (b.onclick = () =>
-            dossier(b.dataset.user).catch((e) => toast(e.message))),
+    const filters = [
+      ["all", "Todos"],
+      ["pending", "Pendientes"],
+      ["active", "Activas"],
+      ["correction", "Por corregir"],
+      ["suspended", "Suspendidas"],
+      ["closed", "Cerradas"],
+    ];
+    main.innerHTML = `<div class="heading admin-heading"><div><h1>Usuarios</h1><p>La cuenta debe estar activa para crear tickets.</p></div><span>${rows.length}</span></div><div class="user-toolbar"><label class="field search-field">Buscar usuario<input id="user-search" type="search" autocomplete="off" placeholder="Nombre o correo"></label><div class="status-filters" role="group" aria-label="Filtrar por estado">${filters.map(([status, label]) => `<button type="button" data-user-status="${status}" aria-pressed="${status === userFilter}">${label}</button>`).join("")}</div></div><div id="user-list" class="admin-list"></div>`;
+    const draw = () => {
+      const query = $("#user-search").value.trim().toLowerCase();
+      const visible = rows.filter(
+        (user) =>
+          (userFilter === "all" || user.status === userFilter) &&
+          (!query ||
+            `${user.full_name || ""} ${user.email}`.toLowerCase().includes(query)),
       );
+      $("#user-list").innerHTML =
+        visible
+          .map(
+            (u) =>
+              `<button class="admin-list-row" data-user="${esc(u.user_id)}"><span><strong>${esc(u.full_name || "Registro sin completar")}</strong><small>${esc(u.email)}</small>${u.reason ? `<small>${esc(u.reason)}</small>` : ""}</span><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></button>`,
+          )
+          .join("") || '<p class="empty compact">No hay usuarios con este filtro.</p>';
+      document.querySelectorAll("[data-user]").forEach(
+        (button) =>
+          (button.onclick = () =>
+            dossier(button.dataset.user).catch((e) => toast(e.message))),
+      );
+    };
+    $("#user-search").oninput = draw;
+    document.querySelectorAll("[data-user-status]").forEach(
+      (button) =>
+        (button.onclick = () => {
+          userFilter = button.dataset.userStatus;
+          document
+            .querySelectorAll("[data-user-status]")
+            .forEach((item) =>
+              item.setAttribute(
+                "aria-pressed",
+                String(item.dataset.userStatus === userFilter),
+              ),
+            );
+          draw();
+        }),
+    );
+    draw();
   }
   async function dossier(id) {
     const u = await api("/api/admin/users/" + encodeURIComponent(id)),
       p = u.dossier;
-    main.innerHTML = `<button class="back" id="back">Usuarios</button><div class="heading"><h1>${esc(u.full_name || "Registro sin completar")}</h1><span class="badge">${esc(AccountModel.labels[u.status])}</span></div>${
-      p
-        ? `<div class="data-grid">${p.kind === "cash-certificate" ? `<div><small>Teléfono del beneficiario</small><p>${esc(p.phone)}</p></div><div><small>Banco y moneda</small><p>${esc(p.bank)} · ${esc(p.currency)}</p></div><div><small>Cuenta bancaria del beneficiario</small><p>${esc(p.bankAccount)}</p></div>` : `<div><small>Cédula · Archivo anterior</small><p>${esc(p.cedula)}</p></div><div><small>Origen de fondos</small><p>${esc(p.source)}</p></div>`}</div>${p.kind === "cash-certificate" ? `<p>${esc(p.declaration)}</p><p class="notice">Datos declarados por el comprador. Revisa su coherencia, la autorización del beneficiario y la titularidad de la cuenta antes de aprobar. Esta revisión no certifica la identidad de ninguna de las partes.</p>` : `<p>${esc(p.detail)}</p>`}${p.hasDocuments ? `<div class="document-grid">${["front", "back"].map((side, i) => `<figure><figcaption>${i ? "Reverso" : "Frente"} · Archivo anterior</figcaption><img src="/api/admin/documents/${encodeURIComponent(id)}/${side}" alt="${i ? "Reverso" : "Frente"} de la cédula"></figure>`).join("")}</div>` : ""}<p>Consentimiento: ${esc(p.version)} · ${new Date(p.acceptedAt).toLocaleString("es-NI")}</p><div class="actions">${(
-            {
-              pending: [
-                ["activate", "Activar cuenta"],
-                ["correct", "Pedir corrección"],
-                ["close", "Cerrar cuenta"],
-              ],
-              active: [
-                ["suspend", "Suspender"],
-                ["close", "Cerrar cuenta"],
-              ],
-              suspended: [
-                ["reactivate", "Reactivar"],
-                ["close", "Cerrar cuenta"],
-              ],
-              correction: [["close", "Cerrar cuenta"]],
-            }[u.status] || []
+    const actions =
+      {
+        pending: [
+          ["activate", "Activar cuenta", "primary"],
+          ["correct", "Pedir corrección", ""],
+          ["close", "Cerrar cuenta", "danger"],
+        ],
+        active: [
+          ["suspend", "Suspender cuenta", "warning"],
+          ["close", "Cerrar cuenta", "danger"],
+        ],
+        suspended: [
+          ["reactivate", "Reactivar cuenta", "primary"],
+          ["close", "Cerrar cuenta", "danger"],
+        ],
+        correction: [["close", "Cerrar cuenta", "danger"]],
+      }[u.status] || [];
+    const actionButtons = p
+      ? actions
+          .map(
+            ([action, label, style]) =>
+              `<button class="button ${style}" data-review="${action}">${label}</button>`,
           )
-            .map(
-              ([a, l]) =>
-                `<button class="button" data-review="${a}">${l}</button>`,
-            )
-            .join("")}</div>`
-        : "<p>El usuario no ha enviado un expediente.</p>"
-    }`;
+          .join("")
+      : "";
+    const noticeHistory = (u.notices || []).length
+      ? u.notices
+          .map(
+            (notice) =>
+              `<li><span>${esc(AccountModel.labels[notice.status])}</span><small>${dateTime(notice.created_at)} · ${notice.delivered ? "Aviso enviado" : "Aviso pendiente"}</small><p>${esc(notice.reason)}</p></li>`,
+          )
+          .join("")
+      : '<li class="empty compact">Todavía no hay decisiones registradas.</li>';
+    const profileData = p
+      ? `<section class="account-section"><h2>Datos revisados</h2><div class="data-grid">${p.kind === "cash-certificate" ? `<div><small>Teléfono del beneficiario</small><p>${esc(p.phone)}</p></div><div><small>Banco y moneda</small><p>${esc(p.bank)} · ${esc(p.currency)}</p></div><div><small>Cuenta bancaria del beneficiario</small><p class="account-number">${esc(p.bankAccount)}</p></div>` : `<div><small>Cédula · Archivo anterior</small><p>${esc(p.cedula)}</p></div><div><small>Origen de fondos</small><p>${esc(p.source)}</p></div>`}</div>${p.kind === "cash-certificate" ? `<p>${esc(p.declaration)}</p><p class="notice">Datos declarados por el comprador. La aprobación habilita tickets, pero no certifica la identidad ni confirma una operación.</p>` : `<p>${esc(p.detail)}</p>`}${p.hasDocuments ? `<div class="document-grid">${["front", "back"].map((side, i) => `<figure><figcaption>${i ? "Reverso" : "Frente"} · Archivo anterior</figcaption><img src="/api/admin/documents/${encodeURIComponent(id)}/${side}" alt="${i ? "Reverso" : "Frente"} de la cédula"></figure>`).join("")}</div>` : ""}<p class="consent-record">Consentimiento: ${esc(p.version)} · ${new Date(p.acceptedAt).toLocaleString("es-NI")}</p></section>`
+      : '<section class="account-section"><h2>Datos revisados</h2><p class="empty compact">El usuario todavía no ha enviado información para revisión.</p></section>';
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Usuarios</button><div class="heading account-heading"><div><h1>${esc(u.full_name || "Registro sin completar")}</h1><p>${esc(u.email)}</p></div><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></div>${u.reason ? `<p class="notice"><strong>Último motivo:</strong> ${esc(u.reason)}</p>` : ""}${profileData}<section class="account-section"><div class="section-heading"><div><h2>Acciones de cuenta</h2><p>Solo una cuenta activa puede crear tickets. Toda decisión exige un motivo y genera un aviso al correo registrado.</p></div></div>${actionButtons ? `<div class="actions">${actionButtons}</div>` : '<p class="empty compact">No hay acciones disponibles para este estado.</p>'}</section><section class="account-section"><div class="section-heading"><div><h2>Historial de decisiones</h2><p>Estado del aviso enviado al usuario.</p></div><span>${(u.notices || []).length}</span></div><ol class="decision-history">${noticeHistory}</ol></section>`;
     $("#back").onclick = render;
     document.querySelectorAll("[data-review]").forEach(
-      (b) =>
-        (b.onclick = () => {
+      (button) =>
+        (button.onclick = () => {
+          const action = button.dataset.review;
+          const guidance = {
+            activate:
+              "La cuenta podrá crear tickets inmediatamente después de la activación.",
+            correct:
+              "La cuenta seguirá sin poder crear tickets hasta enviar la corrección y ser aprobada.",
+            suspend:
+              "La cuenta dejará de crear tickets. El usuario podrá iniciar sesión para consultar el motivo.",
+            reactivate: "La cuenta recuperará la posibilidad de crear tickets.",
+            close:
+              "Se retirará el acceso operativo y no podrá reactivarse desde este panel. El expediente y el historial no se borran automáticamente.",
+          }[action];
           modal(
-            b.textContent,
+            button.textContent,
             form(
               "review",
-              `<label class="field">Motivo<textarea name="reason" required minlength="5" maxlength="300"></textarea></label><label class="check"><input type="checkbox" required>He revisado el expediente y confirmo esta decisión.</label>`,
-              "Confirmar",
+              `<p class="decision-guidance">${esc(guidance)}</p><p class="notice">Se enviará al usuario un correo con el estado y el motivo registrado.</p><label class="field">Motivo para el usuario<textarea name="reason" required minlength="5" maxlength="300" placeholder="Explica la decisión de forma clara"></textarea></label><label class="check"><input type="checkbox" required>He revisado la cuenta y confirmo esta decisión.</label>`,
+              "Confirmar y avisar",
             ),
           );
           bind("review", async (f) => {
             await api("/api/admin/users/" + encodeURIComponent(id), {
-              action: b.dataset.review,
+              action,
               reason: f.get("reason"),
               version: u.version,
             });

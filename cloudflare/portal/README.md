@@ -15,6 +15,12 @@ Worker separado de GitHub Pages: https://portal.saldoexpressnicaragua.com
   Si la variable se omite o no es `false`, se exige MFA confirmado en la sesion
   durante los ultimos 15 minutos. Revisar esta decision antes de admitir clientes.
 - Revision manual del expediente. Cuenta suspendida/cerrada no crea tickets.
+- Dashboard administrativo con resumen de pendientes, cuentas activas,
+  suspendidas y solicitudes abiertas. Activar, pedir correccion, suspender,
+  reactivar o cerrar exige un motivo y queda registrado.
+- Cada decision de cuenta crea un aviso por correo con estado y motivo. El envio
+  usa una cola D1 con reintentos; nunca incluye datos bancarios. Cerrar retira el
+  acceso operativo, pero no borra automaticamente expediente ni auditoria.
 - Certificado de regalo en efectivo: nombre comercial con descripcion expresa
   del obsequio para un familiar o beneficiario en Nicaragua. El ticket sigue
   siendo una solicitud de cotizacion, no una compra ejecutada ni un instrumento
@@ -97,10 +103,11 @@ documentos reales en el estado actual.
 
 `npm run preview` compila y arranca en http://127.0.0.1:8792/. D1 y R2 son
 efimeros; no usa secretos reales y todo correo se intercepta sin enviarlo.
-Las cuentas `cliente@example.test` y `admin@example.test` usan la clave
+Las cuentas `cliente@example.test`, `pendiente@example.test` y
+`admin@example.test` usan la clave
 exclusiva de prueba `SoloPruebas-2026!`; sus correos se marcan verificados
-solo en esta base local. El cliente incluye un perfil activo y un ticket ficticio
-con conversacion para revisar la interfaz sin introducir datos reales.
+solo en esta base local. La demo incluye un cliente activo con ticket ficticio y
+una cuenta pendiente para probar la aprobación manual desde el dashboard.
 Nunca ejecutar este servidor en una interfaz publica ni introducir datos reales.
 El registro, la verificacion real por correo y el cierre en produccion se prueban
 por separado con `npm test`. Puede cambiarse el puerto con `PORT=8793 npm run preview`.
