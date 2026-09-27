@@ -37,7 +37,7 @@ export default (function () {
     ],
     [
       "Acceso y proveedores",
-      "El personal autorizado revisa los datos. Proveedores de alojamiento, almacenamiento y correo transaccional procesan la información necesaria para sus funciones, posiblemente fuera de Nicaragua. Los avisos de solicitudes al equipo contienen una referencia, no los datos bancarios del titular.",
+      "El personal autorizado revisa los datos. Proveedores de alojamiento, almacenamiento, correo transaccional y mensajería operativa procesan la información necesaria para sus funciones, posiblemente fuera de Nicaragua. Los avisos al equipo pueden contener la referencia, monto, valor estimado, modalidad y vencimiento del ticket, pero no el número de cuenta bancaria ni contraseñas.",
     ],
     [
       "Uso permitido",
@@ -61,7 +61,9 @@ export default (function () {
       typeof data[key] === "string" ? data[key].trim() : "";
     const name = text("name").replace(/\s+/g, " ");
     if (name.length < 5 || name.length > 120 || name.split(" ").length < 2)
-      throw new Error("Escribe el nombre completo del familiar o beneficiario.");
+      throw new Error(
+        "Escribe el nombre completo del familiar o beneficiario.",
+      );
     const bank = text("bank"),
       currency = text("currency");
     if (!banks.includes(bank) || !["USD", "NIO"].includes(currency))
@@ -121,7 +123,9 @@ export default (function () {
         "Las condiciones del ticket cambiaron. Recarga y revísalas nuevamente.",
       );
     if (data.consent !== true || data.conditionsAccepted !== true)
-      throw new Error("Debes aceptar las condiciones antes de crear el ticket.");
+      throw new Error(
+        "Debes aceptar las condiciones antes de crear el ticket.",
+      );
     return {
       beneficiaryName,
       bank,

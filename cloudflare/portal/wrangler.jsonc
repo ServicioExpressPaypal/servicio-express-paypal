@@ -36,6 +36,10 @@
     "KYC_OPEN": "false",
     "EMAIL_PROVIDER": "resend",
     "EMAIL_FROM": "Saldo Express <cuentas@saldoexpressnicaragua.com>",
+    "WHATSAPP_PROVIDER": "disabled",
+    "WHATSAPP_GRAPH_VERSION": "v23.0",
+    "WHATSAPP_TEMPLATE_NAME": "nuevo_ticket_saldo_express",
+    "WHATSAPP_TEMPLATE_LANGUAGE": "es",
   },
   "observability": {
     "enabled": true,

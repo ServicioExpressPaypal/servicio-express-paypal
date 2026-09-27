@@ -8,6 +8,7 @@ import CertificateModel from "../public/certificate.js";
 const origin = "https://portal.example.test";
 async function setup(open = true, overrides = {}) {
   const emails = [];
+  const whatsapp = [];
   const mf = new Miniflare(
     convertV4MiniflareOptions({
       modules: true,
@@ -26,13 +27,29 @@ async function setup(open = true, overrides = {}) {
         EMAIL_PROVIDER: open ? "resend" : "disabled",
         EMAIL_FROM: "cuentas@example.test",
         RESEND_API_KEY: "test-only",
+        WHATSAPP_PROVIDER: "meta",
+        WHATSAPP_GRAPH_VERSION: "v23.0",
+        WHATSAPP_TEMPLATE_NAME: "nuevo_ticket_saldo_express",
+        WHATSAPP_TEMPLATE_LANGUAGE: "es",
+        WHATSAPP_ACCESS_TOKEN: "whatsapp-test-only",
+        WHATSAPP_PHONE_NUMBER_ID: "123456789",
+        WHATSAPP_ADMIN_NUMBER: "50586199889",
         ADMIN_SETUP_OPEN: "false",
         ...overrides,
       },
       outboundService: async (request) => {
-        assert.equal(new URL(request.url).host, "api.resend.com");
-        emails.push(await request.json());
-        return Response.json({ id: crypto.randomUUID() });
+        const url = new URL(request.url);
+        if (url.host === "api.resend.com") {
+          emails.push(await request.json());
+          return Response.json({ id: crypto.randomUUID() });
+        }
+        assert.equal(url.host, "graph.facebook.com");
+        assert.equal(
+          request.headers.get("authorization"),
+          "Bearer whatsapp-test-only",
+        );
+        whatsapp.push(await request.json());
+        return Response.json({ messages: [{ id: "wamid.test-ticket" }] });
       },
     }),
   );
@@ -44,6 +61,7 @@ async function setup(open = true, overrides = {}) {
     "0004_ticket_chat.sql",
     "0005_ticket_destination.sql",
     "0006_account_notices.sql",
+    "0007_ticket_whatsapp.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -123,7 +141,7 @@ async function setup(open = true, overrides = {}) {
     assert.equal(me.status, 200, JSON.stringify(me.data));
     return { req, id: me.data.user.id, password };
   }
-  return { mf, db, emails, client, registered };
+  return { mf, db, emails, whatsapp, client, registered };
 }
 function dossier() {
   return {
@@ -208,15 +226,22 @@ test("ticket destination requires beneficiary, bank account and current conditio
   assert.equal(accepted.termsVersion, CertificateModel.ticketConditionsVersion);
   assert.equal(accepted.termsAcceptedAt, 456);
   assert.throws(
-    () => CertificateModel.validateTicket(ticket({ bankAccount: "4111111111111111x" })),
+    () =>
+      CertificateModel.validateTicket(
+        ticket({ bankAccount: "4111111111111111x" }),
+      ),
     /número de cuenta/,
   );
   assert.throws(
-    () => CertificateModel.validateTicket(ticket({ conditionsAccepted: false })),
+    () =>
+      CertificateModel.validateTicket(ticket({ conditionsAccepted: false })),
     /aceptar las condiciones/,
   );
   assert.throws(
-    () => CertificateModel.validateTicket(ticket({ conditionsVersion: "anterior" })),
+    () =>
+      CertificateModel.validateTicket(
+        ticket({ conditionsVersion: "anterior" }),
+      ),
     /cambiaron/,
   );
 });
@@ -527,15 +552,43 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       409,
     );
     const requestKey = crypto.randomUUID();
-    r = await a.req("/api/tickets", ticket({
-      mode: "international",
-      requestKey,
-      estimate: { net: 999999 },
-      user_id: b.id,
-      status: "closed",
-    }));
+    r = await a.req(
+      "/api/tickets",
+      ticket({
+        mode: "international",
+        requestKey,
+        estimate: { net: 999999 },
+        user_id: b.id,
+        status: "closed",
+      }),
+    );
     assert.equal(r.status, 201, JSON.stringify(r.data));
     const id = r.data.id;
+    for (let n = 0; n < 30 && !s.whatsapp.length; n++)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(s.whatsapp.length, 1, "WhatsApp ticket notice dispatched");
+    const whatsappNotice = s.whatsapp[0];
+    assert.equal(whatsappNotice.to, "50586199889");
+    assert.equal(whatsappNotice.type, "template");
+    assert.equal(whatsappNotice.template.name, "nuevo_ticket_saldo_express");
+    const whatsappText = JSON.stringify(whatsappNotice);
+    assert.match(whatsappText, new RegExp(id));
+    assert.match(whatsappText, /USD 164\.00/);
+    assert.match(whatsappText, /USD 145\.00/);
+    assert.match(whatsappText, /Certificado en efectivo/);
+    assert.ok(!whatsappText.includes(ticket().bankAccount));
+    assert.ok(!whatsappText.includes(ticket().beneficiaryName));
+    const whatsappRow = await s.db
+      .prepare(
+        "SELECT whatsapp_delivered,whatsapp_attempts,whatsapp_message_id FROM notifications WHERE ticket_id=?",
+      )
+      .bind(id)
+      .first();
+    assert.deepEqual(whatsappRow, {
+      whatsapp_delivered: 1,
+      whatsapp_attempts: 0,
+      whatsapp_message_id: "wamid.test-ticket",
+    });
     const persisted = await a.req("/api/tickets/" + id);
     assert.equal(persisted.data.status, "submitted");
     assert.equal(persisted.data.user_id, a.id);
@@ -548,7 +601,9 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       persisted.data.terms_version,
       CertificateModel.ticketConditionsVersion,
     );
-    assert.ok(persisted.data.terms_accepted_at >= persisted.data.created_at - 1000);
+    assert.ok(
+      persisted.data.terms_accepted_at >= persisted.data.created_at - 1000,
+    );
     assert.equal(
       persisted.data.expires_at - persisted.data.created_at,
       24 * 60 * 60 * 1000,
@@ -606,10 +661,7 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     r = await a.req("/api/tickets", ticket({ requestKey }));
     assert.equal(r.data.id, id);
     assert.equal((await a.req("/api/tickets")).data.length, 1);
-    r = await a.req(
-      "/api/tickets",
-      ticket({ amount: "600", mode: "express" }),
-    );
+    r = await a.req("/api/tickets", ticket({ amount: "600", mode: "express" }));
     assert.equal(r.status, 201, JSON.stringify(r.data));
     const internationalId = r.data.id;
     const international = await a.req("/api/tickets/" + internationalId);

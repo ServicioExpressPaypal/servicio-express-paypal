@@ -37,7 +37,9 @@ import CertificateModel from "./certificate.js";
       timeStyle: "short",
     }).format(new Date(value));
   const expiryText = (ticket) =>
-    ticket.expired ? "Venció " + dateTime(ticket.expires_at) : "Vence " + dateTime(ticket.expires_at);
+    ticket.expired
+      ? "Venció " + dateTime(ticket.expires_at)
+      : "Vence " + dateTime(ticket.expires_at);
   let me,
     config,
     view = "dashboard",
@@ -134,16 +136,14 @@ import CertificateModel from "./certificate.js";
         me = null;
         render();
       };
-    document.querySelectorAll("[data-view]").forEach(
-      (b) => {
-        b.classList.toggle("active", b.dataset.view === view);
-        (b.onclick = () => {
-          view = b.dataset.view;
-          if (view === "users") userFilter = "all";
-          render();
-        });
-      },
-    );
+    document.querySelectorAll("[data-view]").forEach((b) => {
+      b.classList.toggle("active", b.dataset.view === view);
+      b.onclick = () => {
+        view = b.dataset.view;
+        if (view === "users") userFilter = "all";
+        render();
+      };
+    });
   }
   async function render() {
     nav();
@@ -402,8 +402,13 @@ import CertificateModel from "./certificate.js";
     const messageForm = t.canMessage
       ? `<form id="message-form" class="chat-form"><label for="ticket-message">Nuevo comentario</label><textarea id="ticket-message" name="message" required maxlength="1000" rows="3" placeholder="Escribe un comentario sobre este ticket"></textarea><div><small>Máximo 1,000 caracteres.</small><button class="button primary" type="submit">${icon("send")}Enviar</button></div><p class="form-error" role="alert"></p></form>`
       : '<p class="notice">La conversación está cerrada porque el ticket venció o finalizó.</p>';
-    const whatsapp = !me.admin && t.canMessage
-      ? `<section class="external-purchase"><div><h2>Continuar por WhatsApp</h2><p>La compra y el pago se coordinan fuera de esta plataforma. El mensaje incluirá únicamente la referencia del ticket.</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(`Hola, quiero continuar la compra relacionada con el ticket ${t.id}.`)}" target="_blank" rel="noopener">${icon("message-circle")}Abrir WhatsApp</a></section>`
+    const whatsappText = `Hola, generé el ticket ${t.id} en Saldo Express. Monto solicitado: ${money(t.amount)}. Valor estimado: ${money(t.estimate.net)}. Modalidad: ${methodLabel(t.mode)}. Quiero continuar la atención por este canal.`;
+    const whatsapp =
+      !me.admin && t.canMessage
+        ? `<section class="external-purchase"><div><h2>Continuar por WhatsApp</h2><p>Ya avisamos al equipo. Este botón abre el chat con el resumen del ticket; revisá el mensaje antes de enviarlo.</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(whatsappText)}" target="_blank" rel="noopener">${icon("message-circle")}Abrir WhatsApp</a></section>`
+        : "";
+    const notification = me.admin
+      ? `<p class="notice"><strong>Aviso del ticket:</strong> Correo ${t.notification?.email_delivered ? "enviado" : "pendiente"} · WhatsApp ${t.notification?.whatsapp_delivered ? "enviado" : config.whatsappEnabled ? (t.notification?.whatsapp_attempts ? "en reintento" : "en cola") : "pendiente de activación"}. El aviso no contiene el número de cuenta.</p>`
       : "";
     const adminActions = me.admin
       ? t.status === "submitted"
@@ -417,7 +422,7 @@ import CertificateModel from "./certificate.js";
     const cancelAction = ["submitted", "reviewing"].includes(t.status)
       ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>'
       : "";
-    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>La vigencia es de 24 horas desde su creación.</small></div><div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "No registrado")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "No registrado")}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}<section class="ticket-chat"><div class="section-heading"><div><h2>Conversación del ticket</h2><p>Usa este espacio para comentarios sobre la solicitud. No compartas contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section>`;
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>La vigencia es de 24 horas desde su creación.</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "No registrado")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "No registrado")}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}<section class="ticket-chat"><div class="section-heading"><div><h2>Conversación del ticket</h2><p>Usa este espacio para comentarios sobre la solicitud. No compartas contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section>`;
     $("#back").onclick = render;
     document.querySelectorAll("[data-action]").forEach(
       (b) =>
@@ -502,16 +507,24 @@ import CertificateModel from "./certificate.js";
           render();
         }),
     );
-    document.querySelectorAll("[data-dashboard-user]").forEach(
-      (button) =>
-        (button.onclick = () =>
-          dossier(button.dataset.dashboardUser).catch((e) => toast(e.message))),
-    );
-    document.querySelectorAll("[data-dashboard-ticket]").forEach(
-      (button) =>
-        (button.onclick = () =>
-          detail(button.dataset.dashboardTicket).catch((e) => toast(e.message))),
-    );
+    document
+      .querySelectorAll("[data-dashboard-user]")
+      .forEach(
+        (button) =>
+          (button.onclick = () =>
+            dossier(button.dataset.dashboardUser).catch((e) =>
+              toast(e.message),
+            )),
+      );
+    document
+      .querySelectorAll("[data-dashboard-ticket]")
+      .forEach(
+        (button) =>
+          (button.onclick = () =>
+            detail(button.dataset.dashboardTicket).catch((e) =>
+              toast(e.message),
+            )),
+      );
   }
   async function users() {
     const rows = await api("/api/admin/users");
@@ -530,7 +543,9 @@ import CertificateModel from "./certificate.js";
         (user) =>
           (userFilter === "all" || user.status === userFilter) &&
           (!query ||
-            `${user.full_name || ""} ${user.email}`.toLowerCase().includes(query)),
+            `${user.full_name || ""} ${user.email}`
+              .toLowerCase()
+              .includes(query)),
       );
       $("#user-list").innerHTML =
         visible
@@ -538,12 +553,15 @@ import CertificateModel from "./certificate.js";
             (u) =>
               `<button class="admin-list-row" data-user="${esc(u.user_id)}"><span><strong>${esc(u.full_name || "Registro sin completar")}</strong><small>${esc(u.email)}</small>${u.reason ? `<small>${esc(u.reason)}</small>` : ""}</span><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></button>`,
           )
-          .join("") || '<p class="empty compact">No hay usuarios con este filtro.</p>';
-      document.querySelectorAll("[data-user]").forEach(
-        (button) =>
-          (button.onclick = () =>
-            dossier(button.dataset.user).catch((e) => toast(e.message))),
-      );
+          .join("") ||
+        '<p class="empty compact">No hay usuarios con este filtro.</p>';
+      document
+        .querySelectorAll("[data-user]")
+        .forEach(
+          (button) =>
+            (button.onclick = () =>
+              dossier(button.dataset.user).catch((e) => toast(e.message))),
+        );
     };
     $("#user-search").oninput = draw;
     document.querySelectorAll("[data-user-status]").forEach(

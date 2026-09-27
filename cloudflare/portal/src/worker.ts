@@ -45,6 +45,15 @@ type TicketMessage = {
   body: string;
   created_at: number;
 };
+type TicketNotification = {
+  ticket_id: string;
+  amount: number;
+  mode: string;
+  estimate: string;
+  expires_at: number;
+  whatsapp_delivered: number;
+  whatsapp_attempts: number;
+};
 const TICKET_TTL_MS = 24 * 60 * 60 * 1000;
 const finalTicketStatuses = new Set(["closed", "cancelled"]);
 class HttpError extends Error {
@@ -172,11 +181,7 @@ async function profileFor(env: Env, id: string) {
 function isTicketExpired(t: Ticket, now = Date.now()) {
   return t.expires_at <= now;
 }
-function publicTicket(
-  t: Ticket,
-  now = Date.now(),
-  includeBankAccount = false,
-) {
+function publicTicket(t: Ticket, now = Date.now(), includeBankAccount = false) {
   const expired = isTicketExpired(t, now);
   const { bank_account, ...safeTicket } = t;
   return {
@@ -224,6 +229,92 @@ async function notify(env: Env, ticketId: string) {
     );
   }
 }
+function ticketMoney(cents: number) {
+  return `USD ${(cents / 100).toFixed(2)}`;
+}
+async function notifyWhatsApp(env: Env, ticketId: string) {
+  if (env.WHATSAPP_PROVIDER !== "meta") return;
+  const notice = await env.DB.prepare(
+    "SELECT n.ticket_id,n.whatsapp_delivered,n.whatsapp_attempts,t.amount,t.mode,t.estimate,t.expires_at FROM notifications n JOIN tickets t ON t.id=n.ticket_id WHERE n.ticket_id=? AND n.whatsapp_delivered=0 AND n.whatsapp_attempts<5",
+  )
+    .bind(ticketId)
+    .first<TicketNotification>();
+  if (!notice) return;
+  try {
+    if (
+      !env.WHATSAPP_ACCESS_TOKEN ||
+      !/^\d+$/.test(env.WHATSAPP_PHONE_NUMBER_ID || "") ||
+      !/^\d+$/.test(env.WHATSAPP_ADMIN_NUMBER || "") ||
+      !/^v\d+\.\d+$/.test(env.WHATSAPP_GRAPH_VERSION || "") ||
+      !env.WHATSAPP_TEMPLATE_NAME
+    )
+      throw new Error("Configuración de WhatsApp incompleta.");
+    const estimate = JSON.parse(notice.estimate) as { net: number };
+    const response = await fetch(
+      `https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: env.WHATSAPP_ADMIN_NUMBER,
+          type: "template",
+          template: {
+            name: env.WHATSAPP_TEMPLATE_NAME,
+            language: { code: env.WHATSAPP_TEMPLATE_LANGUAGE || "es" },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  { type: "text", text: notice.ticket_id },
+                  { type: "text", text: ticketMoney(notice.amount) },
+                  { type: "text", text: ticketMoney(estimate.net) },
+                  {
+                    type: "text",
+                    text:
+                      notice.mode === "express"
+                        ? "Certificado en efectivo"
+                        : "Método internacional",
+                  },
+                  {
+                    type: "text",
+                    text: new Date(notice.expires_at).toLocaleString("es-NI", {
+                      timeZone: "America/Managua",
+                    }),
+                  },
+                  { type: "text", text: env.APP_URL },
+                ],
+              },
+            ],
+          },
+        }),
+      },
+    );
+    if (!response.ok)
+      throw new Error(`WhatsApp respondió con estado ${response.status}.`);
+    const result = (await response.json()) as {
+      messages?: Array<{ id?: string }>;
+    };
+    await env.DB.prepare(
+      "UPDATE notifications SET whatsapp_delivered=1,whatsapp_message_id=? WHERE ticket_id=?",
+    )
+      .bind(result.messages?.[0]?.id || null, ticketId)
+      .run();
+  } catch {
+    await env.DB.prepare(
+      "UPDATE notifications SET whatsapp_attempts=whatsapp_attempts+1,whatsapp_next_attempt_at=? WHERE ticket_id=?",
+    )
+      .bind(Date.now() + 15 * 60000, ticketId)
+      .run();
+    console.error(
+      JSON.stringify({ event: "ticket_whatsapp_failed", ticketId }),
+    );
+  }
+}
 async function notifyAccountDecision(env: Env, noticeId: string) {
   if (env.EMAIL_PROVIDER === "disabled") return;
   const notice = await env.DB.prepare(
@@ -246,9 +337,7 @@ async function notifyAccountDecision(env: Env, noticeId: string) {
       "Actualización de tu cuenta de Saldo Express",
       `Tu cuenta ${label}.\n\nMotivo: ${notice.reason}\n\nSi necesitas solicitar una revisión, escribe a info@softohmsystems.com.`,
     );
-    await env.DB.prepare(
-      "UPDATE account_notices SET delivered=1 WHERE id=?",
-    )
+    await env.DB.prepare("UPDATE account_notices SET delivered=1 WHERE id=?")
       .bind(noticeId)
       .run();
   } catch {
@@ -257,9 +346,7 @@ async function notifyAccountDecision(env: Env, noticeId: string) {
     )
       .bind(Date.now() + 3600000, noticeId)
       .run();
-    console.error(
-      JSON.stringify({ event: "account_notice_failed", noticeId }),
-    );
+    console.error(JSON.stringify({ event: "account_notice_failed", noticeId }));
   }
 }
 async function handle(
@@ -274,8 +361,7 @@ async function handle(
   if (env.MAINTENANCE_MODE === "true") {
     if (request.method !== "GET" && request.method !== "HEAD")
       fail(503, "El sitio está en preparación.");
-    if (path.startsWith("/api/"))
-      fail(503, "El sitio está en preparación.");
+    if (path.startsWith("/api/")) fail(503, "El sitio está en preparación.");
     const maintenanceUrl = new URL("/index.html", request.url);
     return env.ASSETS.fetch(
       new Request(maintenanceUrl, {
@@ -298,6 +384,7 @@ async function handle(
       registrationOpen:
         env.REGISTRATION_OPEN === "true" && env.EMAIL_PROVIDER !== "disabled",
       kycOpen: env.KYC_OPEN === "true",
+      whatsappEnabled: env.WHATSAPP_PROVIDER === "meta",
     });
   if (!path.startsWith("/api/")) return env.ASSETS.fetch(request);
   if (path === "/api/setup/request" || path === "/api/setup/complete") {
@@ -524,6 +611,7 @@ async function handle(
       throw e;
     }
     ctx.waitUntil(notify(env, id));
+    ctx.waitUntil(notifyWhatsApp(env, id));
     return json({ id }, 201);
   }
   if (path === "/api/admin/users" && request.method === "GET") {
@@ -659,10 +747,7 @@ async function handle(
       .first<Ticket>();
     if (!target || (!messageMatch[1] && target.user_id !== user.id))
       fail(404, "Solicitud no encontrada.");
-    if (
-      isTicketExpired(target!) ||
-      finalTicketStatuses.has(target!.status)
-    )
+    if (isTicketExpired(target!) || finalTicketStatuses.has(target!.status))
       fail(409, "La conversación de este ticket ya está cerrada.");
     await rate(env, `messages:${user.id}:${target!.id}`, 30, 3600);
     const body = await payload(request),
@@ -701,7 +786,7 @@ async function handle(
     if (!target || (!ticketMatch[1] && target.user_id !== user.id))
       fail(404, "Solicitud no encontrada.");
     if (request.method === "GET") {
-      const [events, messages] = await Promise.all([
+      const [events, messages, notification] = await Promise.all([
         env.DB.prepare(
           "SELECT action,detail,created_at FROM audit_events WHERE target_id=? AND action!='message_sent' ORDER BY created_at",
         )
@@ -712,11 +797,19 @@ async function handle(
         )
           .bind(target!.id)
           .all<TicketMessage>(),
+        ticketMatch[1]
+          ? env.DB.prepare(
+              "SELECT delivered AS email_delivered,whatsapp_delivered,whatsapp_attempts FROM notifications WHERE ticket_id=?",
+            )
+              .bind(target!.id)
+              .first()
+          : Promise.resolve(null),
       ]);
       return json({
         ...publicTicket(target!, Date.now(), true),
         events: events.results,
         messages: messages.results,
+        ...(ticketMatch[1] ? { notification } : {}),
       });
     }
     if (isTicketExpired(target!))
@@ -824,6 +917,15 @@ export default {
       .bind(Date.now())
       .all<{ ticket_id: string }>();
     for (const job of jobs.results) ctx.waitUntil(notify(env, job.ticket_id));
+    if (env.WHATSAPP_PROVIDER === "meta") {
+      const whatsappJobs = await env.DB.prepare(
+        "SELECT ticket_id FROM notifications WHERE whatsapp_delivered=0 AND whatsapp_attempts<5 AND whatsapp_next_attempt_at<=? LIMIT 20",
+      )
+        .bind(Date.now())
+        .all<{ ticket_id: string }>();
+      for (const job of whatsappJobs.results)
+        ctx.waitUntil(notifyWhatsApp(env, job.ticket_id));
+    }
     const accountJobs = await env.DB.prepare(
       "SELECT id FROM account_notices WHERE delivered=0 AND attempts<5 AND next_attempt_at<=? LIMIT 20",
     )

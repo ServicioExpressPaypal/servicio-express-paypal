@@ -44,6 +44,7 @@ const mf = new Miniflare(
       EMAIL_PROVIDER: "resend",
       EMAIL_FROM: "preview@example.test",
       RESEND_API_KEY: "local-only",
+      WHATSAPP_PROVIDER: "disabled",
     },
     serviceBindings: {
       ASSETS: async (request) => {
@@ -73,6 +74,7 @@ for (const file of [
   "0004_ticket_chat.sql",
   "0005_ticket_destination.sql",
   "0006_account_notices.sql",
+  "0007_ticket_whatsapp.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),

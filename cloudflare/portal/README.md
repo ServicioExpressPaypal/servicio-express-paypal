@@ -50,14 +50,19 @@ Worker separado de GitHub Pages: https://portal.saldoexpressnicaragua.com
 - Conversacion persistente por ticket entre cliente y administrador. Los mensajes
   tienen limite de 1,000 caracteres, control de acceso por propietario y no se
   duplican en el detalle de auditoria. La compra y el pago se coordinan fuera del
-  portal mediante WhatsApp, usando solo el ID del ticket como referencia.
-- Avisos al operador solo con ID de ticket. Reintentos cada 15 minutos, hasta
-  cinco fallos. Nunca se adjuntan documentos ni datos bancarios.
+  portal mediante WhatsApp. El acceso rapido prepara el ID, monto, valor estimado
+  y modalidad para que el cliente revise y envie el mensaje.
+- Cada ticket crea avisos independientes por correo y WhatsApp. WhatsApp usa una
+  plantilla de utilidad aprobada, registra el identificador de entrega y reintenta
+  cada 15 minutos hasta cinco fallos. El aviso incluye ID, monto, valor estimado,
+  modalidad, vencimiento y enlace al panel; nunca incluye beneficiario, numero de
+  cuenta, documentos, contrasenas ni codigos.
 - No hay pagos, facturas PayPal ni operaciones financieras automaticas.
 
 ## Cerrado por defecto
 
-`REGISTRATION_OPEN=false`, `KYC_OPEN=false`, `EMAIL_PROVIDER=resend`.
+`REGISTRATION_OPEN=false`, `KYC_OPEN=false`, `EMAIL_PROVIDER=resend` y
+`WHATSAPP_PROVIDER=disabled`.
 Son controles del servidor, no restricciones cosmeticas de la interfaz.
 
 Resend ya esta conectado al dominio verificado `saldoexpressnicaragua.com`.
@@ -93,6 +98,13 @@ Antes de abrir:
    habilitado eliminacion automatica de expedientes sin definir plazo y fundamento.
 6. Separar produccion si se desea conservar staging para pruebas. Las listas
    muestran los 100 registros mas recientes; agregar paginacion antes de superarlos.
+7. Configurar WhatsApp Business Platform con un numero emisor y un numero receptor
+   administrativo distintos. Aprobar la plantilla `nuevo_ticket_saldo_express`
+   con seis variables, en este orden: ticket, monto solicitado, valor estimado,
+   modalidad, vencimiento y URL del panel. Guardar `WHATSAPP_ACCESS_TOKEN`,
+   `WHATSAPP_PHONE_NUMBER_ID` y `WHATSAPP_ADMIN_NUMBER` como secretos; despues
+   cambiar `WHATSAPP_PROVIDER=meta`. El numero receptor se guarda solo con digitos
+   y codigo de pais. No activar el proveedor antes de aprobar y probar la plantilla.
 
 Solo despues cambiar los controles de apertura y desplegar. No solicitar
 documentos reales en el estado actual.
@@ -149,7 +161,7 @@ npm run dev
 Configurar `.dev.vars` local, ignorado por Git, con `APP_URL=http://localhost:8791`,
 un secreto local propio de al menos 32 caracteres y administrador de prueba.
 Nunca usar secretos ni documentos reales en pruebas locales.
-`npm test` usa workerd con D1/R2 locales y correo interceptado, sin mensajes reales.
+`npm test` usa workerd con D1/R2 locales y correo/WhatsApp interceptados, sin mensajes reales.
 Comprueba registro, verificacion, MFA, perfil sin fotos, archivos anteriores,
 activacion, tickets, cotizaciones, permisos y conflictos de version.
 
@@ -162,6 +174,8 @@ npm run deploy
 ```
 
 Secretos `BETTER_AUTH_SECRET`, `ADMIN_EMAIL` y `RESEND_API_KEY` configurados en Cloudflare.
+Al activar WhatsApp tambien se requieren `WHATSAPP_ACCESS_TOKEN`,
+`WHATSAPP_PHONE_NUMBER_ID` y `WHATSAPP_ADMIN_NUMBER`.
 No regenerar el secreto al desplegar: invalidaria sesiones y secretos MFA cifrados.
 `wrangler secret bulk` admite JSON por stdin sin incluirlo en Git.
 La migracion inicial de Better Auth se genera con `node scripts/generate-auth.mjs`
