@@ -42,7 +42,7 @@ test("maintenance pages hide the unreleased product and application", () => {
     assert.doesNotMatch(page, /SoftOhm|mailto:|Saldo Express|<footer|<img/i);
   }
   assert.match(certificate, /Certificado de regalo en efectivo/);
-  assert.match(certificate, /familiar o beneficiario en Nicaragua/);
+  assert.match(certificate, /compartir con tu familia/);
   assert.doesNotMatch(certificate, /Tarjeta de regalo electrónica/);
   assert.match(read("robots.txt"), /Disallow: \/$/m);
 });
@@ -89,12 +89,14 @@ test("terms describe automatic ticket modes without a commission table", () => {
   assert.match(terms, /Método internacional/);
   assert.match(terms, /cuenta de PayPal verificada/);
   assert.match(terms, /valor estimado del certificado/);
-  assert.match(terms, /familiar u otro beneficiario designado en Nicaragua/);
+  assert.match(terms, /producto de regalo de valor monetario/);
+  assert.match(terms, /solicitud se gestiona de forma digital/);
+  assert.match(terms, /no completa la compra ni emite el certificado/);
   assert.match(terms, /un solo familiar o beneficiario.*una sola cuenta/s);
   assert.match(terms, /vigencia de 24 horas/);
   assert.match(terms, /canal\s+oficial de WhatsApp/s);
-  assert.match(terms, /nombre comercial no cambia/i);
-  assert.match(terms, /Banco Central de Nicaragua/);
+  const description = terms.split("<h2>Certificado de regalo en efectivo</h2>")[1].split("<h2>Condiciones del ticket</h2>")[0];
+  assert.doesNotMatch(description, /Nicaragua|banco|autoridades|depósito/i);
   assert.doesNotMatch(terms, /<table/i);
 });
 

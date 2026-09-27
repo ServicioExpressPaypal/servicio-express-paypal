@@ -1,10 +1,10 @@
 export default (function () {
   "use strict";
-  const version = "cuenta-minima-2026-09-27-v1";
+  const version = "cuenta-minima-2026-09-27-v2";
   const ticketConditionsVersion = "ticket-condiciones-2026-09-27-v2";
   const title = "Certificado de regalo en efectivo";
   const description =
-    "Solicitud de cotización de un Certificado de regalo en efectivo para obsequiar a un familiar o beneficiario en Nicaragua. Cada ticket tiene una vigencia de 24 horas. La compra y el pago se coordinan fuera del portal por WhatsApp.";
+    "Un regalo de valor monetario para compartir con tu familia o con un beneficiario que elijas. Su solicitud se gestiona de forma digital mediante un ticket con vigencia de 24 horas. Crear el ticket no completa la compra ni emite el certificado; el pago y la entrega se coordinan por separado.";
   const banks = ["LAFISE", "BDF", "Banpro", "BAC", "Ficohsa", "Avanz"];
   const ticketConditions = [
     "Solo se procesan órdenes pagadas con cuentas verificadas por PayPal.",
