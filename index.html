@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es-NI">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -23,7 +23,7 @@
 
     <meta
       name="description"
-      content="Calculadoras gratuitas para estimar comisiones de PayPal, escenarios de monto neto y retiros Payoneer en cajeros de Nicaragua."
+      content="Calculadoras de referencia e información previa al lanzamiento del Certificado de regalo en efectivo de Saldo Express Nicaragua."
     />
     <title>
       Calculadoras PayPal y Payoneer Nicaragua | Saldo Express Nicaragua
@@ -39,11 +39,11 @@
     <meta property="og:url" content="https://saldoexpressnicaragua.com/" />
     <meta
       property="og:title"
-      content="Calculadoras PayPal y Payoneer Nicaragua"
+      content="Saldo Express Nicaragua | Calculadoras y certificado en efectivo"
     />
     <meta
       property="og:description"
-      content="Estima comisiones de PayPal, escenarios de monto neto y retiros Payoneer en cajeros de Nicaragua."
+      content="Calculadoras de referencia e información del proyecto Certificado de regalo en efectivo. Registro cerrado."
     />
     <meta
       property="og:image"
@@ -169,7 +169,7 @@
             escenario.
           </p>
           <ul class="requirement-list">
-            <li>Tarjeta de regalo electrónica: $25 a $500.</li>
+            <li>Certificado de regalo en efectivo: $25 a $500.</li>
             <li>Método internacional: más de $500 a $3,000.</li>
             <li>
               Los resultados son informativos y pueden variar por condiciones
@@ -208,7 +208,7 @@
             Escenario
             <select id="serviceMode">
               <option value="express" selected>
-                Tarjeta de regalo electrónica
+                Certificado de regalo en efectivo
               </option>
               <option value="international">Método internacional</option>
             </select>
@@ -231,7 +231,9 @@
               <strong id="deliveryFee">$0.00</strong>
             </div>
             <div>
-              <span id="serviceFeeLabel">Tarjeta de regalo electrónica</span>
+              <span id="serviceFeeLabel"
+                >Certificado de regalo en efectivo</span
+              >
               <strong id="serviceFeeAmount">$0.00</strong>
             </div>
             <div>
@@ -254,13 +256,14 @@
           >
             <p>
               <strong>¿Necesitas orientación?</strong>
-              Escríbenos por WhatsApp Business y te ayudamos a revisar opciones
-              para cambiar saldo PayPal de forma privada y confidencial.
+              Escríbenos por WhatsApp Business para entender la estimación y el
+              estado del Certificado de regalo en efectivo. El registro y las
+              compras todavía están cerrados.
             </p>
             <a
               class="button primary calculator-button"
               id="calculatorWhatsapp"
-              href="https://wa.me/50586199889?text=Hola%2C%20vi%20la%20calculadora%20de%20Saldo%20Express%20Nicaragua.%20Quiero%20orientaci%C3%B3n%20privada%20sobre%20opciones%20para%20cambiar%20saldo%20PayPal."
+              href="https://wa.me/50586199889?text=Hola%2C%20vi%20la%20calculadora%20de%20Saldo%20Express%20Nicaragua.%20Quiero%20entender%20una%20estimaci%C3%B3n%20del%20Certificado%20de%20regalo%20en%20efectivo."
               target="_blank"
               rel="noopener"
             >
@@ -404,30 +407,28 @@
     </main>
 
     <footer class="site-footer">
-      <p>
-        <strong>Tarjeta de regalo electrónica: próximamente.</strong> Registro
-        cerrado. Sin compra, emisión ni canje disponibles.
-      </p>
-      <p>
-        <a href="terminos.html">Términos y condiciones</a> ·
-        <a href="privacidad.html">Aviso de privacidad</a> ·
-        <a href="mailto:info@softohmsystems.com">Contacto</a>
-      </p>
-      <p>
-        <a href="https://portal.saldoexpressnicaragua.com/"
-          >Acceder al portal</a
-        >
-      </p>
-      <p>
-        © 2026 Saldo Express Nicaragua. Herramientas de cálculo informativas.
-      </p>
-      <p>
-        PayPal y Payoneer son marcas registradas de sus respectivos dueños. Este
-        sitio no está afiliado ni asociado con dichas compañías.
-      </p>
+      <div class="footer-inner">
+        <p class="footer-status">
+          <strong>Certificado de regalo en efectivo</strong>
+          <span>Próximamente · registro, compra y emisión no disponibles</span>
+        </p>
+        <nav class="footer-links" aria-label="Enlaces del pie">
+          <a href="terminos.html">Términos y condiciones</a>
+          <a href="privacidad.html">Aviso de privacidad</a>
+          <a href="mailto:info@softohmsystems.com">Contacto</a>
+          <a href="https://portal.saldoexpressnicaragua.com/"
+            >Acceder al portal</a
+          >
+        </nav>
+        <p>© 2026 Saldo Express Nicaragua · SoftOhm Systems LLC</p>
+        <p class="footer-disclaimer">
+          Herramientas informativas. PayPal y Payoneer son marcas de sus
+          respectivos titulares; este sitio no está afiliado con ellas.
+        </p>
+      </div>
     </footer>
 
-    <script src="calculator-core.js?v=2"></script>
-    <script src="script.js?v=10"></script>
+    <script src="calculator-core.js?v=3"></script>
+    <script src="script.js?v=11"></script>
   </body>
 </html>

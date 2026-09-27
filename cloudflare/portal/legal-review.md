@@ -184,8 +184,8 @@ del articulo 7 de la Ley 787. Pendiente de revision juridica antes de apertura.
 
 Se publican /terminos.html y /privacidad.html en el dominio principal, con enlaces
 desde el portal, describiendo la etapa informativa, las limitaciones y los datos
-reales del sistema. El nombre comercial solicitado es Tarjeta de regalo
-electronica; se explica expresamente el modelo de deposito bancario previsto.
+reales del sistema. El nombre comercial solicitado es Certificado de regalo en
+efectivo; se explica expresamente el modelo de deposito bancario previsto.
 No hay emision, cobro, canje ni autorizacion regulatoria implementados.
 
 Se retiran los cargadores automaticos de analitica y publicidad de la landing.
@@ -202,8 +202,8 @@ confirmadas por el titular: una cuenta bancaria por ticket, cuentas corrientes o
 de ahorro, pago desde PayPal verificado, solo mayores de edad y revision de los
 datos bancarios antes del deposito.
 
-La tarjeta de regalo admite USD 25 a USD 500 por solicitud. Un monto desde
+El certificado admite USD 25 a USD 500 por solicitud. Un monto desde
 USD 500.01 se clasifica en el servidor como Metodo internacional, hasta USD 3,000.
 La comision no se publica como tabla fija: se calcula con la configuracion vigente
-y el ticket muestra monto base, costos estimados y valor estimado de la tarjeta.
+y el ticket muestra monto base, costos estimados y valor estimado del certificado.
 El registro y la recepcion de perfiles continuan cerrados.

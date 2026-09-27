@@ -1,9 +1,9 @@
 export default (function () {
   "use strict";
-  const version = "tarjeta-piloto-2026-09-26-v4";
-  const title = "Tarjeta de regalo electrónica";
+  const version = "certificado-efectivo-2026-09-26-v5";
+  const title = "Certificado de regalo en efectivo";
   const description =
-    "Solicitud de una tarjeta de regalo electrónica cuyo valor se calcula automáticamente. Tras revisión y confirmación, su valor se entregaría mediante depósito a la cuenta bancaria aprobada.";
+    "Solicitud prevista de un Certificado de regalo en efectivo cuyo valor se calcula automáticamente. El producto no está disponible; una eventual entrega requeriría revisión, cotización y confirmación previa.";
   const banks = ["LAFISE", "BDF", "Banpro", "BAC", "Ficohsa", "Avanz"];
   const declaration =
     "Declaro que los datos son verdaderos, que soy titular de la cuenta bancaria indicada y que los fondos relacionados con mi solicitud tienen procedencia lícita. Esta declaración no sustituye la verificación que corresponda.";
@@ -11,7 +11,7 @@ export default (function () {
     [
       "Servicio solicitado",
       description +
-        " Hasta $500 se tramita como tarjeta de regalo; un monto mayor genera una solicitud por Método internacional. Crear una cuenta o ticket no ejecuta un pago ni garantiza un depósito.",
+        " Hasta $500 se tramitaría como certificado; un monto mayor genera una solicitud por Método internacional. Crear una cuenta o ticket no ejecuta un pago ni garantiza un depósito.",
     ],
     [
       "Cuenta y revisión",

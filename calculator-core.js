@@ -12,7 +12,7 @@
     wisePercent: 0.0016,
     serviceModes: {
       express: {
-        label: "Tarjeta de regalo electrónica",
+        label: "Certificado de regalo en efectivo",
         rate: 0.03,
         feeModel: "atm",
         deliveryLabel: "Procesamiento estimado",

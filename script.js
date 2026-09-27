@@ -1,4 +1,5 @@
-const { siteConfig, reverseGross, deliveryFee, computeFees } = window.SaldoCalculator;
+const { siteConfig, reverseGross, deliveryFee, computeFees } =
+  window.SaldoCalculator;
 
 let latestCalculation = null;
 
@@ -28,7 +29,7 @@ function updateCalculatorWhatsapp() {
   if (!whatsappLink) return;
 
   let message =
-    "Hola, vi la calculadora de Saldo Express Nicaragua. Quiero orientación privada sobre opciones para cambiar saldo PayPal.";
+    "Hola, vi la calculadora de Saldo Express Nicaragua. Quiero entender una estimación del Certificado de regalo en efectivo.";
 
   if (latestCalculation) {
     const isReverse = latestCalculation.direction === "reverse";
@@ -36,7 +37,7 @@ function updateCalculatorWhatsapp() {
       ? `Quiero recibir aproximadamente ${money(latestCalculation.net)} y la calculadora estima que tendría que enviar ${money(latestCalculation.gross)}.`
       : `Estoy revisando un monto PayPal de ${money(latestCalculation.gross)} y la calculadora estima un neto aproximado de ${money(latestCalculation.net)}.`;
 
-    message = `Hola, vi la calculadora de Saldo Express Nicaragua. ${summary} Escenario: ${latestCalculation.serviceLabel}. Quiero orientación privada y confidencial antes de mover mi saldo.`;
+    message = `Hola, vi la calculadora de Saldo Express Nicaragua. ${summary} Escenario: ${latestCalculation.serviceLabel}. Quiero entender esta estimación y el estado del producto.`;
   }
 
   whatsappLink.href = whatsappUrl(message);
@@ -44,7 +45,10 @@ function updateCalculatorWhatsapp() {
 
 function getMode() {
   const select = document.querySelector("#serviceMode");
-  return siteConfig.serviceModes[select && select.value] || siteConfig.serviceModes.express;
+  return (
+    siteConfig.serviceModes[select && select.value] ||
+    siteConfig.serviceModes.express
+  );
 }
 
 function getCalcDirection() {
@@ -93,7 +97,9 @@ function calculateExchange() {
   }
   if (netLabel) {
     netLabel.textContent =
-      direction === "reverse" ? "Debes enviar por PayPal" : "Recibirías aproximadamente";
+      direction === "reverse"
+        ? "Debes enviar por PayPal"
+        : "Recibirías aproximadamente";
   }
   deliveryFeeLabel.textContent = mode.deliveryLabel;
   serviceFeeLabel.textContent = mode.label;
@@ -115,7 +121,8 @@ function calculateExchange() {
     gross = inputAmount;
   }
 
-  const isValid = gross > 0 && gross >= mode.minAmount && gross <= mode.maxAmount;
+  const isValid =
+    gross > 0 && gross >= mode.minAmount && gross <= mode.maxAmount;
 
   if (!isValid) {
     latestCalculation = null;
@@ -148,7 +155,8 @@ function calculateExchange() {
   deliveryFeeOutput.textContent = money(fees.delivery);
   serviceFeeAmount.textContent = money(fees.service);
   totalFeeOutput.textContent = money(fees.total);
-  netAmountOutput.textContent = direction === "reverse" ? money(gross) : money(fees.net);
+  netAmountOutput.textContent =
+    direction === "reverse" ? money(gross) : money(fees.net);
 
   latestCalculation = {
     gross,
@@ -238,20 +246,40 @@ function calcPayoneer() {
   const operatorFeeOutput = document.querySelector("#poOperatorFee");
   const remainingOutput = document.querySelector("#poRemaining");
   const note = document.querySelector("#poNote");
-  if (!balanceInput || !withdrawOutput || !feeOutput || !operatorFeeOutput || !remainingOutput || !note) return;
+  if (
+    !balanceInput ||
+    !withdrawOutput ||
+    !feeOutput ||
+    !operatorFeeOutput ||
+    !remainingOutput ||
+    !note
+  )
+    return;
 
   const c = payoneerCalcConfig;
-  const direction = directionInput && directionInput.value === "reverse" ? "reverse" : "forward";
+  const direction =
+    directionInput && directionInput.value === "reverse"
+      ? "reverse"
+      : "forward";
   const inputAmount = parseMoney(balanceInput.value);
 
   if (inputLabel) {
-    inputLabel.textContent = direction === "reverse" ? "Monto que quieres recibir" : "Monto disponible en la tarjeta";
+    inputLabel.textContent =
+      direction === "reverse"
+        ? "Monto que quieres recibir"
+        : "Monto disponible en la tarjeta";
   }
   if (withdrawLabel) {
-    withdrawLabel.textContent = direction === "reverse" ? "Vas a retirar (cajero)" : "Puedes retirar (cajero)";
+    withdrawLabel.textContent =
+      direction === "reverse"
+        ? "Vas a retirar (cajero)"
+        : "Puedes retirar (cajero)";
   }
   if (remainingLabel) {
-    remainingLabel.textContent = direction === "reverse" ? "Necesitas tener en la tarjeta" : "Queda en la tarjeta";
+    remainingLabel.textContent =
+      direction === "reverse"
+        ? "Necesitas tener en la tarjeta"
+        : "Queda en la tarjeta";
   }
 
   const pctStr = (c.atmPercentFee * 100).toFixed(3).replace(/\.?0+$/, "");
@@ -261,9 +289,10 @@ function calcPayoneer() {
     feeOutput.textContent = money(0);
     operatorFeeOutput.textContent = money(0);
     remainingOutput.textContent = money(0);
-    note.textContent = direction === "reverse"
-      ? `Ingresa el monto que quieres recibir en efectivo. Los cajeros en Nicaragua dispensan en múltiplos de $${c.atmDenomination}.`
-      : `Ingresa el saldo de tu tarjeta. Los cajeros en Nicaragua dispensan en múltiplos de $${c.atmDenomination}.`;
+    note.textContent =
+      direction === "reverse"
+        ? `Ingresa el monto que quieres recibir en efectivo. Los cajeros en Nicaragua dispensan en múltiplos de $${c.atmDenomination}.`
+        : `Ingresa el saldo de tu tarjeta. Los cajeros en Nicaragua dispensan en múltiplos de $${c.atmDenomination}.`;
     note.classList.remove("warning");
     return;
   }
@@ -275,7 +304,10 @@ function calcPayoneer() {
 
   if (direction === "reverse") {
     // Reverse: input = monto deseado en efectivo. Redondea al multiplo de la denominacion.
-    const withdraw = Math.max(0, Math.floor(inputAmount / c.atmDenomination) * c.atmDenomination);
+    const withdraw = Math.max(
+      0,
+      Math.floor(inputAmount / c.atmDenomination) * c.atmDenomination,
+    );
 
     if (withdraw === 0) {
       withdrawOutput.textContent = money(0);
@@ -314,12 +346,16 @@ function calcPayoneer() {
 
   // Por el redondeo a centavos de la comision variable, a veces alcanza para una denominacion mas.
   const tryHigher = withdraw + c.atmDenomination;
-  if (tryHigher + payoneerFeeFor(tryHigher) + c.atmOperatorFee <= balance + 0.0001) {
+  if (
+    tryHigher + payoneerFeeFor(tryHigher) + c.atmOperatorFee <=
+    balance + 0.0001
+  ) {
     withdraw = tryHigher;
   }
 
   if (withdraw === 0) {
-    const minNeeded = c.atmDenomination + fixedTotal + c.atmPercentFee * c.atmDenomination;
+    const minNeeded =
+      c.atmDenomination + fixedTotal + c.atmPercentFee * c.atmDenomination;
     withdrawOutput.textContent = money(0);
     feeOutput.textContent = money(0);
     operatorFeeOutput.textContent = money(0);
