@@ -34,9 +34,9 @@ test("maintenance pages hide the unreleased product and application", () => {
   const certificate = read("cloudflare/portal/public/certificate.js");
 
   for (const page of [home, portal]) {
-    assert.match(page, /Sitio en preparación/);
-    assert.match(page, /no aceptamos registros, solicitudes ni pagos/i);
+    assert.match(page, /Sitio en construcción/);
     assert.doesNotMatch(page, /Certificado de regalo|PayPal|Payoneer|<form|<script/i);
+    assert.doesNotMatch(page, /SoftOhm|mailto:|Saldo Express|<footer|<img/i);
   }
   assert.match(certificate, /Certificado de regalo en efectivo/);
   assert.match(certificate, /familiar o beneficiario en Nicaragua/);
