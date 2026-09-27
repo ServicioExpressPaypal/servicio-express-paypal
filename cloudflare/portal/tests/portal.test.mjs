@@ -184,6 +184,19 @@ test("certificate profile validates minimum data without accepting client-contro
     }),
   );
 });
+test("maintenance mode hides assets and blocks every API", async () => {
+  const s = await setup(false, { MAINTENANCE_MODE: "true" });
+  try {
+    const req = s.client();
+    assert.equal((await req("/")).status, 200);
+    assert.equal((await req("/app.js")).data, "asset");
+    assert.equal((await req("/api/config")).status, 503);
+    assert.equal((await req("/api/health")).status, 503);
+    assert.equal((await req("/api/auth/sign-in/email", {})).status, 503);
+  } finally {
+    await s.mf.dispose();
+  }
+});
 test("closed deployment rejects registration, anonymous access and cross-origin mutations", async () => {
   const s = await setup(false);
   try {

@@ -40,10 +40,9 @@ jobs:
         run: node --test legal.test.cjs _pilot/tickets/accounts.test.cjs _pilot/tickets/domain.test.cjs _pilot/tickets/calculator.test.cjs
       - name: Assemble public files only
         run: |
-          mkdir -p _site/_pilot/tickets
-          cp index.html terminos.html privacidad.html legal.css kyc.html styles.css script.js calculator-core.js kyc.js robots.txt sitemap.xml CNAME _site/
-          cp -R assets _site/assets
-          cp _pilot/tickets/index.html _pilot/tickets/portal.css _pilot/tickets/portal.js _pilot/tickets/domain.js _pilot/tickets/accounts.js _pilot/tickets/account-ui.js _pilot/tickets/lucide.min.js _pilot/tickets/lucide-LICENSE _site/_pilot/tickets/
+          mkdir -p _site/assets
+          cp index.html maintenance.css robots.txt CNAME _site/
+          cp assets/logo-saldo-express-header.jpg _site/assets/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

@@ -11,3 +11,4 @@ for (const name of [
 }
 await copyFile("../../calculator-core.js", "dist/calculator-core.js");
 await copyFile("../../assets/logo-saldo-express-header.jpg", "dist/logo.jpg");
+await copyFile("../../maintenance.css", "dist/maintenance.css");

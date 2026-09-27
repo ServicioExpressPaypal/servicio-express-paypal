@@ -194,6 +194,19 @@ async function handle(
     path = url.pathname;
   if (!["GET", "HEAD", "POST"].includes(request.method))
     fail(405, "Método no permitido.");
+  if (env.MAINTENANCE_MODE === "true") {
+    if (request.method !== "GET" && request.method !== "HEAD")
+      fail(503, "El sitio está en preparación.");
+    if (path.startsWith("/api/"))
+      fail(503, "El sitio está en preparación.");
+    const maintenanceUrl = new URL("/index.html", request.url);
+    return env.ASSETS.fetch(
+      new Request(maintenanceUrl, {
+        method: request.method,
+        headers: request.headers,
+      }),
+    );
+  }
   if (
     request.method === "POST" &&
     request.headers.get("origin") !== env.APP_URL

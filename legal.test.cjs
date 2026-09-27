@@ -4,16 +4,19 @@ const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const read = (path) => readFileSync(join(__dirname, path), "utf8");
 
-test("public legal pages identify the confirmed business and contact without signup", () => {
+test("legal drafts stay preserved in source but are not published during maintenance", () => {
+  const workflow = read(".github/workflows/pages.yml");
+  const home = read("index.html");
+  const portal = read("cloudflare/portal/public/index.html");
   for (const path of ["terminos.html", "privacidad.html"]) {
     const html = read(path);
     assert.match(html, /SoftOhm Systems LLC/);
     assert.match(html, /mailto:info@softohmsystems.com/);
     assert.match(html, /Registro/);
     assert.doesNotMatch(html, /<form|<script/i);
-    assert.match(read("index.html"), new RegExp(`href="${path}"`));
-    assert.ok(read(".github/workflows/pages.yml").includes(path));
-    assert.ok(read("cloudflare/portal/public/index.html").includes(path));
+    assert.doesNotMatch(home, new RegExp(`href="${path}"`));
+    assert.doesNotMatch(workflow, new RegExp(path));
+    assert.doesNotMatch(portal, new RegExp(path));
   }
 });
 
@@ -25,20 +28,20 @@ test("public calculator does not load advertising or analytics scripts", () => {
   );
 });
 
-test("public product name and centered footer stay consistent", () => {
+test("maintenance pages hide the unreleased product and application", () => {
   const home = read("index.html");
-  const styles = read("styles.css");
+  const portal = read("cloudflare/portal/public/index.html");
   const certificate = read("cloudflare/portal/public/certificate.js");
 
-  assert.match(home, /Certificado de regalo en efectivo/);
+  for (const page of [home, portal]) {
+    assert.match(page, /Sitio en preparación/);
+    assert.match(page, /no aceptamos registros, solicitudes ni pagos/i);
+    assert.doesNotMatch(page, /Certificado de regalo|PayPal|Payoneer|<form|<script/i);
+  }
   assert.match(certificate, /Certificado de regalo en efectivo/);
-  assert.match(home, /familiar o beneficiario en Nicaragua/);
   assert.match(certificate, /familiar o beneficiario en Nicaragua/);
-  assert.doesNotMatch(home, /Tarjeta de regalo electrónica/);
   assert.doesNotMatch(certificate, /Tarjeta de regalo electrónica/);
-  assert.match(home, /class="footer-inner"/);
-  assert.match(styles, /\.footer-inner\s*\{[^}]*margin-inline:\s*auto/s);
-  assert.match(styles, /\.site-footer\s*\{[^}]*text-align:\s*center/s);
+  assert.match(read("robots.txt"), /Disallow: \/$/m);
 });
 
 test("production registration and profile intake stay closed", () => {
@@ -46,6 +49,7 @@ test("production registration and profile intake stay closed", () => {
   for (const flag of ["REGISTRATION_OPEN", "KYC_OPEN", "ADMIN_SETUP_OPEN"]) {
     assert.match(config, new RegExp(`"${flag}":\\s*"false"`));
   }
+  assert.match(config, /"MAINTENANCE_MODE":\s*"true"/);
   assert.match(
     read("cloudflare/portal/public/certificate.js"),
     /Certificado de regalo en efectivo/,
