@@ -42,6 +42,7 @@ jobs:
         run: |
           mkdir -p _site/assets
           cp index.html maintenance.css robots.txt CNAME _site/
+          cp privacidad.html terminos.html legal.css _site/
           cp assets/logo-saldo-express-header.jpg _site/assets/
       - uses: actions/upload-pages-artifact@v3
         with:

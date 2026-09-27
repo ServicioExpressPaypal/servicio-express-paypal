@@ -16,6 +16,9 @@ const assets = new Set([
   "lucide.min.js",
   "calculator-core.js",
   "logo.jpg",
+  "privacidad.html",
+  "terminos.html",
+  "legal.css",
 ]);
 const types = {
   html: "text/html",
@@ -39,6 +42,7 @@ const mf = new Miniflare(
       ADMIN_EMAIL: "admin@example.test",
       ADMIN_REQUIRE_MFA: "false",
       REGISTRATION_OPEN: "true",
+      TURNSTILE_ENABLED: "false",
       KYC_OPEN: "true",
       ADMIN_SETUP_OPEN: "false",
       EMAIL_PROVIDER: "resend",
@@ -75,6 +79,7 @@ for (const file of [
   "0005_ticket_destination.sql",
   "0006_account_notices.sql",
   "0007_ticket_whatsapp.sql",
+  "0008_privacy_security.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),
@@ -105,6 +110,8 @@ for (const [email, name] of [
       name,
       password: "SoloPruebas-2026!",
       callbackURL: origin + "/",
+      legalAccepted: true,
+      legalVersion: CertificateModel.version,
     }),
   });
   if (!response.ok)
@@ -143,15 +150,9 @@ await db.batch([
     )
     .bind(
       pending.id,
-      "Beneficiario Pendiente",
+      "",
       JSON.stringify({
-        kind: "cash-certificate",
-        name: "Beneficiario Pendiente",
-        bank: "BAC",
-        bankAccount: "000987654321",
-        currency: "NIO",
-        phone: "+50587777777",
-        declaration: CertificateModel.declaration,
+        kind: "minimal-account",
         version: CertificateModel.version,
         acceptedAt: now,
       }),
@@ -163,14 +164,11 @@ await db.batch([
     )
     .bind(
       customer.id,
-      "Familiar de Prueba",
+      "",
       JSON.stringify({
-        kind: "cash-certificate",
-        name: "Familiar de Prueba",
-        bank: "LAFISE",
-        bankAccount: "000123456789",
-        currency: "USD",
-        phone: "+50588888888",
+        kind: "minimal-account",
+        version: CertificateModel.version,
+        acceptedAt: now,
       }),
       now,
     ),

@@ -4,6 +4,14 @@ import "../../../calculator-core.js";
 import "../../../_pilot/tickets/domain.js";
 import "../../../_pilot/tickets/accounts.js";
 import CertificateModel from "../public/certificate.js";
+import {
+  ipKey,
+  reserveAttempt,
+  releaseSuccessfulLogin,
+  verifyBot,
+  ProtectionError,
+} from "./protection";
+import { purgeExpiredTicketData } from "./retention";
 
 // The same tested calculator and state machines power the demo and the API.
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
@@ -169,10 +177,26 @@ function guardedAudit(
   );
 }
 async function profileFor(env: Env, id: string) {
-  await env.DB.prepare(
-    "INSERT OR IGNORE INTO profiles(user_id,updated_at) VALUES(?,?)",
+  const consent = await env.DB.prepare(
+    "SELECT version,accepted_at FROM registration_consents WHERE user_id=?",
   )
-    .bind(id, Date.now())
+    .bind(id)
+    .first<{ version: string; accepted_at: number }>();
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO profiles(user_id,status,dossier,updated_at) VALUES(?,?,?,?)",
+  )
+    .bind(
+      id,
+      consent ? "pending" : "incomplete",
+      consent
+        ? JSON.stringify({
+            kind: "minimal-account",
+            version: consent.version,
+            acceptedAt: consent.accepted_at,
+          })
+        : null,
+      Date.now(),
+    )
     .run();
   return (await env.DB.prepare("SELECT * FROM profiles WHERE user_id=?")
     .bind(id)
@@ -183,10 +207,14 @@ function isTicketExpired(t: Ticket, now = Date.now()) {
 }
 function publicTicket(t: Ticket, now = Date.now(), includeBankAccount = false) {
   const expired = isTicketExpired(t, now);
+  const erased = expired || finalTicketStatuses.has(t.status);
   const { bank_account, ...safeTicket } = t;
   return {
     ...safeTicket,
-    ...(includeBankAccount ? { bank_account } : {}),
+    beneficiary_name: erased ? "" : t.beneficiary_name,
+    bank: erased ? "" : t.bank,
+    destinationErased: erased,
+    ...(includeBankAccount ? { bank_account: erased ? "" : bank_account } : {}),
     status:
       expired && !finalTicketStatuses.has(t.status) ? "expired" : t.status,
     expired,
@@ -375,6 +403,17 @@ async function handle(
     request.headers.get("origin") !== env.APP_URL
   )
     fail(403, "Origen no permitido.");
+  if (path.startsWith("/api/") && env.API_LIMITER) {
+    const limited = await env.API_LIMITER.limit({
+      key: request.headers.get("cf-connecting-ip") || "unknown",
+    });
+    if (!limited.success)
+      throw new ProtectionError(
+        429,
+        "Demasiadas solicitudes. Espera un minuto.",
+        60,
+      );
+  }
   if (path === "/api/health") {
     await env.DB.prepare("SELECT 1").first();
     return json({ ok: true });
@@ -385,6 +424,8 @@ async function handle(
         env.REGISTRATION_OPEN === "true" && env.EMAIL_PROVIDER !== "disabled",
       kycOpen: env.KYC_OPEN === "true",
       whatsappEnabled: env.WHATSAPP_PROVIDER === "meta",
+      turnstileSiteKey:
+        env.TURNSTILE_ENABLED === "true" ? env.TURNSTILE_SITE_KEY : null,
     });
   if (!path.startsWith("/api/")) {
     if (request.method !== "GET" && request.method !== "HEAD")
@@ -433,11 +474,38 @@ async function handle(
       env.EMAIL_PROVIDER === "disabled"
     )
       fail(503, "El envío de correo aún no está habilitado.");
-    const bounded =
-      request.method === "POST"
-        ? new Request(request, { body: await limitedBody(request, 16384) })
-        : request;
-    return auth.handler(bounded);
+    if (request.method !== "POST") return auth.handler(request);
+    const data = await payload(request);
+    const actions: Record<string, string> = {
+      "/sign-up/email": "signup",
+      "/sign-in/email": "login",
+      "/request-password-reset": "recover",
+      "/send-verification-email": "resend",
+    };
+    const action = actions[endpoint];
+    let key: string | undefined;
+    let reservation: { count: number; expires_at: number } | undefined;
+    if (action) {
+      key = await ipKey(request, env);
+      reservation = await reserveAttempt(env, key, action === "signup");
+      await verifyBot(request, env, data.turnstileToken, action);
+      delete data.turnstileToken;
+    }
+    if (endpoint === "/sign-up/email") {
+      if (
+        data.legalAccepted !== true ||
+        data.legalVersion !== CertificateModel.version
+      )
+        fail(400, "Acepta los términos y el aviso de privacidad vigentes.");
+      data.name = "Cliente";
+      delete data.image;
+    }
+    const response = await auth.handler(
+      new Request(request, { body: JSON.stringify(data) }),
+    );
+    if (endpoint === "/sign-in/email" && response.ok && key && reservation)
+      await releaseSuccessfulLogin(env, key, reservation.count);
+    return response;
   }
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user.emailVerified)
@@ -543,13 +611,14 @@ async function handle(
       ),
       env.DB.prepare(
         "UPDATE profiles SET full_name=?,dossier=?,status='pending',reason='',version=version+1,updated_at=? WHERE user_id=? AND version=? RETURNING user_id",
-      ).bind(p.name, dossier, Date.now(), user.id, profile.version),
+      ).bind("", dossier, Date.now(), user.id, profile.version),
     ]);
     if (!result[1].results.length)
       fail(409, "El expediente cambió. Recarga e intenta de nuevo.");
     return json({ ok: true });
   }
   if (path === "/api/tickets" && request.method === "GET") {
+    await purgeExpiredTicketData(env);
     const rows = await env.DB.prepare(
       "SELECT * FROM tickets WHERE user_id=? ORDER BY updated_at DESC LIMIT 100",
     )
@@ -745,6 +814,7 @@ async function handle(
     });
   }
   if (path === "/api/admin/tickets" && request.method === "GET") {
+    await purgeExpiredTicketData(env);
     const rows = await env.DB.prepare(
       "SELECT t.*,p.full_name,u.email FROM tickets t JOIN profiles p ON p.user_id=t.user_id JOIN user u ON u.id=t.user_id ORDER BY t.updated_at DESC LIMIT 100",
     ).all<Ticket>();
@@ -793,6 +863,7 @@ async function handle(
   }
   const ticketMatch = path.match(/^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)$/);
   if (ticketMatch) {
+    await purgeExpiredTicketData(env);
     const target = await env.DB.prepare("SELECT * FROM tickets WHERE id=?")
       .bind(ticketMatch[2])
       .first<Ticket>();
@@ -821,7 +892,10 @@ async function handle(
       return json({
         ...publicTicket(target!, Date.now(), true),
         events: events.results,
-        messages: messages.results,
+        messages:
+          isTicketExpired(target!) || finalTicketStatuses.has(target!.status)
+            ? []
+            : messages.results,
         ...(ticketMatch[1] ? { notification } : {}),
       });
     }
@@ -877,6 +951,8 @@ async function handle(
     ]);
     if (!result[0].results.length)
       fail(409, "La solicitud cambió. Recarga antes de continuar.");
+    if (finalTicketStatuses.has(ticket.status))
+      await purgeExpiredTicketData(env);
     return json({ ok: true });
   }
   return fail(404, "No encontrado.");
@@ -887,19 +963,21 @@ export default {
     try {
       response = await handle(request, env, ctx);
     } catch (e) {
-      if (!(e instanceof HttpError))
+      if (!(e instanceof HttpError) && !(e instanceof ProtectionError))
         console.error(
           JSON.stringify({ event: "request_failed", id: crypto.randomUUID() }),
         );
       response = json(
         {
           error:
-            e instanceof HttpError
+            e instanceof HttpError || e instanceof ProtectionError
               ? e.message
               : "No se pudo completar la solicitud.",
         },
-        e instanceof HttpError ? e.status : 500,
+        e instanceof HttpError || e instanceof ProtectionError ? e.status : 500,
       );
+      if (e instanceof ProtectionError && e.retryAfter)
+        response.headers.set("retry-after", String(e.retryAfter));
     }
     const headers = new Headers(response.headers);
     headers.set("cache-control", "no-store");
@@ -913,11 +991,12 @@ export default {
     );
     headers.set(
       "content-security-policy",
-      "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' https://challenges.cloudflare.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     );
     return new Response(response.body, { status: response.status, headers });
   },
   async scheduled(_event, env, ctx) {
+    await purgeExpiredTicketData(env);
     await env.DB.prepare("DELETE FROM request_limits WHERE expires_at<?")
       .bind(Date.now())
       .run();

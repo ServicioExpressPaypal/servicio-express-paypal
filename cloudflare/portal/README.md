@@ -1,198 +1,104 @@
-# Portal con almacenamiento persistente
+# Portal Saldo Express
 
-Worker separado de GitHub Pages: https://portal.saldoexpressnicaragua.com
+Produccion: https://portal.saldoexpressnicaragua.com. La home de GitHub Pages
+permanece en construccion; el Worker y su base D1 se despliegan por separado.
 
-## Implementado
+## Registro y permisos
 
-- Better Auth 1.7.6: correo/contrasena, verificacion, recuperacion, sesiones
-  HttpOnly y doble factor TOTP. No hay autenticacion propia ni selector de rol.
-- D1: usuarios, sesiones, perfiles, tickets, cotizaciones, historial y avisos.
-- R2 privado: acceso administrativo a archivos anteriores. El nuevo formulario
-  no admite fotografias ni nuevos documentos.
-- Administrador: correo configurado como secreto y cuenta verificada. Por peticion
-  del propietario, `ADMIN_REQUIRE_MFA=false`: acceso con contrasena y correo
-  verificado, sin exigir autenticador. El navegador no puede asignarse permisos.
-  Si la variable se omite o no es `false`, se exige MFA confirmado en la sesion
-  durante los ultimos 15 minutos. Revisar esta decision antes de admitir clientes.
-- Revision manual del expediente. Cuenta suspendida/cerrada no crea tickets.
-- Dashboard administrativo con resumen de pendientes, cuentas activas,
-  suspendidas y solicitudes abiertas. Activar, pedir correccion, suspender,
-  reactivar o cerrar exige un motivo y queda registrado.
-- Cada decision de cuenta crea un aviso por correo con estado y motivo. El envio
-  usa una cola D1 con reintentos; nunca incluye datos bancarios. Cerrar retira el
-  acceso operativo, pero no borra automaticamente expediente ni auditoria.
-- Certificado de regalo en efectivo: nombre comercial con descripcion expresa
-  del obsequio para un familiar o beneficiario en Nicaragua. El ticket sigue
-  siendo una solicitud de cotizacion, no una compra ejecutada ni un instrumento
-  de valor emitido.
-- Perfil minimo actualmente revisado de forma manual. No se solicita ni admite
-  numero de cedula ni fotografias nuevas.
-- Cada ticket solicita nombre del beneficiario, banco, numero de cuenta y moneda,
-  y guarda la version y fecha de las condiciones aceptadas. Solo el propietario
-  del ticket y el administrador pueden consultar estos datos.
-- Sin descripcion libre del origen de fondos; declaracion
-  simple de veracidad, autorizacion del beneficiario, titularidad de su cuenta y
-  procedencia licita, no declaracion notarial. Un beneficiario y una cuenta a su
-  nombre por solicitud.
-- Correo verificado y aprobacion administrativa obligatorios. Las correcciones
-  regresan a pendiente. Los datos de destino se validan nuevamente en cada ticket.
-- Calculadora compartida ejecutada tambien en el servidor; se conserva la
-  estimacion original y se comprueba la coherencia de la cotizacion final.
-  El servidor asigna automaticamente certificado hasta USD 500 y Metodo
-  internacional desde USD 500.01; no confia en una modalidad enviada por el cliente.
-  El ticket destaca el valor neto estimado y conserva monto base y costos.
-- Aislamiento por propietario, validacion de origen, limites de solicitudes,
-  tamano de solicitudes, idempotencia y control de versiones.
-- Cambios de expediente/ticket e historial en transacciones D1.
-- Cada ticket vence 24 horas despues de su creacion. La API calcula el estado
-  vencido, bloquea acciones y comentarios posteriores, y conserva el expediente
-  como historial.
-- Conversacion persistente por ticket entre cliente y administrador. Los mensajes
-  tienen limite de 1,000 caracteres, control de acceso por propietario y no se
-  duplican en el detalle de auditoria. La compra y el pago se coordinan fuera del
-  portal mediante WhatsApp. El acceso rapido prepara el ID, monto, valor estimado
-  y modalidad para que el cliente revise y envie el mensaje.
-- Cada ticket crea avisos independientes por correo y WhatsApp. WhatsApp usa una
-  plantilla de utilidad aprobada, registra el identificador de entrega y reintenta
-  cada 15 minutos hasta cinco fallos. El aviso incluye ID, monto, valor estimado,
-  modalidad, vencimiento y enlace al panel; nunca incluye beneficiario, numero de
-  cuenta, documentos, contrasenas ni codigos.
-- No hay pagos, facturas PayPal ni operaciones financieras automaticas.
+- Correo y contrasena, aceptacion versionada, verificacion de correo y aprobacion
+  manual. El perfil no recibe nombre, cedula, fotografias, telefono ni banco.
+- Better Auth guarda un hash de la contrasena y sesiones HttpOnly/Secure. La
+  cuenta queda pendiente desde su alta; solo una cuenta activa puede crear tickets.
+- ADMIN_EMAIL define el unico administrador. ADMIN_SETUP_OPEN debe permanecer
+  false. ADMIN_REQUIRE_MFA=false conserva la decision del propietario de no
+  exigir doble factor; esto deja un riesgo adicional ante robo de contrasena.
+- REGISTRATION_OPEN y KYC_OPEN controlan registro y aceptacion del perfil.
+  KYC_OPEN es un nombre heredado: este flujo no certifica identidad ni KYC legal.
+- El administrador puede activar, pedir correccion, suspender y cerrar con motivo
+  y aviso por correo. Cerrar una cuenta no borra automaticamente el historial.
 
-## Cerrado por defecto
+## Proteccion contra abuso
 
-`REGISTRATION_OPEN=false`, `KYC_OPEN=false`, `EMAIL_PROVIDER=resend` y
-`WHATSAPP_PROVIDER=disabled`.
-Son controles del servidor, no restricciones cosmeticas de la interfaz.
+- Cloudflare protege el dominio frente a DDoS. Bot Fight Mode esta activo en la
+  zona. No hay garantia de disponibilidad ilimitada ni de ausencia de ataques.
+- Turnstile administrado en registro, acceso, recuperacion y reenvio. El Worker
+  valida token, hostname y action antes de ejecutar autenticacion. Tokens de un
+  solo uso, expirados o invalidos se rechazan; fallos del proveedor no habilitan
+  un bypass. TURNSTILE_ENABLED=false solo se permite en hosts locales/de pruebas.
+- Tres intentos de registro por IP o tres intentos de autenticacion fallidos
+  activan un bloqueo temporal de 15 minutos. Recuperacion y reenvio tambien
+  consumen intentos para limitar envio abusivo de correo. Un acceso correcto
+  limpia fallos de acceso, pero no el contador independiente de registros.
+- D1 reserva cada intento atomicamente antes del hash de contrasena. Usa HMAC de
+  CF-Connecting-IP, no X-Forwarded-For; la limpieza elimina contadores vencidos.
+- API_LIMITER limita 60 solicitudes/minuto/IP por ubicacion Cloudflare antes de
+  consultar D1. Es aproximado y distribuido; no sustituye proteccion DDoS.
+- Limites adicionales por usuario, payload de 16 KiB, origen estricto, CSP,
+  permisos en servidor, idempotencia y control de versiones en escrituras.
+- Las IP compartidas pueden bloquear a varios usuarios. Resend y Workers tienen
+  cuotas: vigilar errores y consumo; no se ha contratado ningun plan en este cambio.
 
-Resend ya esta conectado al dominio verificado `saldoexpressnicaragua.com`.
-Remitente: `Saldo Express <cuentas@saldoexpressnicaragua.com>`. La clave
-`RESEND_API_KEY` tiene solo permiso de envio para este dominio y esta cifrada
-en Cloudflare; no se guarda en Git. DKIM y los CNAME `send` y `rsend` estan
-configurados en DNS, junto con DMARC en modo observacion (`p=none`).
+## Datos y retencion
 
-Prueba real: `/api/auth/send-verification-email` del Worker desplegado devolvio
-exito y Resend registro `Delivered` hacia Gmail. Se elimino la cuenta temporal
-sin contrasena ni permisos utilizada en la prueba; no quedaron usuarios, tickets
-ni registros de verificacion. Esto prueba transporte de correo, no apertura
-publica, entrega siempre en bandeja principal ni el flujo completo de registro.
+- Cada ticket dura 24 horas. Nombre del beneficiario, banco, cuenta y comentarios
+  son temporales. Las consultas ocultan estos datos al vencer, cerrar o cancelar.
+- retention.ts elimina esos campos y mensajes de la base activa cada 15 minutos
+  y antes de consultar tickets; cerrar/cancelar tambien ejecuta la limpieza.
+- Conserva ticket, usuario, montos, estimacion/cotizacion, moneda, fechas, estado,
+  eventos sin contenido del chat y version/fecha de condiciones aceptadas.
+- D1 Time Travel puede conservar versiones previas hasta 30 dias segun plan.
+  Restaurar con el portal cerrado y limpiar antes de reabrir. El borrado activo
+  no elimina inmediatamente respaldos.
+- R2 permanece privado por compatibilidad, no recibe nuevos documentos. Antes
+  de abrir se verifico que produccion solo tenia la cuenta administradora,
+  sin expedientes ni tickets de clientes.
+- No guardar datos bancarios/personales en motivos administrativos, registros de
+  consola, correos o WhatsApp automatico. No registrar cuerpos ni tokens.
+- /privacidad.html y /terminos.html se copian desde la raiz al build. Conservar
+  versiones aceptadas en Git, identificadas por certificate.js. Responsable:
+  SoftOhm Systems LLC, info@softohmsystems.com. Los textos no certifican
+  cumplimiento ni autorizacion de actividad financiera.
 
-Antes de abrir:
+## Comunicaciones
 
-1. Conservar el dominio verificado y el secreto de Resend. Vigilar cuotas y fallos
-   del proveedor. Cloudflare Email Sending no se utiliza ni se contrato para esto.
-2. Completar responsable, domicilio, contacto, derechos, tratamiento internacional,
-   plazos y procedimiento de conservacion/eliminacion. `public/certificate.js`
-   contiene un aviso ESPECIFICO DEL PILOTO, no una politica legal definitiva.
-   Es accesible antes del registro; su version y fecha de aceptacion del perfil
-   se guardan en el servidor. Completar tambien el registro de aceptaciones en
-   el alta antes de abrir. Revisar actividad efectiva y condiciones de proveedores;
-   llamarla certificado no cambia la operacion ni la exime de controles.
-3. La cuenta del propietario ya esta creada y verificada. Se elimino su
-   configuracion TOTP pendiente y el alta privada se cerro (`ADMIN_SETUP_OPEN=false`).
-   No activar cuentas de clientes directamente mediante SQL.
-4. Probar entrega, MFA, recuperacion, revision y tickets desde navegador con el
-   proveedor real. Validar CPU de autenticacion con el plan de Workers contratado.
-5. Definir respaldos/restauracion y conservacion de archivos anteriores. El nuevo
-   formulario no escribe en R2 ni elimina documentos historicos. No se ha
-   habilitado eliminacion automatica de expedientes sin definir plazo y fundamento.
-6. Separar produccion si se desea conservar staging para pruebas. Las listas
-   muestran los 100 registros mas recientes; agregar paginacion antes de superarlos.
-7. Configurar WhatsApp Business Platform con un numero emisor y un numero receptor
-   administrativo distintos. Aprobar la plantilla `nuevo_ticket_saldo_express`
-   con seis variables, en este orden: ticket, monto solicitado, valor estimado,
-   modalidad, vencimiento y URL del panel. Guardar `WHATSAPP_ACCESS_TOKEN`,
-   `WHATSAPP_PHONE_NUMBER_ID` y `WHATSAPP_ADMIN_NUMBER` como secretos; despues
-   cambiar `WHATSAPP_PROVIDER=meta`. El numero receptor se guarda solo con digitos
-   y codigo de pais. No activar el proveedor antes de aprobar y probar la plantilla.
+Resend envia verificacion, recuperacion y decisiones. Remitente:
+cuentas@saldoexpressnicaragua.com. RESEND_API_KEY tiene permiso de envio y se
+guarda como secreto, al igual que TURNSTILE_SECRET, BETTER_AUTH_SECRET y
+ADMIN_EMAIL. Nunca imprimirlos ni guardarlos en Git.
 
-Solo despues cambiar los controles de apertura y desplegar. No solicitar
-documentos reales en el estado actual.
+WHATSAPP_PROVIDER=disabled: el cliente usa el enlace oficial y confirma su envio.
+La automatizacion Meta requiere plantilla aprobada y secretos WHATSAPP_ACCESS_TOKEN,
+WHATSAPP_PHONE_NUMBER_ID y WHATSAPP_ADMIN_NUMBER; no activar sin probarla. No hay
+facturacion PayPal, pagos ni transferencias automaticas en el portal.
 
-## Desarrollo y pruebas
+## Pruebas y despliegue
 
-### Vista local con cuentas ficticias
-
-`npm run preview` compila y arranca en http://127.0.0.1:8792/. D1 y R2 son
-efimeros; no usa secretos reales y todo correo se intercepta sin enviarlo.
-Las cuentas `cliente@example.test`, `pendiente@example.test` y
-`admin@example.test` usan la clave
-exclusiva de prueba `SoloPruebas-2026!`; sus correos se marcan verificados
-solo en esta base local. La demo incluye un cliente activo con ticket ficticio y
-una cuenta pendiente para probar la aprobación manual desde el dashboard.
-Nunca ejecutar este servidor en una interfaz publica ni introducir datos reales.
-El registro, la verificacion real por correo y el cierre en produccion se prueban
-por separado con `npm test`. Puede cambiarse el puerto con `PORT=8793 npm run preview`.
-
-### Alta privada del propietario
-
-`ADMIN_SETUP_OPEN=true` habilita la invitacion, no el registro publico. Abrir
-`/?setup=1` y solicitarla: se envia exclusivamente al `ADMIN_EMAIL` del servidor.
-El formulario no permite elegir destinatario ni asignar un rol. La invitacion
-vence en una hora, se almacena como hash en D1 y se reclama atomicamente antes
-de crear la cuenta. Solicitudes repetidas no reemplazan una invitacion vigente.
-Con una cuenta del propietario existente no se envia otra invitacion ni se
-permite sustituir su contrasena por este mecanismo.
-
-El propietario debe abrir el enlace de correo, elegir personalmente su
-contrasena, verificar su correo e iniciar sesion. TOTP y codigos de recuperacion
-solo son obligatorios si `ADMIN_REQUIRE_MFA` no es `false`.
-El administrador no necesita cargar su cedula para este alta. No introducir
-contrasenas, tokens de invitacion ni secretos de autenticador en el chat.
-Despues del alta, establecer `ADMIN_SETUP_OPEN=false` y desplegar.
-
-`legal-review.md` contiene un borrador privado y los datos pendientes de los
-textos legales. No se publica ni se presenta como cumplimiento juridico.
-
-### Comandos
-
-Node 24 o posterior. Desde esta carpeta:
+Node 24 o posterior, desde esta carpeta:
 
 ```sh
 npm ci
-npm run build
-npx wrangler types --strict-vars false
 npm run check
 npm test
-npx wrangler d1 migrations apply saldo-express-staging --local
-npm run dev
-```
-
-Configurar `.dev.vars` local, ignorado por Git, con `APP_URL=http://localhost:8791`,
-un secreto local propio de al menos 32 caracteres y administrador de prueba.
-Nunca usar secretos ni documentos reales en pruebas locales.
-`npm test` usa workerd con D1/R2 locales y correo/WhatsApp interceptados, sin mensajes reales.
-Comprueba registro, verificacion, MFA, perfil sin fotos, archivos anteriores,
-activacion, tickets, cotizaciones, permisos y conflictos de version.
-
-## Despliegue
-
-```sh
 npx wrangler d1 migrations list saldo-express-staging --remote
 npx wrangler d1 migrations apply saldo-express-staging --remote
 npm run deploy
 ```
 
-Secretos `BETTER_AUTH_SECRET`, `ADMIN_EMAIL` y `RESEND_API_KEY` configurados en Cloudflare.
-Al activar WhatsApp tambien se requieren `WHATSAPP_ACCESS_TOKEN`,
-`WHATSAPP_PHONE_NUMBER_ID` y `WHATSAPP_ADMIN_NUMBER`.
-No regenerar el secreto al desplegar: invalidaria sesiones y secretos MFA cifrados.
-`wrangler secret bulk` admite JSON por stdin sin incluirlo en Git.
-La migracion inicial de Better Auth se genera con `node scripts/generate-auth.mjs`
-contra SQLite vacio. No sobrescribir migraciones ya aplicadas.
+Tests con workerd/D1/R2 efimeros y proveedores simulados: registro, verificacion,
+hash, consentimiento, permisos, activacion, MFA opcional, destinos, chat, borrado
+al vencer/cancelar, Turnstile y bloqueo IP concurrente. No envian mensajes reales.
+Avisos legales: `node --test ../../legal.test.cjs`.
 
-GitHub Pages publica solo archivos autorizados, nunca esta carpeta. Desplegar
-Workers por separado. La pagina principal enlaza el portal desde "Mi cuenta"
-y el pie de pagina; el registro publico permanece cerrado.
+`npm run preview` es una demo aislada en 127.0.0.1:8792 con cliente@example.test,
+pendiente@example.test y admin@example.test, clave ficticia SoloPruebas-2026!.
+Nunca publicar estas cuentas ni usar secretos reales en la demo. Para wrangler
+dev, usar .dev.vars ignorado por Git con APP_URL local, TURNSTILE_ENABLED=false
+y secretos exclusivos de desarrollo.
 
-`/api/health` comprueba D1 sin exponer datos. Las rutas privadas devuelven 401
-sin sesion; registro devuelve 503 mientras esta cerrado. No hay descarga publica
-R2 ni simulacion de permisos. No se registran cuerpos de solicitudes ni tokens.
+Mantener REGISTRATION_OPEN=false hasta verificar migraciones, secretos,
+Turnstile y avisos en produccion; entonces abrir y comprobar /api/config.
+No regenerar BETTER_AUTH_SECRET al desplegar: invalidaria sesiones y MFA.
 
-Referencias:
-https://better-auth.com/docs/authentication/email-password
-https://better-auth.com/docs/plugins/2fa
-https://developers.cloudflare.com/workers/static-assets/
-https://developers.cloudflare.com/email-service/api/send-emails/workers-api/
-https://resend.com/docs/dashboard/domains/introduction
-https://resend.com/docs/dashboard/api-keys/introduction
+Limitacion conocida: listas limitadas a los 100 registros mas recientes. Agregar
+paginacion antes de superar esa cantidad. No sustituir la cuenta administradora
+ni sembrar credenciales de prueba en produccion.

@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth";
 import { twoFactor } from "better-auth/plugins";
+import CertificateModel from "../public/certificate.js";
 
 type MailEnv = Pick<Env, "EMAIL_PROVIDER" | "EMAIL_FROM" | "RESEND_API_KEY"> & {
   EMAIL?: SendEmail;
@@ -77,7 +78,39 @@ export function authOptions(
   } satisfies BetterAuthOptions;
 }
 export function createAuth(env: Env, ctx: ExecutionContext) {
-  return betterAuth(authOptions(env, ctx));
+  return betterAuth({
+    ...authOptions(env, ctx),
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user, context) => {
+            if (
+              context?.body?.legalAccepted === true &&
+              context.body.legalVersion === CertificateModel.version
+            ) {
+              const now = Date.now();
+              await env.DB.batch([
+                env.DB.prepare(
+                  "INSERT INTO registration_consents(user_id,version,accepted_at) VALUES(?,?,?)",
+                ).bind(user.id, CertificateModel.version, now),
+                env.DB.prepare(
+                  "INSERT INTO profiles(user_id,status,dossier,updated_at) VALUES(?,'pending',?,?)",
+                ).bind(
+                  user.id,
+                  JSON.stringify({
+                    kind: "minimal-account",
+                    version: CertificateModel.version,
+                    acceptedAt: now,
+                  }),
+                  now,
+                ),
+              ]);
+            }
+          },
+        },
+      },
+    },
+  });
 }
 export async function sendMail(
   env: MailEnv,

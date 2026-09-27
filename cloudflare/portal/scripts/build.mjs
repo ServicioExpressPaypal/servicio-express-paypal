@@ -12,3 +12,5 @@ for (const name of [
 await copyFile("../../calculator-core.js", "dist/calculator-core.js");
 await copyFile("../../assets/logo-saldo-express-header.jpg", "dist/logo.jpg");
 await copyFile("../../maintenance.css", "dist/maintenance.css");
+for (const name of ["privacidad.html", "terminos.html", "legal.css"])
+  await copyFile("../../" + name, "dist/" + name);

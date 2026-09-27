@@ -10,6 +10,8 @@ async function setup(open = true, overrides = {}) {
   const emails = [];
   const whatsapp = [];
   const assetRequests = [];
+  const botTokens = new Set();
+  let botChecks = 0;
   const mf = new Miniflare(
     convertV4MiniflareOptions({
       modules: true,
@@ -41,10 +43,26 @@ async function setup(open = true, overrides = {}) {
         WHATSAPP_PHONE_NUMBER_ID: "123456789",
         WHATSAPP_ADMIN_NUMBER: "50586199889",
         ADMIN_SETUP_OPEN: "false",
+        TURNSTILE_ENABLED: "false",
+        TURNSTILE_SECRET: "test-only-turnstile",
         ...overrides,
       },
       outboundService: async (request) => {
         const url = new URL(request.url);
+        if (url.host === "challenges.cloudflare.com") {
+          botChecks++;
+          const data = new URLSearchParams(await request.text());
+          const token = data.get("response");
+          const [kind, action] = (token || "").split(":");
+          const success = !botTokens.has(token) && kind !== "invalid";
+          botTokens.add(token);
+          return Response.json({
+            success,
+            hostname:
+              kind === "wronghost" ? "evil.example" : new URL(origin).hostname,
+            action,
+          });
+        }
         if (url.host === "api.resend.com") {
           emails.push(await request.json());
           return Response.json({ id: crypto.randomUUID() });
@@ -68,6 +86,7 @@ async function setup(open = true, overrides = {}) {
     "0005_ticket_destination.sql",
     "0006_account_notices.sql",
     "0007_ticket_whatsapp.sql",
+    "0008_privacy_security.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -130,6 +149,8 @@ async function setup(open = true, overrides = {}) {
       password,
       name: "Test user",
       callbackURL: origin + "/",
+      legalAccepted: true,
+      legalVersion: CertificateModel.version,
     });
     assert.equal(r.status, 200, JSON.stringify(r.data));
     for (let n = 0; n < 30 && !emails.some((e) => e.to.includes(email)); n++)
@@ -145,17 +166,33 @@ async function setup(open = true, overrides = {}) {
     assert.match(r.headers.get("set-cookie"), /secure/i);
     const me = await req("/api/me");
     assert.equal(me.status, 200, JSON.stringify(me.data));
+    assert.equal(
+      me.data.profile.status,
+      "pending",
+      "consent automatically creates a pending account",
+    );
+    const consent = await db
+      .prepare("SELECT * FROM registration_consents WHERE user_id=?")
+      .bind(me.data.user.id)
+      .first();
+    assert.equal(consent.version, CertificateModel.version);
     return { req, id: me.data.user.id, password };
   }
-  return { mf, db, emails, whatsapp, assetRequests, client, registered };
+  return {
+    mf,
+    db,
+    emails,
+    whatsapp,
+    assetRequests,
+    client,
+    registered,
+    get botChecks() {
+      return botChecks;
+    },
+  };
 }
 function dossier() {
   return {
-    name: "Persona de Prueba",
-    bank: "LAFISE",
-    bankAccount: "000123456789",
-    currency: "USD",
-    phone: "+50588888888",
     declaration: "on",
     terms: "on",
     privacy: "on",
@@ -180,43 +217,44 @@ test("certificate profile validates minimum data without accepting client-contro
   const p = CertificateModel.validate(
     {
       ...dossier(),
-      name: " Persona  de Prueba ",
-      phone: "8888-8888",
       status: "active",
       acceptedAt: 0,
     },
     123,
   );
-  assert.equal(p.name, "Persona de Prueba");
+  assert.equal(p.name, undefined);
   assert.equal(p.cedula, undefined);
   assert.throws(
     () =>
       CertificateModel.validate({ ...dossier(), cedula: "dato-no-admitido" }),
-    /no solicita ni admite/,
+    /no admite/,
   );
   assert.throws(
     () => CertificateModel.validate({ ...dossier(), version: "outdated" }),
     /aviso cambió/,
   );
-  assert.equal(p.bankAccount, "000123456789");
-  assert.equal(p.phone, "+50588888888");
+  assert.equal(p.bankAccount, undefined);
+  assert.equal(p.phone, undefined);
   assert.equal(p.acceptedAt, 123);
   assert.equal(p.status, undefined);
   assert.equal(p.front, undefined);
+  for (const key of ["version", "declaration", "terms", "privacy"])
+    assert.throws(
+      () => CertificateModel.validate({ ...dossier(), [key]: "" }),
+      key,
+    );
   for (const key of [
     "name",
     "phone",
     "bank",
     "bankAccount",
     "currency",
-    "version",
-    "declaration",
-    "terms",
-    "privacy",
+    "cedula",
+    "front",
+    "back",
   ])
-    assert.throws(
-      () => CertificateModel.validate({ ...dossier(), [key]: "" }),
-      key,
+    assert.throws(() =>
+      CertificateModel.validate({ ...dossier(), [key]: "dato" }),
     );
   assert.throws(() =>
     CertificateModel.validate({
@@ -455,6 +493,13 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       admin = await s.registered("admin@example.test");
     assert.equal((await a.req("/api/admin/users")).status, 403);
     assert.equal((await a.req("/api/tickets", { amount: "100" })).status, 403);
+    // Exercise correction/legacy onboarding separately from automatic registration.
+    await s.db
+      .prepare(
+        "UPDATE profiles SET status='incomplete',dossier=NULL WHERE user_id=?",
+      )
+      .bind(a.id)
+      .run();
     assert.equal(
       (await a.req("/api/profile", { ...dossier(), front: "forbidden-photo" }))
         .status,
@@ -499,11 +544,11 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     assert.equal(r.status, 200, JSON.stringify(r.data));
     r = await admin.req(`/api/admin/users/${a.id}`);
     assert.equal(r.status, 200);
-    assert.equal(r.data.dossier.name, "Persona de Prueba");
+    assert.equal(r.data.dossier.name, undefined);
     assert.equal(r.data.dossier.cedula, undefined);
     assert.equal(r.data.dossier.front, undefined);
     assert.equal(r.data.dossier.hasDocuments, false);
-    assert.equal(r.data.dossier.bankAccount, "000123456789");
+    assert.equal(r.data.dossier.bankAccount, undefined);
     assert.equal(r.data.dossier.version, CertificateModel.version);
     const version = r.data.version;
     r = await admin.req(`/api/admin/documents/${a.id}/front`);
@@ -533,7 +578,7 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     );
     assert.ok(activationNotice, "account activation notice dispatched");
     assert.match(activationNotice.text, /Expediente ficticio verificado/);
-    assert.ok(!activationNotice.text.includes(dossier().bankAccount));
+    assert.ok(!activationNotice.text.includes(ticket().bankAccount));
     const activationRow = await s.db
       .prepare(
         "SELECT status,reason,delivered FROM account_notices WHERE user_id=? ORDER BY created_at DESC LIMIT 1",
@@ -674,6 +719,9 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     assert.equal(r.status, 201, JSON.stringify(r.data));
     const internationalId = r.data.id;
     const international = await a.req("/api/tickets/" + internationalId);
+    await a.req(`/api/tickets/${internationalId}/messages`, {
+      message: "Datos privados de prueba",
+    });
     assert.equal(international.data.mode, "international");
     assert.equal(international.data.estimate.amount, 60000);
     assert.equal((await a.req("/api/tickets")).data.length, 2);
@@ -685,6 +733,36 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     assert.equal(expired.data.status, "expired");
     assert.equal(expired.data.expired, true);
     assert.equal(expired.data.canMessage, false);
+    assert.equal(expired.data.beneficiary_name, "");
+    assert.equal(expired.data.bank_account, "");
+    assert.equal(expired.data.bank, "");
+    assert.deepEqual(expired.data.messages, []);
+    const erased = await s.db
+      .prepare("SELECT * FROM tickets WHERE id=?")
+      .bind(internationalId)
+      .first();
+    assert.equal(erased.bank_account, "");
+    assert.equal(erased.beneficiary_name, "");
+    assert.ok(erased.data_erased_at);
+    assert.equal(erased.amount, 60000);
+    assert.equal(
+      erased.terms_version,
+      CertificateModel.ticketConditionsVersion,
+    );
+    assert.equal(
+      (
+        await s.db
+          .prepare("SELECT COUNT(*) n FROM ticket_messages WHERE ticket_id=?")
+          .bind(internationalId)
+          .first()
+      ).n,
+      0,
+    );
+    const adminHistory = await admin.req(
+      `/api/admin/tickets/${internationalId}`,
+    );
+    assert.equal(adminHistory.data.bank_account, "");
+    assert.deepEqual(adminHistory.data.messages, []);
     assert.equal(
       (
         await a.req(`/api/tickets/${internationalId}/messages`, {
@@ -848,17 +926,13 @@ test("correction requires fresh approval, preserves legacy files and cannot acti
       ).status,
       200,
     );
-    assert.equal(
-      (await customer.req("/api/profile", { ...dossier(), bank: "Avanz" }))
-        .status,
-      200,
-    );
+    assert.equal((await customer.req("/api/profile", dossier())).status, 200);
     row = await s.db
       .prepare("SELECT * FROM profiles WHERE user_id=?")
       .bind(customer.id)
       .first();
     assert.equal(row.status, "pending");
-    assert.equal(JSON.parse(row.dossier).bank, "Avanz");
+    assert.equal(JSON.parse(row.dossier).bank, undefined);
     assert.equal(
       (await customer.req("/api/tickets", { amount: "100" })).status,
       403,
@@ -868,7 +942,7 @@ test("correction requires fresh approval, preserves legacy files and cannot acti
       .bind(customer.id)
       .all();
     assert.ok(!JSON.stringify(events).includes("cedula"));
-    assert.ok(!JSON.stringify(events).includes(dossier().bankAccount));
+    assert.ok(!JSON.stringify(events).includes(ticket().bankAccount));
   } finally {
     await s.mf.dispose();
   }
@@ -883,6 +957,8 @@ test("unverified accounts cannot log in; passwords hashed; auth input and rate l
       name: "Test",
       twoFactorEnabled: true,
       role: "admin",
+      legalAccepted: true,
+      legalVersion: CertificateModel.version,
     };
     assert.equal((await req("/api/auth/sign-up/email", body)).status, 200);
     assert.equal((await req("/api/me")).status, 401);
@@ -892,6 +968,7 @@ test("unverified accounts cannot log in; passwords hashed; auth input and rate l
       .bind(body.email)
       .first();
     assert.equal(user.emailVerified, 0);
+    assert.equal(user.name, "Cliente");
     assert.equal(user.twoFactorEnabled, 0);
     const account = await s.db
       .prepare("SELECT password FROM account WHERE userId=?")
@@ -915,6 +992,179 @@ test("unverified accounts cannot log in; passwords hashed; auth input and rate l
         password: "bad-password",
       });
     assert.equal(last.status, 429);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("Turnstile rejects absent, invalid, wrong-host, wrong-action and reused tokens before authentication", async () => {
+  const s = await setup(true, { TURNSTILE_ENABLED: "true" });
+  try {
+    const path = "/api/auth/sign-up/email";
+    const body = {
+      email: "bot@example.test",
+      password: "test-only-password-987654",
+      legalAccepted: true,
+      legalVersion: CertificateModel.version,
+    };
+    for (const token of [
+      undefined,
+      "invalid:signup",
+      "wronghost:signup",
+      "valid:login",
+    ])
+      assert.equal(
+        (await s.client()(path, { ...body, turnstileToken: token })).status,
+        403,
+      );
+    assert.equal(
+      (await s.db.prepare("SELECT COUNT(*) n FROM user").first()).n,
+      0,
+    );
+    assert.equal(s.emails.length, 0);
+    const token = "valid:signup:" + crypto.randomUUID();
+    // A valid challenge reaches consent validation without creating a user.
+    assert.equal(
+      (
+        await s.client()(path, {
+          ...body,
+          legalAccepted: false,
+          turnstileToken: token,
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (await s.client()(path, { ...body, turnstileToken: token })).status,
+      403,
+    );
+    assert.equal(
+      (
+        await s.client()(path, {
+          ...body,
+          turnstileToken: "valid:signup:" + crypto.randomUUID(),
+        })
+      ).status,
+      200,
+    );
+    const profile = await s.db.prepare("SELECT * FROM profiles").first();
+    assert.equal(
+      profile.status,
+      "pending",
+      "visible to admin before first login",
+    );
+    assert.equal(profile.full_name, "");
+    assert.equal(JSON.parse(profile.dossier).bankAccount, undefined);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("three attempts block only that IP, including concurrent requests and spoofed forwarding headers", async () => {
+  const s = await setup(true, { TURNSTILE_ENABLED: "true" });
+  try {
+    const req = s.client();
+    const attempts = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        req("/api/auth/sign-in/email", {
+          email: "none@example.test",
+          password: "incorrect-password",
+          turnstileToken: "invalid:login",
+        }),
+      ),
+    );
+    assert.deepEqual(
+      attempts.map((r) => r.status).sort(),
+      [403, 403, 403, 429, 429, 429],
+    );
+    assert.equal(
+      s.botChecks,
+      3,
+      "blocked IP cannot keep consuming verification calls",
+    );
+    const blocked = await req(
+      "/api/auth/request-password-reset",
+      { email: "none@example.test" },
+      { "x-forwarded-for": "198.51.100.77" },
+    );
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.headers.get("retry-after"), "900");
+    assert.equal((await s.client()("/api/auth/sign-in/email", {})).status, 403);
+    const rows = await s.db
+      .prepare("SELECT key,count FROM request_limits")
+      .all();
+    assert.ok(rows.results.every((r) => !r.key.includes("192.0.2.")));
+    await s.db.prepare("UPDATE request_limits SET expires_at=0").run();
+    assert.equal((await req("/api/auth/sign-in/email", {})).status, 403);
+    assert.equal(s.emails.length, 0);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("successful login resets failures; cancelling purges destination and chat but retains consent", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const a = await s.registered("retention@example.test");
+    assert.equal(
+      (
+        await a.req("/api/auth/sign-in/email", {
+          email: "retention@example.test",
+          password: "wrong-password",
+        })
+      ).status,
+      401,
+    );
+    assert.equal(
+      (
+        await a.req("/api/auth/sign-in/email", {
+          email: "retention@example.test",
+          password: a.password,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await s.db
+          .prepare(
+            "SELECT count(*) n FROM request_limits WHERE key LIKE 'auth-ip:%'",
+          )
+          .first()
+      ).n,
+      0,
+    );
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(a.id)
+      .run();
+    const created = await a.req("/api/tickets", ticket());
+    const id = created.data.id;
+    assert.equal(created.status, 201);
+    await a.req(`/api/tickets/${id}/messages`, { message: "Temporal" });
+    assert.equal(
+      (await a.req(`/api/tickets/${id}`, { action: "cancelled", version: 0 }))
+        .status,
+      200,
+    );
+    const row = await s.db
+      .prepare("SELECT * FROM tickets WHERE id=?")
+      .bind(id)
+      .first();
+    assert.equal(row.beneficiary_name, "");
+    assert.equal(row.bank_account, "");
+    assert.ok(row.data_erased_at);
+    assert.equal(row.terms_version, CertificateModel.ticketConditionsVersion);
+    assert.equal(
+      (
+        await s.db
+          .prepare("SELECT COUNT(*) n FROM ticket_messages WHERE ticket_id=?")
+          .bind(id)
+          .first()
+      ).n,
+      0,
+    );
+    assert.equal(
+      (await a.req(`/api/tickets/${id}`)).data.destinationErased,
+      true,
+    );
   } finally {
     await s.mf.dispose();
   }

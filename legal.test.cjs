@@ -4,7 +4,7 @@ const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const read = (path) => readFileSync(join(__dirname, path), "utf8");
 
-test("legal drafts stay preserved in source but are not published during maintenance", () => {
+test("legal notices are published while the home stays in construction", () => {
   const workflow = read(".github/workflows/pages.yml");
   const home = read("index.html");
   const portal = read("cloudflare/portal/public/index.html");
@@ -12,10 +12,10 @@ test("legal drafts stay preserved in source but are not published during mainten
     const html = read(path);
     assert.match(html, /SoftOhm Systems LLC/);
     assert.match(html, /mailto:info@softohmsystems.com/);
-    assert.match(html, /Registro/);
+    assert.match(html, /registro/i);
     assert.doesNotMatch(html, /<form|<script/i);
     assert.doesNotMatch(home, new RegExp(`href="${path}"`));
-    assert.doesNotMatch(workflow, new RegExp(path));
+    assert.match(workflow, new RegExp(path));
     assert.doesNotMatch(portal, new RegExp(path));
   }
 });
@@ -35,7 +35,10 @@ test("maintenance pages hide the unreleased product and application", () => {
 
   for (const page of [home, portal]) {
     assert.match(page, /Sitio en construcción/);
-    assert.doesNotMatch(page, /Certificado de regalo|PayPal|Payoneer|<form|<script/i);
+    assert.doesNotMatch(
+      page,
+      /Certificado de regalo|PayPal|Payoneer|<form|<script/i,
+    );
     assert.doesNotMatch(page, /SoftOhm|mailto:|Saldo Express|<footer|<img/i);
   }
   assert.match(certificate, /Certificado de regalo en efectivo/);
@@ -44,20 +47,43 @@ test("maintenance pages hide the unreleased product and application", () => {
   assert.match(read("robots.txt"), /Disallow: \/$/m);
 });
 
-test("production registration and profile intake stay closed", () => {
+test("production registration requires server-side bot protection and private admin setup", () => {
   const config = read("cloudflare/portal/wrangler.jsonc");
-  for (const flag of ["REGISTRATION_OPEN", "KYC_OPEN", "ADMIN_SETUP_OPEN"]) {
-    assert.match(config, new RegExp(`"${flag}":\\s*"false"`));
-  }
-  assert.match(config, /"MAINTENANCE_MODE":\s*"true"/);
+  assert.match(config, /"ADMIN_SETUP_OPEN":\s*"false"/);
+  assert.match(config, /"MAINTENANCE_MODE":\s*"false"/);
+  assert.match(config, /"TURNSTILE_ENABLED":\s*"true"/);
+  assert.match(config, /"REGISTRATION_OPEN":\s*"true"/);
+  assert.match(config, /"KYC_OPEN":\s*"true"/);
+  assert.match(config, /"ratelimits"/);
   assert.match(
     read("cloudflare/portal/public/certificate.js"),
     /Certificado de regalo en efectivo/,
   );
 });
 
+test("privacy matches temporary destination data and minimal registration", () => {
+  const privacy = read("privacidad.html").replace(/\s+/g, " ");
+  for (const phrase of [
+    /hash/,
+    /24 horas/,
+    /15 minutos/,
+    /30 días/,
+    /Cloudflare/,
+    /Resend/,
+    /HMAC/,
+    /no constituyen certificación de identidad/,
+  ])
+    assert.match(privacy, phrase);
+  const build = read("cloudflare/portal/scripts/build.mjs");
+  assert.match(build, /privacidad.html/);
+  assert.match(build, /terminos.html/);
+  const app = read("cloudflare/portal/public/app.js");
+  assert.match(app, /legalAccepted/);
+  assert.match(app, /legalVersion/);
+});
+
 test("terms describe automatic ticket modes without a commission table", () => {
-  const terms = read("terminos.html");
+  const terms = read("terminos.html").replace(/\s+/g, " ");
   assert.match(terms, /\$25 a \$500/);
   assert.match(terms, /supera \$500/);
   assert.match(terms, /Método internacional/);

@@ -45,6 +45,44 @@ import CertificateModel from "./certificate.js";
     view = "dashboard",
     userFilter = "all",
     timer;
+  let botId, botLoading, detailExpiry;
+  const botActions = {
+    "/api/auth/sign-up/email": "signup",
+    "/api/auth/sign-in/email": "login",
+    "/api/auth/request-password-reset": "recover",
+    "/api/auth/send-verification-email": "resend",
+  };
+  function mountBot(action) {
+    if (!config.turnstileSiteKey) return;
+    const container = $("#bot-check");
+    if (!container) return;
+    if (botId !== undefined && window.turnstile) window.turnstile.remove(botId);
+    botId = undefined;
+    if (!botLoading)
+      botLoading = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src =
+          "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.append(script);
+      });
+    botLoading
+      .then(() => {
+        if (container.isConnected)
+          botId = window.turnstile.render(container, {
+            sitekey: config.turnstileSiteKey,
+            action,
+            size: "flexible",
+            theme: "light",
+          });
+      })
+      .catch(() =>
+        toast(
+          "No se pudo cargar la verificación de seguridad. Recarga la página.",
+        ),
+      );
+  }
   const params = new URLSearchParams(location.search);
   const resetToken = params.get("token");
   let setupMode = params.get("setup") === "1";
@@ -61,22 +99,45 @@ import CertificateModel from "./certificate.js";
     timer = setTimeout(() => $("#toast").classList.remove("visible"), 7000);
   }
   async function api(path, body) {
-    const response = await fetch(path, {
-      method: body === undefined ? "GET" : "POST",
-      credentials: "same-origin",
-      headers:
-        body instanceof FormData ? {} : { "content-type": "application/json" },
-      body:
-        body === undefined
-          ? undefined
-          : body instanceof FormData
-            ? body
-            : JSON.stringify(body),
-    });
-    const data = await response.json();
+    if (body && botActions[path] && config?.turnstileSiteKey) {
+      const token =
+        botId !== undefined ? window.turnstile?.getResponse(botId) : "";
+      if (!token) throw new Error("Completa la verificación de seguridad.");
+      body = { ...body, turnstileToken: token };
+    }
+    let response;
+    try {
+      response = await fetch(path, {
+        method: body === undefined ? "GET" : "POST",
+        credentials: "same-origin",
+        headers:
+          body instanceof FormData
+            ? {}
+            : { "content-type": "application/json" },
+        body:
+          body === undefined
+            ? undefined
+            : body instanceof FormData
+              ? body
+              : JSON.stringify(body),
+      });
+    } finally {
+      if (body && botActions[path] && botId !== undefined)
+        window.turnstile?.reset(botId);
+    }
+    const data = await response.json().catch(() => ({
+      error: "No se pudo completar la solicitud. Intenta de nuevo más tarde.",
+    }));
     if (!response.ok)
       throw new Error(
-        data.error || data.message || "No se pudo completar la solicitud.",
+        {
+          INVALID_EMAIL_OR_PASSWORD:
+            "El correo o la contraseña no son correctos.",
+          EMAIL_NOT_VERIFIED: "Verifica tu correo antes de entrar.",
+        }[data.code] ||
+          data.error ||
+          data.message ||
+          "No se pudo completar la solicitud.",
       );
     return data;
   }
@@ -110,9 +171,9 @@ import CertificateModel from "./certificate.js";
   function legalNotice() {
     modal(
       "Términos y privacidad",
-      `<p>Registro cerrado. El Certificado de regalo en efectivo todavía no está disponible para compra o emisión.</p>
-       <p><a href="https://saldoexpressnicaragua.com/terminos.html" target="_blank" rel="noopener">Términos y condiciones</a></p>
-       <p><a href="https://saldoexpressnicaragua.com/privacidad.html" target="_blank" rel="noopener">Aviso de privacidad</a></p>
+      `<p>La cuenta requiere verificar el correo y aprobación manual. Los datos de destino se usan temporalmente en cada ticket.</p>
+       <p><a href="/terminos.html" target="_blank" rel="noopener">Términos y condiciones</a></p>
+       <p><a href="/privacidad.html" target="_blank" rel="noopener">Aviso de privacidad</a></p>
        <p>SoftOhm Systems LLC · <a href="mailto:info@softohmsystems.com">info@softohmsystems.com</a></p>`,
     );
   }
@@ -202,13 +263,27 @@ import CertificateModel from "./certificate.js";
       const note = document.createElement("p");
       note.className = "notice";
       note.textContent =
-        "Verifica tu correo y completa tus datos. Tu cuenta quedará pendiente de aprobación manual.";
+        "Verifica tu correo. Tu cuenta quedará pendiente de aprobación manual.";
       $(".onboarding").append(note);
     }
     document
       .querySelectorAll("[data-auth]")
       .forEach((b) => (b.onclick = () => login(b.dataset.auth)));
     if ($("#recover")) $("#recover").onclick = () => login("recover");
+    if ($("#auth") && !reset) {
+      if (mode === "signup")
+        $("#auth button[type=submit]").insertAdjacentHTML(
+          "beforebegin",
+          '<label class="check"><input name="legalAccepted" type="checkbox" required><span>Soy mayor de edad y acepto los <a href="/terminos.html" target="_blank" rel="noopener">términos</a> y el <a href="/privacidad.html" target="_blank" rel="noopener">aviso de privacidad</a>.</span></label>',
+        );
+      $("#auth button[type=submit]").insertAdjacentHTML(
+        "beforebegin",
+        '<div id="bot-check"></div>',
+      );
+      mountBot(
+        mode === "signup" ? "signup" : mode === "recover" ? "recover" : "login",
+      );
+    }
     if ($("#auth"))
       bind("auth", async (f) => {
         let result;
@@ -233,6 +308,8 @@ import CertificateModel from "./certificate.js";
             email: f.get("email"),
             password: f.get("password"),
             name: "Cliente",
+            legalAccepted: f.get("legalAccepted") === "on",
+            legalVersion: CertificateModel.version,
             callbackURL: location.origin + "/",
           });
           verification(f.get("email"));
@@ -249,6 +326,11 @@ import CertificateModel from "./certificate.js";
   }
   function verification(email) {
     main.innerHTML = `<div class="onboarding"><h1>Verifica tu correo</h1><p>${esc(email)}</p><p>Revisa el enlace que enviamos a tu correo.</p><button class="button" id="resend">Reenviar correo</button><button class="text-button" id="back-login">Iniciar sesión</button></div>`;
+    $("#resend").insertAdjacentHTML(
+      "beforebegin",
+      '<div id="bot-check"></div>',
+    );
+    mountBot("resend");
     $("#resend").onclick = async () => {
       try {
         await api("/api/auth/send-verification-email", {
@@ -303,22 +385,7 @@ import CertificateModel from "./certificate.js";
     main.innerHTML = `<div class="onboarding"><h1>Mi cuenta</h1><p>${esc(me.user.email)}</p><span class="badge">${esc(AccountModel.labels[p.status])}</span>${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}${p.status === "pending" ? "<p>Recibimos tus datos. Tu cuenta se activará después de la aprobación manual.</p>" : p.status === "active" ? `<p>${esc(p.name)}</p>` : !config.kycOpen ? '<div class="notice">La recepción de datos para revisión todavía no está habilitada.</div>' : ""}</div>`;
     if (!config.kycOpen || !["incomplete", "correction"].includes(p.status))
       return;
-    main.innerHTML = `<div class="onboarding"><h1>Completa tus datos</h1>${form(
-      "profile",
-      `<p>Datos del familiar o beneficiario en Nicaragua. La cuenta bancaria debe estar a su nombre y la activación requiere revisión manual.</p>${field("Nombre completo del familiar o beneficiario", "name", "text", 'autocomplete="name" minlength="5" maxlength="120"')}<label class="field">Banco<select name="bank" required><option value="">Selecciona</option>${CertificateModel.banks.map((b) => `<option>${esc(b)}</option>`).join("")}</select></label>${field("Número de cuenta bancaria del beneficiario", "bankAccount", "text", 'inputmode="numeric" autocomplete="off" maxlength="40"')}<label class="field">Moneda de la cuenta<select name="currency" required><option value="">Selecciona</option><option value="USD">Dólares</option><option value="NIO">Córdobas</option></select></label>${field("Teléfono del familiar o beneficiario", "phone", "tel", 'autocomplete="tel" maxlength="25"')}<p>${esc(CertificateModel.declaration)}</p>${[
-        ["declaration", "Declaro que la información es verdadera."],
-        ["terms", "Acepto los términos y condiciones."],
-        ["privacy", "Acepto el aviso de privacidad."],
-      ]
-        .map(
-          ([n, t]) =>
-            `<label class="check"><input type="checkbox" name="${n}" required>${t}</label>`,
-        )
-        .join(
-          "",
-        )}<button type="button" class="text-button" id="legal">Términos y privacidad</button>`,
-      "Enviar a revisión",
-    )}</div>`;
+    main.innerHTML = `<div class="onboarding"><h1>Solicita la activación</h1>${form("profile", `<p>Revisaremos tu correo y tu solicitud. Los datos del beneficiario se piden solamente al crear un ticket.</p><label class="check"><input type="checkbox" name="declaration" required>Declaro que soy mayor de edad.</label><label class="check"><input type="checkbox" name="terms" required>Acepto los términos y condiciones.</label><label class="check"><input type="checkbox" name="privacy" required>He leído el aviso de privacidad.</label><button type="button" class="text-button" id="legal">Términos y privacidad</button>`, "Enviar a revisión")}</div>`;
     $("#legal").onclick = legalNotice;
     bind("profile", async (f) => {
       await api("/api/profile", {
@@ -381,6 +448,7 @@ import CertificateModel from "./certificate.js";
     });
   }
   async function detail(id) {
+    clearTimeout(detailExpiry);
     const base = me.admin ? "/api/admin/tickets/" : "/api/tickets/";
     const t = await api(base + id);
     const messages = t.messages || [];
@@ -405,7 +473,7 @@ import CertificateModel from "./certificate.js";
     const whatsappText = `Hola, generé el ticket ${t.id} en Saldo Express. Monto solicitado: ${money(t.amount)}. Valor estimado: ${money(t.estimate.net)}. Modalidad: ${methodLabel(t.mode)}. Quiero continuar la atención por este canal.`;
     const whatsapp =
       !me.admin && t.canMessage
-        ? `<section class="external-purchase"><div><h2>Continuar por WhatsApp</h2><p>Ya avisamos al equipo. Este botón abre el chat con el resumen del ticket; revisá el mensaje antes de enviarlo.</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(whatsappText)}" target="_blank" rel="noopener">${icon("message-circle")}Abrir WhatsApp</a></section>`
+        ? `<section class="external-purchase"><div><h2>Continuar por WhatsApp</h2><p>Tu ticket está registrado. Continuá por WhatsApp para coordinar la atención.</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(whatsappText)}" target="_blank" rel="noopener">${icon("message-circle")}Abrir WhatsApp</a></section>`
         : "";
     const notification = me.admin
       ? `<p class="notice"><strong>Aviso del ticket:</strong> Correo ${t.notification?.email_delivered ? "enviado" : "pendiente"} · WhatsApp ${t.notification?.whatsapp_delivered ? "enviado" : config.whatsappEnabled ? (t.notification?.whatsapp_attempts ? "en reintento" : "en cola") : "pendiente de activación"}. El aviso no contiene el número de cuenta.</p>`
@@ -422,8 +490,23 @@ import CertificateModel from "./certificate.js";
     const cancelAction = ["submitted", "reviewing"].includes(t.status)
       ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>'
       : "";
-    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>La vigencia es de 24 horas desde su creación.</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "No registrado")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "No registrado")}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}<section class="ticket-chat"><div class="section-heading"><div><h2>Conversación del ticket</h2><p>Usa este espacio para comentarios sobre la solicitud. No compartas contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section>`;
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>La vigencia es de 24 horas desde su creación.</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "Eliminado o no disponible")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "Eliminado o no disponible")}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}<section class="ticket-chat"><div class="section-heading"><div><h2>Conversación del ticket</h2><p>Los comentarios se eliminan al vencer o cerrar el ticket. No escribas nombres, cuentas, contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section>`;
     $("#back").onclick = render;
+    if (t.canMessage) {
+      const marker = main.firstElementChild;
+      detailExpiry = setTimeout(
+        () => {
+          if (main.firstElementChild !== marker) return;
+          // Remove the rendered destination even if the refresh has no network.
+          main.innerHTML =
+            '<p class="notice">El ticket venció. Sus datos de destino y comentarios ya no están disponibles.</p>';
+          detail(id).catch(() =>
+            toast("No se pudo actualizar el historial. Recarga la página."),
+          );
+        },
+        Math.max(0, t.expires_at - Date.now()) + 50,
+      );
+    }
     document.querySelectorAll("[data-action]").forEach(
       (b) =>
         (b.onclick = async () => {
@@ -485,7 +568,7 @@ import CertificateModel from "./certificate.js";
           .slice(0, 6)
           .map(
             (u) =>
-              `<button class="admin-list-row" data-dashboard-user="${esc(u.user_id)}"><span><strong>${esc(u.full_name || "Registro sin completar")}</strong><small>${esc(u.email)}</small></span><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></button>`,
+              `<button class="admin-list-row" data-dashboard-user="${esc(u.user_id)}"><span><strong>${esc(u.email)}</strong><small>${esc(u.email)}</small></span><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></button>`,
           )
           .join("")
       : '<p class="empty compact">No hay cuentas que requieran atención.</p>';
@@ -551,7 +634,7 @@ import CertificateModel from "./certificate.js";
         visible
           .map(
             (u) =>
-              `<button class="admin-list-row" data-user="${esc(u.user_id)}"><span><strong>${esc(u.full_name || "Registro sin completar")}</strong><small>${esc(u.email)}</small>${u.reason ? `<small>${esc(u.reason)}</small>` : ""}</span><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></button>`,
+              `<button class="admin-list-row" data-user="${esc(u.user_id)}"><span><strong>${esc(u.email)}</strong><small>${esc(u.email)}</small>${u.reason ? `<small>${esc(u.reason)}</small>` : ""}</span><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></button>`,
           )
           .join("") ||
         '<p class="empty compact">No hay usuarios con este filtro.</p>';
@@ -618,9 +701,9 @@ import CertificateModel from "./certificate.js";
           .join("")
       : '<li class="empty compact">Todavía no hay decisiones registradas.</li>';
     const profileData = p
-      ? `<section class="account-section"><h2>Datos revisados</h2><div class="data-grid">${p.kind === "cash-certificate" ? `<div><small>Teléfono del beneficiario</small><p>${esc(p.phone)}</p></div><div><small>Banco y moneda</small><p>${esc(p.bank)} · ${esc(p.currency)}</p></div><div><small>Cuenta bancaria del beneficiario</small><p class="account-number">${esc(p.bankAccount)}</p></div>` : `<div><small>Cédula · Archivo anterior</small><p>${esc(p.cedula)}</p></div><div><small>Origen de fondos</small><p>${esc(p.source)}</p></div>`}</div>${p.kind === "cash-certificate" ? `<p>${esc(p.declaration)}</p><p class="notice">Datos declarados por el comprador. La aprobación habilita tickets, pero no certifica la identidad ni confirma una operación.</p>` : `<p>${esc(p.detail)}</p>`}${p.hasDocuments ? `<div class="document-grid">${["front", "back"].map((side, i) => `<figure><figcaption>${i ? "Reverso" : "Frente"} · Archivo anterior</figcaption><img src="/api/admin/documents/${encodeURIComponent(id)}/${side}" alt="${i ? "Reverso" : "Frente"} de la cédula"></figure>`).join("")}</div>` : ""}<p class="consent-record">Consentimiento: ${esc(p.version)} · ${new Date(p.acceptedAt).toLocaleString("es-NI")}</p></section>`
-      : '<section class="account-section"><h2>Datos revisados</h2><p class="empty compact">El usuario todavía no ha enviado información para revisión.</p></section>';
-    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Usuarios</button><div class="heading account-heading"><div><h1>${esc(u.full_name || "Registro sin completar")}</h1><p>${esc(u.email)}</p></div><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></div>${u.reason ? `<p class="notice"><strong>Último motivo:</strong> ${esc(u.reason)}</p>` : ""}${profileData}<section class="account-section"><div class="section-heading"><div><h2>Acciones de cuenta</h2><p>Solo una cuenta activa puede crear tickets. Toda decisión exige un motivo y genera un aviso al correo registrado.</p></div></div>${actionButtons ? `<div class="actions">${actionButtons}</div>` : '<p class="empty compact">No hay acciones disponibles para este estado.</p>'}</section><section class="account-section"><div class="section-heading"><div><h2>Historial de decisiones</h2><p>Estado del aviso enviado al usuario.</p></div><span>${(u.notices || []).length}</span></div><ol class="decision-history">${noticeHistory}</ol></section>`;
+      ? `<section class="account-section"><h2>Aceptación registrada</h2><p>Cuenta identificada por su correo verificado. La aprobación habilita la creación de tickets.</p><p class="consent-record">Condiciones: ${esc(p.version)} · ${dateTime(p.acceptedAt)}</p></section>`
+      : '<p class="notice">El usuario todavía no ha aceptado las condiciones.</p>';
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Usuarios</button><div class="heading account-heading"><div><h1>${esc(u.email)}</h1><p>${esc(u.email)}</p></div><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></div>${u.reason ? `<p class="notice"><strong>Último motivo:</strong> ${esc(u.reason)}</p>` : ""}${profileData}<section class="account-section"><div class="section-heading"><div><h2>Acciones de cuenta</h2><p>Solo una cuenta activa puede crear tickets. Toda decisión exige un motivo y genera un aviso al correo registrado.</p></div></div>${actionButtons ? `<div class="actions">${actionButtons}</div>` : '<p class="empty compact">No hay acciones disponibles para este estado.</p>'}</section><section class="account-section"><div class="section-heading"><div><h2>Historial de decisiones</h2><p>Estado del aviso enviado al usuario.</p></div><span>${(u.notices || []).length}</span></div><ol class="decision-history">${noticeHistory}</ol></section>`;
     $("#back").onclick = render;
     document.querySelectorAll("[data-review]").forEach(
       (button) =>
