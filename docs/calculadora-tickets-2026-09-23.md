@@ -2,9 +2,9 @@
 
 Implementacion local. No se han enviado facturas ni cambiado el despliegue.
 
-La landing y el piloto usan `calculator-core.js`. Se conservan las tarifas y rangos
-que estaban configurados, no se presentan como tarifas externas verificadas en vivo.
-Express: USD 25 a 500; Internacional: USD 500.01 a 3000.
+El piloto usa `calculator-core.js` para conservar sus escenarios historicos. La
+home publica no comparte esa logica: usa `home-calculators.js` exclusivamente
+para referencias PayPal y Payoneer y no presenta modalidades comerciales.
 
 El cliente obtiene una estimacion y el ticket guarda su version, monto, modalidad,
 costos PayPal, procesamiento, comision propia, total y neto en USD. Se redondean

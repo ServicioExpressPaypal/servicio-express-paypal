@@ -32,7 +32,8 @@ La interfaz pide ambos lados porque asi lo solicito el propietario. Esta selecci
 de campos no constituye una determinacion de suficiencia legal del KYC.
 
 Ver `../../docs/registro-kyc-2026-09-23.md` para estados, controles de produccion
-y limites de los textos legales. La landing publica no se modifico.
+y limites de los textos legales. Este piloto permanece separado de la home
+publica informativa.
 
 Ver `../../docs/tickets-facturacion-2026-09-23.md` para el alcance y la integracion
 investigada con PayPal, WhatsApp, Cloudflare y PostgreSQL.
@@ -44,7 +45,8 @@ disponible y Chrome instalado. Las capturas se escriben en `/tmp/saldo-express-p
 Iconos: Lucide, copia local del paquete incluido en el runtime. Licencia en
 `lucide-LICENSE`. No hay dependencias de CDN.
 
-La calculadora del ticket comparte `../../calculator-core.js` con la landing.
+La calculadora del ticket conserva `../../calculator-core.js`. La home publica
+usa formulas informativas separadas en `../../home-calculators.js`.
 Regresion de la pagina publica: `node _pilot/tickets/public-calculator.test.cjs`
 con Playwright y Chrome. Las solicitudes a terceros se interceptan en esta prueba.
 Ver `../../docs/calculadora-tickets-2026-09-23.md` para el alcance y los limites

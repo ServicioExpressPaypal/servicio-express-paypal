@@ -8,15 +8,18 @@ calculadoras.
 
 ## Cambios rapidos
 
-- Nombre del proyecto: cambia `Saldo Express Nicaragua` en `index.html` y `script.js`.
-- Comisiones compartidas: `calculator-core.js`. Calculadora de cajero: `script.js`.
+- Nombre del proyecto: cambia `Saldo Express Nicaragua` en `index.html`.
+- Comisiones de la home: `home-calculators.js`. Interfaz: `home.js`.
 - Logo: esta en `assets/logo-saldo-express.png`.
 
 ## Archivos
 
 - `index.html`: pagina publica de calculadoras.
-- `styles.css`: diseno visual y version movil.
-- `script.js`: logica de calculo.
+- `home.css`: diseno visual y version movil de la home.
+- `home-calculators.js`: formulas puras de PayPal y Payoneer.
+- `home.js`: conexion local entre los campos y los resultados.
+- `styles.css`, `script.js` y `calculator-core.js`: recursos heredados de otras
+  paginas publicadas; la home no los carga.
 - `_archive/`: respaldo no publicado de la version comercial anterior.
 
 ## Publicacion
@@ -28,4 +31,5 @@ El artefacto no incluye `_archive/`, `supabase/`, `docs/` ni archivos de pruebas
 El prototipo esta en `https://saldoexpressnicaragua.com/_pilot/tickets/`.
 Es una demostracion publica, no un portal privado: usa exclusivamente datos
 ficticios y se reinicia al recargar. No hay autenticacion, correo ni pagos reales.
-La pagina principal conserva las calculadoras; no dirige clientes al prototipo.
+La pagina principal contiene solo calculadoras informativas y no enlaza el
+prototipo ni el portal privado.
