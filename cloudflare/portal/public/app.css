@@ -72,6 +72,141 @@
   display: grid;
   gap: 0;
 }
+.gift-heading p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.gift-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+.gift-option {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #cbd0d8;
+  border-radius: 8px;
+  color: #152d50;
+}
+.gift-face {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) 100px;
+  align-items: center;
+  min-height: 152px;
+  border-bottom: 1px solid #e2e5ea;
+}
+.gift-ribbon {
+  width: 62px;
+  height: 152px;
+  object-fit: contain;
+}
+.gift-title {
+  padding: 12px 8px;
+}
+.gift-title > span {
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.gift-title h2 {
+  margin: 7px 0 11px;
+  font:
+    bold 24px Georgia,
+    serif;
+  letter-spacing: 0;
+}
+.gift-title small {
+  font-size: 10px;
+  line-height: 1.4;
+  color: #576476;
+}
+.gift-stub {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  align-self: stretch;
+  border-left: 1px dashed #a3aab6;
+  padding: 12px;
+}
+.gift-stub span,
+.gift-stub small {
+  font-size: 11px;
+}
+.gift-stub strong {
+  font-size: 28px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.gift-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 16px;
+  background: #f7f8fa;
+  font-size: 11px;
+  color: #576476;
+}
+.gift-summary strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: #152d50;
+}
+.gift-summary > span:last-child {
+  text-align: right;
+}
+.gift-select {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid #e2e5ea;
+  font-size: 13px;
+  font-weight: 700;
+  color: #a52d32;
+}
+.gift-select:hover {
+  background: #fff1f1;
+}
+.gift-select:focus-visible {
+  outline: 3px solid #a52d32;
+  outline-offset: -4px;
+}
+.gift-select svg {
+  width: 18px;
+  height: 18px;
+}
+.ticket-list-title {
+  margin: 40px 0 8px;
+  font-size: 20px;
+}
+@media (min-width: 641px) and (max-width: 1100px) {
+  .gift-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .gift-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .gift-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .gift-face {
+    grid-template-columns: 52px minmax(0, 1fr) 96px;
+  }
+  .gift-ribbon {
+    width: 52px;
+  }
+}
 .admin-heading p,
 .account-heading p {
   color: var(--muted);

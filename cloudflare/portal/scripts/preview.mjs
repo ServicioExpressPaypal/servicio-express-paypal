@@ -16,6 +16,7 @@ const assets = new Set([
   "lucide.min.js",
   "calculator-core.js",
   "logo.jpg",
+  "gift-ribbon.png",
   "privacidad.html",
   "terminos.html",
   "legal.css",
@@ -25,6 +26,7 @@ const types = {
   js: "text/javascript",
   css: "text/css",
   jpg: "image/jpeg",
+  png: "image/png",
 };
 const mf = new Miniflare(
   convertV4MiniflareOptions({

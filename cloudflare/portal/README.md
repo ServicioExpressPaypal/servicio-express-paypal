@@ -40,6 +40,11 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
 
 ## Datos y retencion
 
+- El cliente activo ve certificados con montos base de USD 50, 100, 200, 300,
+  400 y 500, junto con su neto y costos estimados por la calculadora compartida.
+  Elegir uno precarga el mismo formulario que Ticket personalizado; no crea ni
+  paga un ticket. El monto sigue siendo editable y se valida en el servidor.
+
 - Cada ticket dura 24 horas. Nombre del beneficiario, banco, cuenta y comentarios
   son temporales. Las consultas ocultan estos datos al vencer, cerrar o cancelar.
 - retention.ts elimina esos campos y mensajes de la base activa cada 15 minutos

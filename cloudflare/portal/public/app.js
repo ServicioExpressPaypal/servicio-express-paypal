@@ -398,12 +398,20 @@ import CertificateModel from "./certificate.js";
   async function tickets() {
     const rows = await api(me.admin ? "/api/admin/tickets" : "/api/tickets");
     main.innerHTML = `<div class="heading"><h1>${me.admin ? "Solicitudes" : "Mis solicitudes"}</h1>${!me.admin ? `<button class="button primary" id="new-ticket">${icon("plus")}Nueva solicitud</button>` : ""}</div><div class="ticket-list">${rows.length ? rows.map((t) => `<button class="ticket-row" data-ticket="${t.id}"><span><strong>${money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>Valor estimado · Monto base ${money(t.amount)}</small><small>${esc(t.beneficiary_name || t.full_name || t.bank)} · ${new Date(t.created_at).toLocaleDateString("es-NI")}</small><small class="ticket-expiry">${esc(expiryText(t))}</small><small class="ticket-id">${esc(t.id)}</small></span><span class="badge ${t.status}">${labels[t.status]}</span></button>`).join("") : '<p class="empty">Todavía no hay solicitudes.</p>'}</div>`;
-    if (!me.admin)
-      $(".heading").insertAdjacentHTML(
-        "afterend",
-        `<p class="product-title">${esc(CertificateModel.title)}</p><p>${esc(CertificateModel.description)}</p>`,
-      );
-    if ($("#new-ticket")) $("#new-ticket").onclick = newTicket;
+    if (!me.admin) {
+      const cards = CertificateModel.presetAmounts
+        .map((amount) => {
+          const estimate = SaldoCalculator.estimate(amount * 100, "express");
+          return `<article class="gift-option"><div class="gift-face"><img class="gift-ribbon" src="/gift-ribbon.png" width="70" height="140" alt=""><div class="gift-title"><span>Certificado de regalo</span><h2>Efectivo</h2><small>Para alguien especial</small></div><div class="gift-stub"><span>Monto base</span><strong>$${amount}</strong><small>USD</small></div></div><div class="gift-summary"><span>Valor estimado<strong>${money(estimate.net)}</strong></span><span>Costos estimados<strong>${money(estimate.total)}</strong></span></div><button type="button" class="gift-select" data-preset="${amount}" aria-label="Elegir certificado de ${amount} dólares">Elegir $${amount} USD ${icon("arrow-right")}</button></article>`;
+        })
+        .join("");
+      $(".heading").outerHTML =
+        `<div class="heading gift-heading"><div><h1>Certificados de regalo</h1><p>Un detalle para tu familia.</p></div><button type="button" class="button" id="new-ticket">${icon("plus")}Ticket personalizado</button></div><section class="gift-catalog" aria-label="Montos disponibles"><div class="gift-grid">${cards}</div></section><h2 class="ticket-list-title">Mis solicitudes</h2>`;
+      document.querySelectorAll("[data-preset]").forEach((button) => {
+        button.onclick = () => newTicket(Number(button.dataset.preset));
+      });
+    }
+    if ($("#new-ticket")) $("#new-ticket").onclick = () => newTicket();
     document
       .querySelectorAll("[data-ticket]")
       .forEach(
@@ -412,7 +420,7 @@ import CertificateModel from "./certificate.js";
             detail(b.dataset.ticket).catch((e) => toast(e.message))),
       );
   }
-  function newTicket() {
+  function newTicket(presetAmount) {
     const requestKey = crypto.randomUUID();
     const conditions = CertificateModel.ticketConditions
       .map((condition) => `<li>${esc(condition)}</li>`)
@@ -431,6 +439,12 @@ import CertificateModel from "./certificate.js";
       }
     };
     $("#back").onclick = render;
+    if (CertificateModel.presetAmounts.includes(presetAmount)) {
+      $("#ticket [name=amount]").value = String(presetAmount);
+      $("#ticket").oninput();
+    }
+    main.focus();
+    window.scrollTo({ top: 0, behavior: "instant" });
     bind("ticket", async (f) => {
       const result = await api("/api/tickets", {
         amount: f.get("amount"),

@@ -3,6 +3,7 @@ export default (function () {
   const version = "cuenta-minima-2026-09-27-v2";
   const ticketConditionsVersion = "ticket-condiciones-2026-09-27-v2";
   const title = "Certificado de regalo en efectivo";
+  const presetAmounts = Object.freeze([50, 100, 200, 300, 400, 500]);
   const description =
     "Un regalo de valor monetario para compartir con tu familia o con un beneficiario que elijas. Su solicitud se gestiona de forma digital mediante un ticket con vigencia de 24 horas. Crear el ticket no completa la compra ni emite el certificado; el pago y la entrega se coordinan por separado.";
   const banks = ["LAFISE", "BDF", "Banpro", "BAC", "Ficohsa", "Avanz"];
@@ -105,6 +106,7 @@ export default (function () {
     };
   }
   const api = {
+    presetAmounts,
     version,
     title,
     description,

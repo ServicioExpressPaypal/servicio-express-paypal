@@ -1169,6 +1169,52 @@ test("successful login resets failures; cancelling purges destination and chat b
     await s.mf.dispose();
   }
 });
+test("six preset amounts use the same validated ticket contract as a custom amount", async () => {
+  assert.deepEqual(
+    CertificateModel.presetAmounts,
+    [50, 100, 200, 300, 400, 500],
+  );
+  const s = await setup();
+  try {
+    const customer = await s.registered("presets@example.test");
+    assert.equal(
+      (await customer.req("/api/tickets", ticket({ amount: "50" }))).status,
+      403,
+    );
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(customer.id)
+      .run();
+    assert.equal(
+      (
+        await customer.req(
+          "/api/tickets",
+          ticket({ amount: "50", beneficiaryName: "", bankAccount: "" }),
+        )
+      ).status,
+      400,
+    );
+    for (const amount of [...CertificateModel.presetAmounts, 164]) {
+      const created = await customer.req(
+        "/api/tickets",
+        ticket({ amount: String(amount) }),
+      );
+      assert.equal(created.status, 201, JSON.stringify(created.data));
+      const detail = await customer.req("/api/tickets/" + created.data.id);
+      assert.equal(detail.data.amount, amount * 100);
+      assert.equal(detail.data.estimate.amount, amount * 100);
+      assert.ok(detail.data.estimate.net < detail.data.amount);
+      assert.equal(detail.data.bank_account, ticket().bankAccount);
+      assert.equal(
+        detail.data.terms_version,
+        CertificateModel.ticketConditionsVersion,
+      );
+      assert.equal(detail.data.expires_at - detail.data.created_at, 86400000);
+    }
+  } finally {
+    await s.mf.dispose();
+  }
+});
 function decodeBase32(input) {
   let bits = "";
   for (const c of input.replace(/=+$/, ""))
