@@ -4,6 +4,11 @@ import { readFile } from "node:fs/promises";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { createOTP } from "@better-auth/utils/otp";
 import CertificateModel from "../public/certificate.js";
+import {
+  addBusinessDays,
+  processingWindow,
+  ticketShareText,
+} from "../public/processing.js";
 
 const origin = "https://portal.example.test";
 async function setup(open = true, overrides = {}) {
@@ -87,6 +92,7 @@ async function setup(open = true, overrides = {}) {
     "0006_account_notices.sql",
     "0007_ticket_whatsapp.sql",
     "0008_privacy_security.sql",
+    "0009_ticket_processing.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -1215,6 +1221,195 @@ test("six preset amounts use the same validated ticket contract as a custom amou
     await s.mf.dispose();
   }
 });
+test("international business-day counter skips weekends and respects local dates", () => {
+  const friday = Date.parse("2026-09-25T23:30:00-06:00");
+  assert.equal(
+    new Date(addBusinessDays(friday, 2)).toISOString(),
+    "2026-09-30T05:30:00.000Z",
+  );
+  assert.equal(
+    new Date(addBusinessDays(friday, 6)).toISOString(),
+    "2026-10-06T05:30:00.000Z",
+  );
+  assert.equal(
+    new Date(
+      addBusinessDays(Date.parse("2026-12-31T10:00:00-06:00"), 2),
+    ).toISOString(),
+    "2027-01-04T16:00:00.000Z",
+  );
+  assert.equal(processingWindow({ amount: 50000 }), null);
+  assert.equal(processingWindow({ amount: 50001 }).status, "pending");
+  const t = { amount: 60000, processing_started_at: friday };
+  assert.equal(processingWindow(t, friday + 86400000).elapsed, 0);
+  assert.equal(
+    processingWindow(t, addBusinessDays(friday, 2)).status,
+    "window",
+  );
+  assert.equal(
+    processingWindow(t, addBusinessDays(friday, 6)).status,
+    "overdue",
+  );
+  const done = processingWindow(
+    { ...t, processing_completed_at: addBusinessDays(friday, 3) },
+    addBusinessDays(friday, 9),
+  );
+  assert.equal(done.status, "completed");
+  assert.equal(done.elapsed, 3);
+});
+
+test("WhatsApp summary links to authenticated ticket without destination data", () => {
+  const t = {
+    id: "SE-ABC123",
+    amount: 60000,
+    estimate: { net: 54000 },
+    bank_account: "000987654321",
+    beneficiary_name: "Beneficiario de Prueba",
+    bank: "LAFISE",
+    messages: [{ body: "private" }],
+  };
+  const text = ticketShareText(t, origin);
+  assert.match(text, /USD 600\.00/);
+  assert.match(text, /USD 540\.00/);
+  assert.match(text, /2 a 6 días hábiles/);
+  assert.match(text, /\?ticket=SE-ABC123/);
+  for (const secret of [t.bank_account, t.beneficiary_name, t.bank, "private"])
+    assert.ok(!text.includes(secret));
+  assert.ok(
+    !ticketShareText({ ...t, amount: 50000 }, origin).includes("2 a 6"),
+  );
+});
+
+test("only admin can start paid international tracking; expiry erases destination but retains tracking", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("tracking@example.test");
+    const stranger = await s.registered("stranger@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(customer.id)
+      .run();
+    const created = await customer.req(
+      "/api/tickets",
+      ticket({ amount: "600" }),
+    );
+    assert.equal(created.status, 201);
+    const id = created.data.id;
+    const path = `/api/admin/tickets/${id}`;
+    const action = path + "/processing";
+    assert.equal(
+      (await s.client()(action, { action: "start", version: 0 })).status,
+      401,
+    );
+    assert.equal(
+      (await customer.req(action, { action: "start", version: 0 })).status,
+      403,
+    );
+    assert.equal(
+      (await admin.req(action, { action: "start", version: 0 })).status,
+      409,
+    );
+    assert.equal(
+      (await admin.req(path, { action: "reviewing", version: 0 })).status,
+      200,
+    );
+    assert.equal(
+      (
+        await admin.req(path, {
+          action: "quote",
+          version: 1,
+          quote: {
+            received: "540",
+            fee: "60",
+            rate: 1,
+            hours: 144,
+            validity: 60,
+          },
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await admin.req(action, { action: "complete", version: 2 })).status,
+      409,
+    );
+    assert.equal(
+      (await admin.req(action, { action: "start", version: 1 })).status,
+      409,
+    );
+    assert.equal(
+      (await admin.req(action, { action: "start", version: 2 })).status,
+      200,
+    );
+    const started = (await customer.req(`/api/tickets/${id}`)).data;
+    assert.ok(started.processing_started_at > 0);
+    assert.deepEqual(started.quote.businessDays, { min: 2, max: 6 });
+    assert.equal(started.quote.hours, undefined);
+    assert.equal(started.processing_completed_at, null);
+    assert.equal(started.expires_at - started.created_at, 86400000);
+    assert.equal(
+      started.events.filter((e) => e.action === "payment_confirmed").length,
+      1,
+    );
+    assert.equal(
+      (await admin.req(action, { action: "start", version: 3 })).status,
+      409,
+    );
+    assert.equal((await stranger.req(`/api/tickets/${id}`)).status, 404);
+    await s.db
+      .prepare("UPDATE tickets SET expires_at=? WHERE id=?")
+      .bind(Date.now() - 1, id)
+      .run();
+    const expired = (await customer.req(`/api/tickets/${id}`)).data;
+    assert.equal(expired.bank_account, "");
+    assert.equal(expired.beneficiary_name, "");
+    assert.equal(expired.processing_started_at, started.processing_started_at);
+    assert.equal(
+      (await admin.req(action, { action: "complete", version: 3 })).status,
+      200,
+    );
+    assert.equal(
+      (await admin.req(action, { action: "complete", version: 4 })).status,
+      409,
+    );
+    assert.ok(
+      (await customer.req(`/api/tickets/${id}`)).data.processing_completed_at,
+    );
+    const unstarted = await customer.req(
+      "/api/tickets",
+      ticket({ amount: "501" }),
+    );
+    await s.db
+      .prepare("UPDATE tickets SET status='quoted',expires_at=? WHERE id=?")
+      .bind(Date.now() - 1, unstarted.data.id)
+      .run();
+    assert.equal(
+      (
+        await admin.req(`/api/admin/tickets/${unstarted.data.id}/processing`, {
+          action: "start",
+          version: 0,
+        })
+      ).status,
+      409,
+    );
+    const express = await customer.req(
+      "/api/tickets",
+      ticket({ amount: "500" }),
+    );
+    assert.equal(
+      (
+        await admin.req(`/api/admin/tickets/${express.data.id}/processing`, {
+          action: "start",
+          version: 0,
+        })
+      ).status,
+      400,
+    );
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
 function decodeBase32(input) {
   let bits = "";
   for (const c of input.replace(/=+$/, ""))

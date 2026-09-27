@@ -404,6 +404,37 @@
 .ticket-deadline.expired strong {
   color: #a32934;
 }
+.processing-window {
+  padding: 18px 0;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #d9dee2;
+}
+.processing-window h2 {
+  font-size: 18px;
+  margin: 0 0 10px;
+}
+.processing-window strong {
+  display: block;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.processing-window progress {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  height: 10px;
+  margin: 12px 0;
+  accent-color: #167452;
+}
+.processing-window p {
+  margin: 8px 0;
+}
+.processing-window small {
+  display: block;
+  max-width: 75ch;
+  color: #535b63;
+  line-height: 1.5;
+}
 .external-purchase {
   display: flex;
   align-items: center;

@@ -44,6 +44,8 @@ type Ticket = {
   created_at: number;
   updated_at: number;
   expires_at: number;
+  processing_started_at: number | null;
+  processing_completed_at: number | null;
 };
 type TicketMessage = {
   id: string;
@@ -861,6 +863,60 @@ async function handle(
       fail(409, "La conversación de este ticket ya está cerrada.");
     return json({ id, author_role: role, body: message, created_at: now }, 201);
   }
+  const processingMatch = path.match(
+    /^\/api\/admin\/tickets\/(SE-[A-F0-9-]+)\/processing$/,
+  );
+  if (processingMatch && request.method === "POST") {
+    const body = await payload(request);
+    const target = await env.DB.prepare("SELECT * FROM tickets WHERE id=?")
+      .bind(processingMatch[1])
+      .first<Ticket>();
+    if (!target) fail(404, "Solicitud no encontrada.");
+    if (target!.amount <= 50000)
+      fail(400, "Este seguimiento es para montos mayores de USD 500.");
+    if (body.version !== target!.version)
+      fail(409, "La solicitud cambió. Recarga antes de continuar.");
+    const now = Date.now();
+    const starting = body.action === "start";
+    if (starting) {
+      if (
+        target!.status !== "quoted" ||
+        isTicketExpired(target!, now) ||
+        target!.processing_started_at
+      )
+        fail(
+          409,
+          "Solo puedes confirmar el pago de un ticket cotizado, vigente y sin confirmación previa.",
+        );
+    } else if (body.action === "complete") {
+      if (
+        !target!.processing_started_at ||
+        target!.processing_completed_at ||
+        target!.status === "cancelled"
+      )
+        fail(409, "El seguimiento no está pendiente de entrega.");
+    } else fail(400, "Acción no permitida.");
+    const column = starting
+      ? "processing_started_at"
+      : "processing_completed_at";
+    const result = await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE tickets SET ${column}=?,version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id`,
+      ).bind(now, now, target!.id, body.version),
+      guardedAudit(
+        env,
+        "tickets",
+        user.id,
+        target!.id,
+        body.version + 1,
+        starting ? "payment_confirmed" : "delivery_confirmed",
+      ),
+    ]);
+    if (!result[0].results.length)
+      fail(409, "La solicitud cambió. Recarga antes de continuar.");
+    await purgeExpiredTicketData(env);
+    return json({ ok: true });
+  }
   const ticketMatch = path.match(/^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)$/);
   if (ticketMatch) {
     await purgeExpiredTicketData(env);
@@ -916,8 +972,16 @@ async function handle(
         )
           fail(409, "No puedes cancelar esta solicitud.");
         TicketModel.transition(ticket, "cancelled");
-      } else if (body.action === "quote") TicketModel.quote(ticket, body.quote);
-      else {
+      } else if (body.action === "quote") {
+        TicketModel.quote(
+          ticket,
+          ticket.amount > 50000 ? { ...body.quote, hours: 144 } : body.quote,
+        );
+        if (ticket.amount > 50000) {
+          delete ticket.quote.hours;
+          ticket.quote.businessDays = { min: 2, max: 6 };
+        }
+      } else {
         if (!["reviewing", "closed", "cancelled"].includes(body.action))
           fail(400, "Acción no permitida.");
         TicketModel.transition(ticket, body.action);

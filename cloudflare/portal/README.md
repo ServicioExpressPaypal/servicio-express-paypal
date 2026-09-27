@@ -72,6 +72,17 @@ guarda como secreto, al igual que TURNSTILE_SECRET, BETTER_AUTH_SECRET y
 ADMIN_EMAIL. Nunca imprimirlos ni guardarlos en Git.
 
 WHATSAPP_PROVIDER=disabled: el cliente usa el enlace oficial y confirma su envio.
+El administrador tambien puede compartir un resumen sin datos de destino desde
+el detalle del ticket. El enlace incluye la referencia y exige autenticacion;
+no concede acceso por si mismo ni envia mensajes automaticamente.
+
+Los tickets mayores de USD 500 tienen seguimiento estimado de 2 a 6 dias
+habiles, iniciado unicamente por un administrador al confirmar el pago de un
+ticket cotizado y vigente. Se cuentan lunes a viernes en America/Managua, sin
+ajuste por feriados. El administrador confirma la entrega por separado. Las
+fechas quedan en el historial; no extienden las 24 horas del ticket ni la
+retencion de datos de destino. Aplicar 0009_ticket_processing.sql antes de
+desplegar. El contador no puede reiniciarse desde la API.
 La automatizacion Meta requiere plantilla aprobada y secretos WHATSAPP_ACCESS_TOKEN,
 WHATSAPP_PHONE_NUMBER_ID y WHATSAPP_ADMIN_NUMBER; no activar sin probarla. No hay
 facturacion PayPal, pagos ni transferencias automaticas en el portal.

@@ -1,7 +1,7 @@
 export default (function () {
   "use strict";
   const version = "cuenta-minima-2026-09-27-v2";
-  const ticketConditionsVersion = "ticket-condiciones-2026-09-27-v2";
+  const ticketConditionsVersion = "ticket-condiciones-2026-09-27-v3";
   const title = "Certificado de regalo en efectivo";
   const presetAmounts = Object.freeze([50, 100, 200, 300, 400, 500]);
   const description =
@@ -15,6 +15,7 @@ export default (function () {
     "No se aceptan solicitudes de personas menores de edad.",
     "Un dato incorrecto puede atrasar o impedir la atención del ticket.",
     "El Método Express tiene un límite de USD 500 por ticket. Los montos mayores se clasifican como Método internacional.",
+    "Para montos mayores de USD 500, el plazo estimado es de 2 a 6 días hábiles desde la confirmación manual del pago. El contador considera lunes a viernes, hora de Nicaragua, sin ajuste por feriados. No confirma automáticamente la entrega ni extiende las 24 horas del ticket. Las fechas de confirmación de pago y entrega quedan en el historial.",
     "El nombre del beneficiario, banco, número de cuenta y comentarios se usan durante la vigencia del ticket. Al vencer, cerrarse o cancelarse dejan de estar disponibles y se eliminan de la base activa en la siguiente limpieza, programada cada 15 minutos. Conservamos referencia, montos, moneda, fechas, estado y la aceptación de condiciones. Las copias técnicas de recuperación pueden conservar versiones anteriores hasta 30 días.",
   ];
   const declaration =

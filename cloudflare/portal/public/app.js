@@ -1,4 +1,5 @@
 import CertificateModel from "./certificate.js";
+import { processingWindow, ticketShareText } from "./processing.js";
 
 (() => {
   "use strict";
@@ -28,6 +29,8 @@ import CertificateModel from "./certificate.js";
     closed: "Cerrada",
     cancelled: "Cancelada",
     expired: "Vencida",
+    payment_confirmed: "Pago confirmado por el administrador",
+    delivery_confirmed: "Entrega confirmada por el administrador",
   };
   const methodLabel = (mode) =>
     mode === "express" ? "Certificado en efectivo" : "Método internacional";
@@ -35,6 +38,7 @@ import CertificateModel from "./certificate.js";
     new Intl.DateTimeFormat("es-NI", {
       dateStyle: "medium",
       timeStyle: "short",
+      timeZone: "America/Managua",
     }).format(new Date(value));
   const expiryText = (ticket) =>
     ticket.expired
@@ -45,7 +49,7 @@ import CertificateModel from "./certificate.js";
     view = "dashboard",
     userFilter = "all",
     timer;
-  let botId, botLoading, detailExpiry;
+  let botId, botLoading, detailExpiry, processingTimer;
   const botActions = {
     "/api/auth/sign-up/email": "signup",
     "/api/auth/sign-in/email": "login",
@@ -84,6 +88,9 @@ import CertificateModel from "./certificate.js";
       );
   }
   const params = new URLSearchParams(location.search);
+  let requestedTicket = /^SE-[A-F0-9-]+$/.test(params.get("ticket") || "")
+    ? params.get("ticket")
+    : null;
   const resetToken = params.get("token");
   let setupMode = params.get("setup") === "1";
   let inviteToken = new URLSearchParams(location.hash.slice(1)).get("invite");
@@ -207,11 +214,19 @@ import CertificateModel from "./certificate.js";
     });
   }
   async function render() {
+    clearInterval(processingTimer);
+    clearTimeout(detailExpiry);
     nav();
     if (!me && setupMode) return adminSetup();
     if (!me) return login();
     if (me.admin && !me.adminReady) return security();
     try {
+      if (requestedTicket) {
+        const id = requestedTicket;
+        requestedTicket = null;
+        await detail(id);
+        return;
+      }
       if (me.admin && view === "users") await users();
       else if (me.admin && view === "dashboard") await dashboard();
       else if (
@@ -433,7 +448,7 @@ import CertificateModel from "./certificate.js";
         const mode = SaldoCalculator.modeForAmount(amount);
         const e = SaldoCalculator.estimate(amount, mode);
         $("#estimate").innerHTML =
-          `<span class="estimate-method">${methodLabel(mode)}</span>Valor estimado del certificado<strong>${money(e.net)}</strong><small>Monto base: ${money(e.amount)} · Costos estimados: ${money(e.total)}. La cotización final está sujeta a revisión.</small>`;
+          `<span class="estimate-method">${methodLabel(mode)}</span>Valor estimado del certificado<strong>${money(e.net)}</strong><small>Monto base: ${money(e.amount)} · Costos estimados: ${money(e.total)}. La cotización final está sujeta a revisión.</small>${amount > 50000 ? "<p>Plazo estimado: <b>2 a 6 días hábiles</b> desde que el administrador confirme el pago. Lunes a viernes, sin ajuste por feriados. El ticket conserva su vigencia de 24 horas.</p>" : ""}`;
       } catch (e) {
         $("#estimate").textContent = e.message;
       }
@@ -463,6 +478,7 @@ import CertificateModel from "./certificate.js";
   }
   async function detail(id) {
     clearTimeout(detailExpiry);
+    clearInterval(processingTimer);
     const base = me.admin ? "/api/admin/tickets/" : "/api/tickets/";
     const t = await api(base + id);
     const messages = t.messages || [];
@@ -484,28 +500,88 @@ import CertificateModel from "./certificate.js";
     const messageForm = t.canMessage
       ? `<form id="message-form" class="chat-form"><label for="ticket-message">Nuevo comentario</label><textarea id="ticket-message" name="message" required maxlength="1000" rows="3" placeholder="Escribe un comentario sobre este ticket"></textarea><div><small>Máximo 1,000 caracteres.</small><button class="button primary" type="submit">${icon("send")}Enviar</button></div><p class="form-error" role="alert"></p></form>`
       : '<p class="notice">La conversación está cerrada porque el ticket venció o finalizó.</p>';
-    const whatsappText = `Hola, generé el ticket ${t.id} en Saldo Express. Monto solicitado: ${money(t.amount)}. Valor estimado: ${money(t.estimate.net)}. Modalidad: ${methodLabel(t.mode)}. Quiero continuar la atención por este canal.`;
+    const whatsappText = ticketShareText(t, location.origin + "/");
     const whatsapp =
-      !me.admin && t.canMessage
-        ? `<section class="external-purchase"><div><h2>Continuar por WhatsApp</h2><p>Tu ticket está registrado. Continuá por WhatsApp para coordinar la atención.</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(whatsappText)}" target="_blank" rel="noopener">${icon("message-circle")}Abrir WhatsApp</a></section>`
+      me.admin || t.canMessage
+        ? `<section class="external-purchase"><div><h2>${me.admin ? "Resumen por WhatsApp" : "Continuar por WhatsApp"}</h2><p>${me.admin ? "Compartí referencia, montos y plazo. Los datos bancarios quedan en el panel privado. El envío requiere confirmación en WhatsApp." : "Tu ticket está registrado. Continuá por WhatsApp para coordinar la atención."}</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(whatsappText)}" target="_blank" rel="noopener">${icon("message-circle")}${me.admin ? "Enviar resumen a Saldo Express" : "Abrir WhatsApp"}</a></section>`
         : "";
     const notification = me.admin
       ? `<p class="notice"><strong>Aviso del ticket:</strong> Correo ${t.notification?.email_delivered ? "enviado" : "pendiente"} · WhatsApp ${t.notification?.whatsapp_delivered ? "enviado" : config.whatsappEnabled ? (t.notification?.whatsapp_attempts ? "en reintento" : "en cola") : "pendiente de activación"}. El aviso no contiene el número de cuenta.</p>`
       : "";
-    const adminActions = me.admin
-      ? t.status === "submitted"
-        ? '<button class="button primary" data-action="reviewing">Iniciar revisión</button>'
-        : t.status === "reviewing"
-          ? '<button class="button primary" id="quote">Emitir cotización</button>'
-          : t.status === "quoted"
-            ? '<button class="button" data-action="closed">Cerrar atención</button>'
-            : ""
-      : "";
+    const adminActions =
+      me.admin && !t.expired
+        ? t.status === "submitted"
+          ? '<button class="button primary" data-action="reviewing">Iniciar revisión</button>'
+          : t.status === "reviewing"
+            ? '<button class="button primary" id="quote">Emitir cotización</button>'
+            : t.status === "quoted"
+              ? '<button class="button" data-action="closed">Cerrar atención</button>'
+              : ""
+        : "";
     const cancelAction = ["submitted", "reviewing"].includes(t.status)
       ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>'
       : "";
     main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>La vigencia es de 24 horas desde su creación.</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "Eliminado o no disponible")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "Eliminado o no disponible")}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}<section class="ticket-chat"><div class="section-heading"><div><h2>Conversación del ticket</h2><p>Los comentarios se eliminan al vencer o cerrar el ticket. No escribas nombres, cuentas, contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section>`;
     $("#back").onclick = render;
+    if (t.amount > 50000) {
+      const section = document.createElement("section");
+      section.className = "processing-window";
+      section.setAttribute("aria-label", "Seguimiento de entrega");
+      $(".ticket-deadline").after(section);
+      const updateProcessing = () => {
+        const w = processingWindow(t);
+        const status =
+          w.status === "pending"
+            ? "Pendiente de confirmación del pago"
+            : w.status === "completed"
+              ? "Entrega confirmada"
+              : w.status === "overdue"
+                ? "Plazo estimado cumplido: pendiente de actualización"
+                : `${w.elapsed} de 6 días hábiles transcurridos`;
+        section.innerHTML = `<h2>Entrega estimada · 2 a 6 días hábiles</h2><strong>${esc(status)}</strong>${w.start ? `<progress max="6" value="${w.elapsed}" aria-label="Días hábiles transcurridos"></progress><p>Pago confirmado: ${dateTime(w.start)}.</p><p>Ventana estimada: ${dateTime(w.earliest)} a ${dateTime(w.latest)}.</p>${t.processing_completed_at ? `<p>Entrega confirmada: ${dateTime(t.processing_completed_at)}.</p>` : ""}` : "<p>El contador comienza cuando el administrador confirma el pago.</p>"}<small>Lunes a viernes, hora de Nicaragua, sin ajuste por feriados. Es una estimación, no una confirmación automática de entrega. Este seguimiento no prolonga las 24 horas del ticket ni la conservación de sus datos bancarios.</small>`;
+      };
+      updateProcessing();
+      processingTimer = setInterval(() => {
+        if (!section.isConnected) {
+          clearInterval(processingTimer);
+          return;
+        }
+        updateProcessing();
+      }, 60000);
+      const canStart =
+        !t.expired && t.status === "quoted" && !t.processing_started_at;
+      const canComplete =
+        t.processing_started_at &&
+        !t.processing_completed_at &&
+        t.status !== "cancelled";
+      if (me.admin && (canStart || canComplete)) {
+        const button = document.createElement("button");
+        button.className = "button primary";
+        button.id = "processing-action";
+        button.innerHTML = `${icon(canStart ? "check-circle" : "package-check")}${canStart ? "Confirmar pago e iniciar plazo" : "Confirmar entrega"}`;
+        $(".actions").append(button);
+        button.onclick = () => {
+          modal(
+            canStart ? "Confirmar pago" : "Confirmar entrega",
+            `<p>${canStart ? "Confirmá solo si verificaste el pago por su canal oficial. El plazo de 2 a 6 días hábiles empieza ahora y no se puede reiniciar." : "Confirmá solo si verificaste que la entrega se realizó. Esta acción finaliza el contador."}</p><button class="button primary" id="confirm-processing">${canStart ? "Pago verificado: iniciar plazo" : "Entrega verificada: finalizar"}</button><p class="form-error" id="processing-error" role="alert"></p>`,
+          );
+          $("#confirm-processing").onclick = async (event) => {
+            event.currentTarget.disabled = true;
+            try {
+              await api(`/api/admin/tickets/${id}/processing`, {
+                action: canStart ? "start" : "complete",
+                version: t.version,
+              });
+              $("#dialog").close();
+              await detail(id);
+            } catch (error) {
+              $("#processing-error").textContent = error.message;
+              $("#confirm-processing").disabled = false;
+            }
+          };
+        };
+      }
+    }
     if (t.canMessage) {
       const marker = main.firstElementChild;
       detailExpiry = setTimeout(
@@ -548,7 +624,7 @@ import CertificateModel from "./certificate.js";
           "Emitir cotización",
           form(
             "quote-form",
-            `${field("Comisión total en USD", "fee", "number", 'min="0" step="0.01"')}${field("Importe que recibiría en " + t.currency, "received", "number", 'min="0.01" step="0.01"')}${t.currency === "NIO" ? field("Tipo de cambio", "rate", "number", 'min="0.0001" step="0.0001"') : ""}${field("Plazo de referencia (horas)", "hours", "number", 'min="1" max="168"')}<label class="field">Vigencia<select name="validity"><option value="60">1 hora</option><option value="1440">24 horas</option></select></label>`,
+            `${field("Comisión total en USD", "fee", "number", 'min="0" step="0.01"')}${field("Importe que recibiría en " + t.currency, "received", "number", 'min="0.01" step="0.01"')}${t.currency === "NIO" ? field("Tipo de cambio", "rate", "number", 'min="0.0001" step="0.0001"') : ""}${t.amount > 50000 ? "<p>Plazo estimado: 2 a 6 días hábiles desde la confirmación del pago. Lunes a viernes, sin ajuste por feriados.</p>" : field("Plazo de referencia (horas)", "hours", "number", 'min="1" max="168"')}<label class="field">Vigencia<select name="validity"><option value="60">1 hora</option><option value="1440">24 horas</option></select></label>`,
             "Guardar cotización",
           ),
         );

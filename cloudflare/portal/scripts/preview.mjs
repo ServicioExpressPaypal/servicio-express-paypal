@@ -2,6 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import CertificateModel from "../public/certificate.js";
+import "../../../calculator-core.js";
 
 const port = Number(process.env.PORT || 8792);
 const origin = `http://127.0.0.1:${port}`;
@@ -11,6 +12,7 @@ const assets = new Set([
   "app.js",
   "app.css",
   "certificate.js",
+  "processing.js",
   "accounts.js",
   "portal.css",
   "lucide.min.js",
@@ -82,6 +84,7 @@ for (const file of [
   "0006_account_notices.sql",
   "0007_ticket_whatsapp.sql",
   "0008_privacy_security.sql",
+  "0009_ticket_processing.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),
@@ -225,6 +228,21 @@ await db.batch([
     )
     .bind(crypto.randomUUID(), customer.id, ticketId, "submitted", now),
 ]);
+const internationalEstimate = globalThis.SaldoCalculator.estimate(
+  60000,
+  "international",
+);
+await db
+  .prepare(
+    "INSERT INTO tickets(id,user_id,request_key,amount,mode,beneficiary_name,bank,bank_account,currency,terms_version,terms_accepted_at,estimate,status,created_at,updated_at,expires_at) SELECT ?,user_id,?,60000,'international',beneficiary_name,bank,bank_account,currency,terms_version,terms_accepted_at,?,'reviewing',created_at,updated_at,expires_at FROM tickets WHERE id=?",
+  )
+  .bind(
+    "SE-22222222-2222-4222-8222-222222222222",
+    crypto.randomUUID(),
+    JSON.stringify(internationalEstimate),
+    ticketId,
+  )
+  .run();
 console.log(`Vista local con datos ficticios: ${await mf.ready}`);
 console.log(
   "Cliente: cliente@example.test | Pendiente: pendiente@example.test | Administrador: admin@example.test",
