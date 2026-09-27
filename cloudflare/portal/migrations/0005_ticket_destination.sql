@@ -1,0 +1,4 @@
+ALTER TABLE tickets ADD COLUMN beneficiary_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE tickets ADD COLUMN bank_account TEXT NOT NULL DEFAULT '';
+ALTER TABLE tickets ADD COLUMN terms_version TEXT NOT NULL DEFAULT '';
+ALTER TABLE tickets ADD COLUMN terms_accepted_at INTEGER NOT NULL DEFAULT 0;

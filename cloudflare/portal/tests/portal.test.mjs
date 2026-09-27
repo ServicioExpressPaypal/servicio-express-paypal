@@ -42,6 +42,7 @@ async function setup(open = true, overrides = {}) {
     "0002_portal.sql",
     "0003_admin_setup.sql",
     "0004_ticket_chat.sql",
+    "0005_ticket_destination.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -136,6 +137,20 @@ function dossier() {
     version: CertificateModel.version,
   };
 }
+function ticket(overrides = {}) {
+  return {
+    amount: "164",
+    beneficiaryName: "Beneficiario de Prueba",
+    bank: "LAFISE",
+    bankAccount: "000987654321",
+    currency: "USD",
+    consent: true,
+    conditionsAccepted: true,
+    conditionsVersion: CertificateModel.ticketConditionsVersion,
+    requestKey: crypto.randomUUID(),
+    ...overrides,
+  };
+}
 test("certificate profile validates minimum data without accepting client-controlled verification", () => {
   const p = CertificateModel.validate(
     {
@@ -183,6 +198,25 @@ test("certificate profile validates minimum data without accepting client-contro
       ...dossier(),
       bankAccount: { value: "123456" },
     }),
+  );
+});
+test("ticket destination requires beneficiary, bank account and current conditions", () => {
+  const accepted = CertificateModel.validateTicket(ticket(), 456);
+  assert.equal(accepted.beneficiaryName, "Beneficiario de Prueba");
+  assert.equal(accepted.bankAccount, "000987654321");
+  assert.equal(accepted.termsVersion, CertificateModel.ticketConditionsVersion);
+  assert.equal(accepted.termsAcceptedAt, 456);
+  assert.throws(
+    () => CertificateModel.validateTicket(ticket({ bankAccount: "4111111111111111x" })),
+    /número de cuenta/,
+  );
+  assert.throws(
+    () => CertificateModel.validateTicket(ticket({ conditionsAccepted: false })),
+    /aceptar las condiciones/,
+  );
+  assert.throws(
+    () => CertificateModel.validateTicket(ticket({ conditionsVersion: "anterior" })),
+    /cambiaron/,
   );
 });
 test("maintenance mode hides assets and blocks every API", async () => {
@@ -446,14 +480,10 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       version,
     });
     assert.equal(r.status, 200, JSON.stringify(r.data));
-    const wrongDestination = await a.req("/api/tickets", {
-      amount: "100",
-      mode: "express",
-      bank: "BAC",
-      currency: "USD",
-      consent: true,
-      requestKey: crypto.randomUUID(),
-    });
+    const wrongDestination = await a.req(
+      "/api/tickets",
+      ticket({ bank: "Banco inexistente" }),
+    );
     assert.equal(wrongDestination.status, 400);
     assert.equal(
       (
@@ -466,17 +496,13 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       409,
     );
     const requestKey = crypto.randomUUID();
-    r = await a.req("/api/tickets", {
-      amount: "164",
+    r = await a.req("/api/tickets", ticket({
       mode: "international",
-      bank: "LAFISE",
-      currency: "USD",
-      consent: true,
       requestKey,
       estimate: { net: 999999 },
       user_id: b.id,
       status: "closed",
-    });
+    }));
     assert.equal(r.status, 201, JSON.stringify(r.data));
     const id = r.data.id;
     const persisted = await a.req("/api/tickets/" + id);
@@ -485,6 +511,13 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     assert.equal(persisted.data.mode, "express");
     assert.equal(persisted.data.estimate.amount, 16400);
     assert.equal(persisted.data.estimate.net, 14500);
+    assert.equal(persisted.data.beneficiary_name, "Beneficiario de Prueba");
+    assert.equal(persisted.data.bank_account, "000987654321");
+    assert.equal(
+      persisted.data.terms_version,
+      CertificateModel.ticketConditionsVersion,
+    );
+    assert.ok(persisted.data.terms_accepted_at >= persisted.data.created_at - 1000);
     assert.equal(
       persisted.data.expires_at - persisted.data.created_at,
       24 * 60 * 60 * 1000,
@@ -492,6 +525,8 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     assert.equal(persisted.data.expired, false);
     assert.equal(persisted.data.canMessage, true);
     assert.notEqual(persisted.data.estimate.net, 999999);
+    const ticketList = await a.req("/api/tickets");
+    assert.equal(ticketList.data[0].bank_account, undefined);
     assert.equal((await b.req("/api/tickets/" + id)).status, 404);
     assert.equal(
       (await b.req("/api/tickets/" + id, { action: "cancelled", version: 0 }))
@@ -537,24 +572,13 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       ).status,
       400,
     );
-    r = await a.req("/api/tickets", {
-      amount: "164",
-      mode: "express",
-      bank: "LAFISE",
-      currency: "USD",
-      consent: true,
-      requestKey,
-    });
+    r = await a.req("/api/tickets", ticket({ requestKey }));
     assert.equal(r.data.id, id);
     assert.equal((await a.req("/api/tickets")).data.length, 1);
-    r = await a.req("/api/tickets", {
-      amount: "600",
-      mode: "express",
-      bank: "LAFISE",
-      currency: "USD",
-      consent: true,
-      requestKey: crypto.randomUUID(),
-    });
+    r = await a.req(
+      "/api/tickets",
+      ticket({ amount: "600", mode: "express" }),
+    );
     assert.equal(r.status, 201, JSON.stringify(r.data));
     const internationalId = r.data.id;
     const international = await a.req("/api/tickets/" + internationalId);

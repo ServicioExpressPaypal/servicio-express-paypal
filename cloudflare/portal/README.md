@@ -19,14 +19,17 @@ Worker separado de GitHub Pages: https://portal.saldoexpressnicaragua.com
   del obsequio para un familiar o beneficiario en Nicaragua. El ticket sigue
   siendo una solicitud de cotizacion, no una compra ejecutada ni un instrumento
   de valor emitido.
-- Perfil minimo: nombre y telefono del beneficiario, banco, cuenta y moneda.
-  No se solicita ni admite numero de cedula. Sin fotos ni descripcion libre
-  del origen de fondos; declaracion
+- Perfil minimo actualmente revisado de forma manual. No se solicita ni admite
+  numero de cedula ni fotografias nuevas.
+- Cada ticket solicita nombre del beneficiario, banco, numero de cuenta y moneda,
+  y guarda la version y fecha de las condiciones aceptadas. Solo el propietario
+  del ticket y el administrador pueden consultar estos datos.
+- Sin descripcion libre del origen de fondos; declaracion
   simple de veracidad, autorizacion del beneficiario, titularidad de su cuenta y
   procedencia licita, no declaracion notarial. Un beneficiario y una cuenta a su
   nombre por solicitud.
 - Correo verificado y aprobacion administrativa obligatorios. Las correcciones
-  regresan a pendiente; banco/moneda del ticket deben coincidir con lo aprobado.
+  regresan a pendiente. Los datos de destino se validan nuevamente en cada ticket.
 - Calculadora compartida ejecutada tambien en el servidor; se conserva la
   estimacion original y se comprueba la coherencia de la cotizacion final.
   El servidor asigna automaticamente certificado hasta USD 500 y Metodo

@@ -64,7 +64,7 @@ test("terms describe automatic ticket modes without a commission table", () => {
   assert.match(terms, /cuenta de PayPal verificada/);
   assert.match(terms, /valor estimado del certificado/);
   assert.match(terms, /familiar u otro beneficiario designado en Nicaragua/);
-  assert.match(terms, /una sola\s+cuenta bancaria.*beneficiario/s);
+  assert.match(terms, /un solo familiar o beneficiario.*una sola cuenta/s);
   assert.match(terms, /vigencia de 24 horas/);
   assert.match(terms, /canal\s+oficial de WhatsApp/s);
   assert.match(terms, /nombre comercial no cambia/i);
@@ -80,4 +80,20 @@ test("ticket source includes the 24-hour conversation and WhatsApp handoff", () 
   assert.match(app, /vigencia de 24 horas/);
   assert.match(migration, /CREATE TABLE ticket_messages/);
   assert.match(migration, /86400000/);
+});
+
+test("each ticket records one beneficiary account and accepted conditions", () => {
+  const app = read("cloudflare/portal/public/app.js");
+  const certificate = read("cloudflare/portal/public/certificate.js");
+  const migration = read(
+    "cloudflare/portal/migrations/0005_ticket_destination.sql",
+  );
+  for (const field of ["beneficiaryName", "bankAccount", "bank", "currency"])
+    assert.match(app, new RegExp(`\\"${field}\\"`));
+  assert.match(certificate, /cuentas verificadas por PayPal/);
+  assert.match(certificate, /límite de USD 500 por ticket/);
+  assert.match(certificate, /No se aceptan solicitudes de personas menores/);
+  assert.match(migration, /beneficiary_name/);
+  assert.match(migration, /bank_account/);
+  assert.match(migration, /terms_accepted_at/);
 });

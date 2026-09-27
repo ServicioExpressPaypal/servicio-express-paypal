@@ -15,6 +15,45 @@
 .onboarding > p {
   margin-bottom: 18px;
 }
+.onboarding.ticket-create {
+  max-width: 680px;
+}
+.ticket-destination {
+  display: grid;
+  gap: 18px;
+  margin: 4px 0;
+  padding: 24px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.ticket-destination legend {
+  padding: 0 12px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.ticket-conditions {
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.ticket-conditions h2 {
+  margin-bottom: 12px;
+  font-size: 16px;
+}
+.ticket-conditions ul {
+  display: grid;
+  gap: 9px;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
 .auth-tabs {
   display: flex;
   gap: 20px;
@@ -262,6 +301,10 @@
 .data-grid p {
   overflow-wrap: anywhere;
 }
+.ticket-data .account-number {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
 input,
 select,
 textarea {
@@ -295,6 +338,9 @@ textarea {
   }
   .chat-form .button {
     width: 100%;
+  }
+  .field-pair {
+    grid-template-columns: 1fr;
   }
   .onboarding {
     padding-top: 16px;

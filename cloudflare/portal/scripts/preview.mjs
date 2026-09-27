@@ -1,6 +1,7 @@
 // Isolated, in-memory preview. Never loads production credentials or sends mail.
 import { readFile } from "node:fs/promises";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
+import CertificateModel from "../public/certificate.js";
 
 const port = Number(process.env.PORT || 8792);
 const origin = `http://127.0.0.1:${port}`;
@@ -70,6 +71,7 @@ for (const file of [
   "0002_portal.sql",
   "0003_admin_setup.sql",
   "0004_ticket_chat.sql",
+  "0005_ticket_destination.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),
@@ -147,7 +149,7 @@ await db.batch([
     ),
   db
     .prepare(
-      "INSERT INTO tickets(id,user_id,request_key,amount,mode,bank,currency,estimate,status,created_at,updated_at,expires_at) VALUES(?,?,?,?,?,?,?,?,'reviewing',?,?,?)",
+      "INSERT INTO tickets(id,user_id,request_key,amount,mode,beneficiary_name,bank,bank_account,currency,terms_version,terms_accepted_at,estimate,status,created_at,updated_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'reviewing',?,?,?)",
     )
     .bind(
       ticketId,
@@ -155,8 +157,12 @@ await db.batch([
       crypto.randomUUID(),
       estimate.amount,
       estimate.mode,
+      "Familiar de Prueba",
       "LAFISE",
+      "000123456789",
       "USD",
+      CertificateModel.ticketConditionsVersion,
+      now,
       JSON.stringify(estimate),
       now,
       now,

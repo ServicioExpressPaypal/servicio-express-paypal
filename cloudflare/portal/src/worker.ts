@@ -23,8 +23,12 @@ type Ticket = {
   user_id: string;
   amount: number;
   mode: string;
+  beneficiary_name: string;
   bank: string;
+  bank_account: string;
   currency: string;
+  terms_version: string;
+  terms_accepted_at: number;
   estimate: string;
   status: string;
   quote: string | null;
@@ -168,10 +172,16 @@ async function profileFor(env: Env, id: string) {
 function isTicketExpired(t: Ticket, now = Date.now()) {
   return t.expires_at <= now;
 }
-function publicTicket(t: Ticket, now = Date.now()) {
+function publicTicket(
+  t: Ticket,
+  now = Date.now(),
+  includeBankAccount = false,
+) {
   const expired = isTicketExpired(t, now);
+  const { bank_account, ...safeTicket } = t;
   return {
-    ...t,
+    ...safeTicket,
+    ...(includeBankAccount ? { bank_account } : {}),
     status:
       expired && !finalTicketStatuses.has(t.status) ? "expired" : t.status,
     expired,
@@ -407,7 +417,7 @@ async function handle(
     )
       .bind(user.id)
       .all<Ticket>();
-    return json(rows.results.map(publicTicket));
+    return json(rows.results.map((ticket) => publicTicket(ticket)));
   }
   if (path === "/api/tickets" && request.method === "POST") {
     if (profile.status !== "active")
@@ -429,33 +439,31 @@ async function handle(
     } catch (e) {
       return fail(400, (e as Error).message);
     }
-    if (
-      ![...CertificateModel.banks, "Otro"].includes(body.bank) ||
-      !["USD", "NIO"].includes(body.currency) ||
-      body.consent !== true
-    )
-      fail(400, "Revisa el banco, la moneda y el consentimiento.");
-    const approved = profile.dossier ? JSON.parse(profile.dossier) : null;
-    if (
-      approved?.kind === "cash-certificate" &&
-      (body.bank !== approved.bank || body.currency !== approved.currency)
-    )
-      fail(400, "Usa el banco y la moneda de la cuenta aprobada.");
+    let destination;
+    try {
+      destination = CertificateModel.validateTicket(body);
+    } catch (e) {
+      return fail(400, (e as Error).message);
+    }
     const id = `SE-${crypto.randomUUID().toUpperCase()}`,
       now = Date.now(),
       expiresAt = now + TICKET_TTL_MS;
     try {
       await env.DB.batch([
         env.DB.prepare(
-          "INSERT INTO tickets(id,user_id,request_key,amount,mode,bank,currency,estimate,created_at,updated_at,expires_at) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM profiles WHERE user_id=? AND status='active' AND version=?)",
+          "INSERT INTO tickets(id,user_id,request_key,amount,mode,beneficiary_name,bank,bank_account,currency,terms_version,terms_accepted_at,estimate,created_at,updated_at,expires_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM profiles WHERE user_id=? AND status='active' AND version=?)",
         ).bind(
           id,
           user.id,
           body.requestKey,
           estimate.amount,
           estimate.mode,
-          body.bank,
-          body.currency,
+          destination.beneficiaryName,
+          destination.bank,
+          destination.bankAccount,
+          destination.currency,
+          destination.termsVersion,
+          destination.termsAcceptedAt,
           JSON.stringify(estimate),
           now,
           now,
@@ -582,7 +590,7 @@ async function handle(
     const rows = await env.DB.prepare(
       "SELECT t.*,p.full_name,u.email FROM tickets t JOIN profiles p ON p.user_id=t.user_id JOIN user u ON u.id=t.user_id ORDER BY t.updated_at DESC LIMIT 100",
     ).all<Ticket>();
-    return json(rows.results.map(publicTicket));
+    return json(rows.results.map((ticket) => publicTicket(ticket)));
   }
   const messageMatch = path.match(
     /^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)\/messages$/,
@@ -649,7 +657,7 @@ async function handle(
           .all<TicketMessage>(),
       ]);
       return json({
-        ...publicTicket(target!),
+        ...publicTicket(target!, Date.now(), true),
         events: events.results,
         messages: messages.results,
       });
