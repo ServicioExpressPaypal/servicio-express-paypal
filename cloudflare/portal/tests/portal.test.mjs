@@ -9,6 +9,7 @@ const origin = "https://portal.example.test";
 async function setup(open = true, overrides = {}) {
   const emails = [];
   const whatsapp = [];
+  const assetRequests = [];
   const mf = new Miniflare(
     convertV4MiniflareOptions({
       modules: true,
@@ -17,7 +18,12 @@ async function setup(open = true, overrides = {}) {
       compatibilityFlags: ["nodejs_compat"],
       d1Databases: ["DB"],
       r2Buckets: ["DOCUMENTS"],
-      serviceBindings: { ASSETS: () => new Response("asset") },
+      serviceBindings: {
+        ASSETS: (request) => {
+          assetRequests.push(new URL(request.url).pathname);
+          return new Response("asset");
+        },
+      },
       bindings: {
         APP_URL: origin,
         BETTER_AUTH_SECRET: "test-only-secret-at-least-32-characters-long",
@@ -141,7 +147,7 @@ async function setup(open = true, overrides = {}) {
     assert.equal(me.status, 200, JSON.stringify(me.data));
     return { req, id: me.data.user.id, password };
   }
-  return { mf, db, emails, whatsapp, client, registered };
+  return { mf, db, emails, whatsapp, assetRequests, client, registered };
 }
 function dossier() {
   return {
@@ -250,6 +256,7 @@ test("maintenance mode hides assets and blocks every API", async () => {
   try {
     const req = s.client();
     assert.equal((await req("/")).status, 200);
+    assert.equal(s.assetRequests.at(-1), "/index.html");
     assert.equal((await req("/app.js")).data, "asset");
     assert.equal((await req("/api/config")).status, 503);
     assert.equal((await req("/api/health")).status, 503);
@@ -262,6 +269,8 @@ test("closed deployment rejects registration, anonymous access and cross-origin 
   const s = await setup(false);
   try {
     const req = s.client();
+    assert.equal((await req("/")).status, 200);
+    assert.equal(s.assetRequests.at(-1), "/app-shell.html");
     assert.equal((await req("/api/health")).status, 200);
     assert.equal((await req("/api/config")).data.registrationOpen, false);
     assert.equal((await req("/api/auth/sign-up/email", {})).status, 503);

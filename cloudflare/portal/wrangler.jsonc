@@ -29,7 +29,7 @@
   ],
   "vars": {
     "APP_URL": "https://portal.saldoexpressnicaragua.com",
-    "MAINTENANCE_MODE": "true",
+    "MAINTENANCE_MODE": "false",
     "REGISTRATION_OPEN": "false",
     "ADMIN_SETUP_OPEN": "false",
     "ADMIN_REQUIRE_MFA": "false",

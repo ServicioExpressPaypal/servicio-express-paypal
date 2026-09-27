@@ -386,7 +386,20 @@ async function handle(
       kycOpen: env.KYC_OPEN === "true",
       whatsappEnabled: env.WHATSAPP_PROVIDER === "meta",
     });
-  if (!path.startsWith("/api/")) return env.ASSETS.fetch(request);
+  if (!path.startsWith("/api/")) {
+    if (request.method !== "GET" && request.method !== "HEAD")
+      fail(405, "Método no permitido.");
+    if (path === "/" || path === "/index.html") {
+      const appUrl = new URL("/app-shell.html", request.url);
+      return env.ASSETS.fetch(
+        new Request(appUrl, {
+          method: request.method,
+          headers: request.headers,
+        }),
+      );
+    }
+    return env.ASSETS.fetch(request);
+  }
   if (path === "/api/setup/request" || path === "/api/setup/complete") {
     if (request.method !== "POST") fail(405, "Método no permitido.");
     if (!setupEnabled(env))
