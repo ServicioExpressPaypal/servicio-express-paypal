@@ -35,6 +35,13 @@ Worker separado de GitHub Pages: https://portal.saldoexpressnicaragua.com
 - Aislamiento por propietario, validacion de origen, limites de solicitudes,
   tamano de solicitudes, idempotencia y control de versiones.
 - Cambios de expediente/ticket e historial en transacciones D1.
+- Cada ticket vence 24 horas despues de su creacion. La API calcula el estado
+  vencido, bloquea acciones y comentarios posteriores, y conserva el expediente
+  como historial.
+- Conversacion persistente por ticket entre cliente y administrador. Los mensajes
+  tienen limite de 1,000 caracteres, control de acceso por propietario y no se
+  duplican en el detalle de auditoria. La compra y el pago se coordinan fuera del
+  portal mediante WhatsApp, usando solo el ID del ticket como referencia.
 - Avisos al operador solo con ID de ticket. Reintentos cada 15 minutos, hasta
   cinco fallos. Nunca se adjuntan documentos ni datos bancarios.
 - No hay pagos, facturas PayPal ni operaciones financieras automaticas.
@@ -89,7 +96,8 @@ documentos reales en el estado actual.
 efimeros; no usa secretos reales y todo correo se intercepta sin enviarlo.
 Las cuentas `cliente@example.test` y `admin@example.test` usan la clave
 exclusiva de prueba `SoloPruebas-2026!`; sus correos se marcan verificados
-solo en esta base local. El cliente empieza sin expediente ni activacion.
+solo en esta base local. El cliente incluye un perfil activo y un ticket ficticio
+con conversacion para revisar la interfaz sin introducir datos reales.
 Nunca ejecutar este servidor en una interfaz publica ni introducir datos reales.
 El registro, la verificacion real por correo y el cierre en produccion se prueban
 por separado con `npm test`. Puede cambiarse el puerto con `PORT=8793 npm run preview`.

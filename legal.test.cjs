@@ -65,7 +65,19 @@ test("terms describe automatic ticket modes without a commission table", () => {
   assert.match(terms, /valor estimado del certificado/);
   assert.match(terms, /familiar u otro beneficiario designado en Nicaragua/);
   assert.match(terms, /una sola\s+cuenta bancaria.*beneficiario/s);
+  assert.match(terms, /vigencia de 24 horas/);
+  assert.match(terms, /canal\s+oficial de WhatsApp/s);
   assert.match(terms, /nombre comercial no cambia/i);
   assert.match(terms, /Banco Central de Nicaragua/);
   assert.doesNotMatch(terms, /<table/i);
+});
+
+test("ticket source includes the 24-hour conversation and WhatsApp handoff", () => {
+  const app = read("cloudflare/portal/public/app.js");
+  const migration = read("cloudflare/portal/migrations/0004_ticket_chat.sql");
+  assert.match(app, /Conversación del ticket/);
+  assert.match(app, /wa\.me\/50586199889/);
+  assert.match(app, /vigencia de 24 horas/);
+  assert.match(migration, /CREATE TABLE ticket_messages/);
+  assert.match(migration, /86400000/);
 });

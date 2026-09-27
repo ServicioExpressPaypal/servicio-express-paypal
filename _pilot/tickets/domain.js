@@ -18,6 +18,8 @@
   }
   function quote(ticket, { received, fee, rate, hours, validity }, now = Date.now()) {
     if (ticket.status !== "reviewing") throw new Error("Abre la revisión antes de cotizar.");
+    const ticketDeadline = Number(ticket.expiresAt);
+    if (Number.isFinite(ticketDeadline) && ticketDeadline <= now) throw new Error("El ticket venció. Crea una solicitud nueva.");
     const net = cents(received);
     const cost = String(fee) === "0" || String(fee) === "0.00" ? 0 : cents(fee);
     if (cost >= ticket.amount) throw new Error("La comisión debe ser menor que el monto solicitado.");
@@ -27,7 +29,8 @@
     if (ticket.currency === "NIO" && (!Number.isFinite(fx) || fx <= 0 || fx > 1000)) throw new Error("Ingresa un tipo de cambio válido.");
     if (ticket.currency === "USD" && net !== ticket.amount - cost) throw new Error("El neto debe coincidir con el monto menos la comisión total.");
     if (ticket.currency === "NIO" && Math.abs(net - Math.round((ticket.amount - cost) * fx)) > 1) throw new Error("Revisa el neto: debe coincidir con monto menos comisión, por tipo de cambio.");
-    ticket.quote = { received: net, fee: cost, rate: ticket.currency === "USD" ? 1 : fx, hours: Number(hours), expiresAt: now + Number(validity) * 60000, createdAt: now };
+    const requestedExpiry = now + Number(validity) * 60000;
+    ticket.quote = { received: net, fee: cost, rate: ticket.currency === "USD" ? 1 : fx, hours: Number(hours), expiresAt: Number.isFinite(ticketDeadline) ? Math.min(requestedExpiry, ticketDeadline) : requestedExpiry, createdAt: now };
     transition(ticket, "quoted", now);
     return ticket.quote;
   }

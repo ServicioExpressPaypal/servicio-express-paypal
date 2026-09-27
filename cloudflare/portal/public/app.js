@@ -27,9 +27,17 @@ import CertificateModel from "./certificate.js";
     quoted: "Cotizada",
     closed: "Cerrada",
     cancelled: "Cancelada",
+    expired: "Vencida",
   };
   const methodLabel = (mode) =>
     mode === "express" ? "Certificado en efectivo" : "Método internacional";
+  const dateTime = (value) =>
+    new Intl.DateTimeFormat("es-NI", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  const expiryText = (ticket) =>
+    ticket.expired ? "Venció " + dateTime(ticket.expires_at) : "Vence " + dateTime(ticket.expires_at);
   let me,
     config,
     view = "tickets",
@@ -317,7 +325,7 @@ import CertificateModel from "./certificate.js";
   }
   async function tickets() {
     const rows = await api(me.admin ? "/api/admin/tickets" : "/api/tickets");
-    main.innerHTML = `<div class="heading"><h1>${me.admin ? "Solicitudes" : "Mis solicitudes"}</h1>${!me.admin ? `<button class="button primary" id="new-ticket">${icon("plus")}Nueva solicitud</button>` : ""}</div><div class="ticket-list">${rows.length ? rows.map((t) => `<button class="ticket-row" data-ticket="${t.id}"><span><strong>${money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>Valor estimado · Monto base ${money(t.amount)}</small><small>${esc(t.full_name || t.bank)} · ${new Date(t.created_at).toLocaleDateString("es-NI")}</small><small class="ticket-id">${esc(t.id)}</small></span><span class="badge ${t.status}">${labels[t.status]}</span></button>`).join("") : '<p class="empty">Todavía no hay solicitudes.</p>'}</div>`;
+    main.innerHTML = `<div class="heading"><h1>${me.admin ? "Solicitudes" : "Mis solicitudes"}</h1>${!me.admin ? `<button class="button primary" id="new-ticket">${icon("plus")}Nueva solicitud</button>` : ""}</div><div class="ticket-list">${rows.length ? rows.map((t) => `<button class="ticket-row" data-ticket="${t.id}"><span><strong>${money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>Valor estimado · Monto base ${money(t.amount)}</small><small>${esc(t.full_name || t.bank)} · ${new Date(t.created_at).toLocaleDateString("es-NI")}</small><small class="ticket-expiry">${esc(expiryText(t))}</small><small class="ticket-id">${esc(t.id)}</small></span><span class="badge ${t.status}">${labels[t.status]}</span></button>`).join("") : '<p class="empty">Todavía no hay solicitudes.</p>'}</div>`;
     if (!me.admin)
       $(".heading").insertAdjacentHTML(
         "afterend",
@@ -339,7 +347,7 @@ import CertificateModel from "./certificate.js";
     const destination = approvedBank
       ? `<p>Cuenta aprobada: ${esc(approvedBank)} · ${esc(approvedCurrency)}</p><input type="hidden" name="bank" value="${esc(approvedBank)}"><input type="hidden" name="currency" value="${esc(approvedCurrency)}">`
       : `<label class="field">Banco<select name="bank">${CertificateModel.banks.map((b) => `<option>${esc(b)}</option>`).join("")}</select></label><label class="field">Moneda de destino<select name="currency"><option value="USD">Dólares</option><option value="NIO">Córdobas</option></select></label>`;
-    main.innerHTML = `<div class="onboarding"><h1>${esc(CertificateModel.title)}</h1><p>${esc(CertificateModel.description)}</p>${form("ticket", `${field("Monto disponible para la compra (USD)", "amount", "number", 'min="25" max="3000" step="0.01"')}<p class="field-hint">Hasta $500 se procesa como certificado. Un monto mayor cambia automáticamente a Método internacional.</p>${destination}<div class="estimate" id="estimate">Ingresa el monto para calcular el valor del certificado.</div><label class="check"><input name="consent" type="checkbox" required>Solicito una cotización no vinculante. Crear el ticket no confirma un pago ni un depósito. El valor mostrado descuenta las comisiones estimadas y está sujeto a revisión.</label>`, "Crear ticket de solicitud")}<button class="text-button" id="back">Volver</button></div>`;
+    main.innerHTML = `<div class="onboarding"><h1>${esc(CertificateModel.title)}</h1><p>${esc(CertificateModel.description)}</p><p class="notice">El ticket tendrá una vigencia de 24 horas. La compra y el pago se coordinarán fuera del portal por WhatsApp.</p>${form("ticket", `${field("Monto disponible para la compra (USD)", "amount", "number", 'min="25" max="3000" step="0.01"')}<p class="field-hint">Hasta $500 se procesa como certificado. Un monto mayor cambia automáticamente a Método internacional.</p>${destination}<div class="estimate" id="estimate">Ingresa el monto para calcular el valor del certificado.</div><label class="check"><input name="consent" type="checkbox" required>Solicito una cotización no vinculante y entiendo que el ticket vence en 24 horas. Crear el ticket no confirma una compra, un pago ni un depósito.</label>`, "Crear ticket de solicitud")}<button class="text-button" id="back">Volver</button></div>`;
     $("#ticket").oninput = () => {
       const f = new FormData($("#ticket"));
       try {
@@ -368,7 +376,41 @@ import CertificateModel from "./certificate.js";
   async function detail(id) {
     const base = me.admin ? "/api/admin/tickets/" : "/api/tickets/";
     const t = await api(base + id);
-    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="data-grid"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Banco de destino</small><p>${esc(t.bank)} · ${t.currency}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${new Date(t.quote.expiresAt).toLocaleString("es-NI")}.</p></div>` : ""}<div class="actions">${me.admin ? (t.status === "submitted" ? '<button class="button primary" data-action="reviewing">Iniciar revisión</button>' : t.status === "reviewing" ? '<button class="button primary" id="quote">Emitir cotización</button>' : t.status === "quoted" ? '<button class="button" data-action="closed">Cerrar atención</button>' : "") : ""}${["submitted", "reviewing"].includes(t.status) ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>' : ""}</div><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${new Date(e.created_at).toLocaleString("es-NI")}</small></li>`).join("")}</ol>`;
+    const messages = t.messages || [];
+    const messageList = messages.length
+      ? messages
+          .map((message) => {
+            const own = me.admin
+              ? message.author_role === "admin"
+              : message.author_role === "customer";
+            const author = own
+              ? "Tú"
+              : message.author_role === "admin"
+                ? "Saldo Express"
+                : "Cliente";
+            return `<article class="chat-message ${own ? "own" : ""}"><div><strong>${author}</strong><time datetime="${new Date(message.created_at).toISOString()}">${dateTime(message.created_at)}</time></div><p>${esc(message.body)}</p></article>`;
+          })
+          .join("")
+      : '<p class="chat-empty">Todavía no hay comentarios en este ticket.</p>';
+    const messageForm = t.canMessage
+      ? `<form id="message-form" class="chat-form"><label for="ticket-message">Nuevo comentario</label><textarea id="ticket-message" name="message" required maxlength="1000" rows="3" placeholder="Escribe un comentario sobre este ticket"></textarea><div><small>Máximo 1,000 caracteres.</small><button class="button primary" type="submit">${icon("send")}Enviar</button></div><p class="form-error" role="alert"></p></form>`
+      : '<p class="notice">La conversación está cerrada porque el ticket venció o finalizó.</p>';
+    const whatsapp = !me.admin && t.canMessage
+      ? `<section class="external-purchase"><div><h2>Continuar por WhatsApp</h2><p>La compra y el pago se coordinan fuera de esta plataforma. El mensaje incluirá únicamente la referencia del ticket.</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(`Hola, quiero continuar la compra relacionada con el ticket ${t.id}.`)}" target="_blank" rel="noopener">${icon("message-circle")}Abrir WhatsApp</a></section>`
+      : "";
+    const adminActions = me.admin
+      ? t.status === "submitted"
+        ? '<button class="button primary" data-action="reviewing">Iniciar revisión</button>'
+        : t.status === "reviewing"
+          ? '<button class="button primary" id="quote">Emitir cotización</button>'
+          : t.status === "quoted"
+            ? '<button class="button" data-action="closed">Cerrar atención</button>'
+            : ""
+      : "";
+    const cancelAction = ["submitted", "reviewing"].includes(t.status)
+      ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>'
+      : "";
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>La vigencia es de 24 horas desde su creación.</small></div><div class="data-grid"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Banco de destino</small><p>${esc(t.bank)} · ${t.currency}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}<section class="ticket-chat"><div class="section-heading"><div><h2>Conversación del ticket</h2><p>Usa este espacio para comentarios sobre la solicitud. No compartas contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section>`;
     $("#back").onclick = render;
     document.querySelectorAll("[data-action]").forEach(
       (b) =>
@@ -386,6 +428,11 @@ import CertificateModel from "./certificate.js";
           }
         }),
     );
+    if ($("#message-form"))
+      bind("message-form", async (f) => {
+        await api(base + id + "/messages", { message: f.get("message") });
+        await detail(id);
+      });
     if ($("#quote"))
       $("#quote").onclick = () => {
         modal(

@@ -17,6 +17,12 @@ test('la cotización valida la comisión, calcula vigencia y nunca confirma un p
   assert.equal(t.quote.received,9000);assert.equal(t.events.length,2);
   assert.throws(() => M.transition(t,'paid'));
 });
+test('la cotización nunca supera la vigencia de 24 horas del ticket', () => {
+  const t={...ticket(),expiresAt:5000};M.transition(t,'reviewing',1000);M.quote(t,{...quote,validity:1440},2000);
+  assert.equal(t.quote.expiresAt,5000);
+  const expired={...ticket(),expiresAt:1000};M.transition(expired,'reviewing',500);
+  assert.throws(() => M.quote(expired,quote,1000),/venció/);
+});
 test('no acepta un neto o tipo de cambio que no corresponden', () => {
   const t=ticket();M.transition(t,'reviewing');
   assert.throws(() => M.quote(t,{...quote,received:'91'}));

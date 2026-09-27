@@ -6,6 +6,7 @@ const port = Number(process.env.PORT || 8792);
 const origin = `http://127.0.0.1:${port}`;
 const assets = new Set([
   "index.html",
+  "app-shell.html",
   "app.js",
   "app.css",
   "certificate.js",
@@ -46,7 +47,7 @@ const mf = new Miniflare(
     serviceBindings: {
       ASSETS: async (request) => {
         const path = new URL(request.url).pathname;
-        const name = path === "/" ? "index.html" : path.slice(1);
+        const name = path === "/" ? "app-shell.html" : path.slice(1);
         if (!assets.has(name))
           return new Response("Not found", { status: 404 });
         return new Response(
@@ -68,6 +69,7 @@ for (const file of [
   "0001_auth.sql",
   "0002_portal.sql",
   "0003_admin_setup.sql",
+  "0004_ticket_chat.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),
@@ -106,6 +108,90 @@ for (const [email, name] of [
     .bind(email)
     .run();
 }
+const customer = await db
+    .prepare("SELECT id FROM user WHERE email='cliente@example.test'")
+    .first(),
+  admin = await db
+    .prepare("SELECT id FROM user WHERE email='admin@example.test'")
+    .first(),
+  ticketId = "SE-11111111-1111-4111-8111-111111111111",
+  now = Date.now(),
+  estimate = {
+    version: "site-2026-09-23",
+    amount: 16400,
+    mode: "express",
+    paypal: 916,
+    delivery: 492,
+    service: 492,
+    total: 1900,
+    net: 14500,
+    currency: "USD",
+  };
+await db.batch([
+  db
+    .prepare(
+      "INSERT INTO profiles(user_id,status,full_name,dossier,updated_at) VALUES(?,'active',?,?,?) ON CONFLICT(user_id) DO UPDATE SET status='active',full_name=excluded.full_name,dossier=excluded.dossier,updated_at=excluded.updated_at",
+    )
+    .bind(
+      customer.id,
+      "Familiar de Prueba",
+      JSON.stringify({
+        kind: "cash-certificate",
+        name: "Familiar de Prueba",
+        bank: "LAFISE",
+        bankAccount: "000123456789",
+        currency: "USD",
+        phone: "+50588888888",
+      }),
+      now,
+    ),
+  db
+    .prepare(
+      "INSERT INTO tickets(id,user_id,request_key,amount,mode,bank,currency,estimate,status,created_at,updated_at,expires_at) VALUES(?,?,?,?,?,?,?,?,'reviewing',?,?,?)",
+    )
+    .bind(
+      ticketId,
+      customer.id,
+      crypto.randomUUID(),
+      estimate.amount,
+      estimate.mode,
+      "LAFISE",
+      "USD",
+      JSON.stringify(estimate),
+      now,
+      now,
+      now + 86400000,
+    ),
+  db
+    .prepare(
+      "INSERT INTO ticket_messages(id,ticket_id,author_id,author_role,body,created_at) VALUES(?,?,?,?,?,?)",
+    )
+    .bind(
+      crypto.randomUUID(),
+      ticketId,
+      customer.id,
+      "customer",
+      "¿Puedo confirmar aquí el banco del beneficiario?",
+      now + 1000,
+    ),
+  db
+    .prepare(
+      "INSERT INTO ticket_messages(id,ticket_id,author_id,author_role,body,created_at) VALUES(?,?,?,?,?,?)",
+    )
+    .bind(
+      crypto.randomUUID(),
+      ticketId,
+      admin.id,
+      "admin",
+      "Sí. Cuando todo esté revisado, continuaremos la compra por WhatsApp.",
+      now + 2000,
+    ),
+  db
+    .prepare(
+      "INSERT INTO audit_events(id,actor_id,target_id,action,created_at) VALUES(?,?,?,?,?)",
+    )
+    .bind(crypto.randomUUID(), customer.id, ticketId, "submitted", now),
+]);
 console.log(`Vista local con datos ficticios: ${await mf.ready}`);
 console.log(
   "Cliente: cliente@example.test | Administrador: admin@example.test",

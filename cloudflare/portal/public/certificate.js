@@ -1,9 +1,9 @@
 export default (function () {
   "use strict";
-  const version = "certificado-efectivo-2026-09-26-v6";
+  const version = "certificado-efectivo-2026-09-26-v7";
   const title = "Certificado de regalo en efectivo";
   const description =
-    "Solicitud prevista de un Certificado de regalo en efectivo para obsequiar a un familiar o beneficiario en Nicaragua. Su valor se calcula automáticamente. El producto no está disponible; una eventual entrega requeriría revisión, cotización y confirmación previa.";
+    "Solicitud prevista de un Certificado de regalo en efectivo para obsequiar a un familiar o beneficiario en Nicaragua. Cada ticket tiene una vigencia de 24 horas y permite comentarios entre el cliente y el administrador. La compra y el pago se coordinan fuera del portal por WhatsApp. El producto no está disponible.";
   const banks = ["LAFISE", "BDF", "Banpro", "BAC", "Ficohsa", "Avanz"];
   const declaration =
     "Declaro que los datos son verdaderos, que el familiar o beneficiario me autorizó a proporcionarlos, que la cuenta bancaria indicada le pertenece y que los fondos relacionados con mi solicitud tienen procedencia lícita. Esta declaración no sustituye la verificación que corresponda.";
@@ -16,6 +16,10 @@ export default (function () {
     [
       "Cuenta y revisión",
       "Se requiere verificar el correo y obtener aprobación manual. Cada solicitud admite un solo familiar o beneficiario en Nicaragua y una sola cuenta bancaria a su nombre. La activación permite solicitar cotizaciones; no certifica cumplimiento legal ni autoriza por sí sola una operación.",
+    ],
+    [
+      "Ticket y conversación",
+      "Cada ticket vence 24 horas después de su creación. Durante su vigencia, el cliente y el administrador pueden intercambiar comentarios relacionados con la solicitud. Los mensajes no confirman una compra, un pago ni un depósito. La eventual compra se coordina fuera del portal mediante el canal oficial de WhatsApp.",
     ],
     [
       "Datos recopilados",

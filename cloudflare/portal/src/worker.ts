@@ -30,7 +30,19 @@ type Ticket = {
   quote: string | null;
   version: number;
   created_at: number;
+  updated_at: number;
+  expires_at: number;
 };
+type TicketMessage = {
+  id: string;
+  ticket_id: string;
+  author_id: string;
+  author_role: "customer" | "admin";
+  body: string;
+  created_at: number;
+};
+const TICKET_TTL_MS = 24 * 60 * 60 * 1000;
+const finalTicketStatuses = new Set(["closed", "cancelled"]);
 class HttpError extends Error {
   constructor(
     public status: number,
@@ -153,12 +165,29 @@ async function profileFor(env: Env, id: string) {
     .bind(id)
     .first<Profile>())!;
 }
-function publicTicket(t: Ticket) {
+function isTicketExpired(t: Ticket, now = Date.now()) {
+  return t.expires_at <= now;
+}
+function publicTicket(t: Ticket, now = Date.now()) {
+  const expired = isTicketExpired(t, now);
   return {
     ...t,
+    status:
+      expired && !finalTicketStatuses.has(t.status) ? "expired" : t.status,
+    expired,
+    canMessage: !expired && !finalTicketStatuses.has(t.status),
     estimate: JSON.parse(t.estimate),
     quote: t.quote ? JSON.parse(t.quote) : null,
   };
+}
+function messageBody(value: unknown) {
+  if (typeof value !== "string") return fail(400, "Escribe un mensaje.");
+  const text = value.replace(/\r\n?/g, "\n").trim();
+  if (!text || text.length > 1000)
+    fail(400, "El mensaje debe contener entre 1 y 1,000 caracteres.");
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text))
+    fail(400, "El mensaje contiene caracteres no admitidos.");
+  return text;
 }
 async function notify(env: Env, ticketId: string) {
   if (env.EMAIL_PROVIDER === "disabled" || !env.ADMIN_EMAIL) return;
@@ -374,7 +403,7 @@ async function handle(
   }
   if (path === "/api/tickets" && request.method === "GET") {
     const rows = await env.DB.prepare(
-      "SELECT * FROM tickets WHERE user_id=? ORDER BY created_at DESC LIMIT 100",
+      "SELECT * FROM tickets WHERE user_id=? ORDER BY updated_at DESC LIMIT 100",
     )
       .bind(user.id)
       .all<Ticket>();
@@ -413,11 +442,12 @@ async function handle(
     )
       fail(400, "Usa el banco y la moneda de la cuenta aprobada.");
     const id = `SE-${crypto.randomUUID().toUpperCase()}`,
-      now = Date.now();
+      now = Date.now(),
+      expiresAt = now + TICKET_TTL_MS;
     try {
       await env.DB.batch([
         env.DB.prepare(
-          "INSERT INTO tickets(id,user_id,request_key,amount,mode,bank,currency,estimate,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM profiles WHERE user_id=? AND status='active' AND version=?)",
+          "INSERT INTO tickets(id,user_id,request_key,amount,mode,bank,currency,estimate,created_at,updated_at,expires_at) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM profiles WHERE user_id=? AND status='active' AND version=?)",
         ).bind(
           id,
           user.id,
@@ -429,6 +459,7 @@ async function handle(
           JSON.stringify(estimate),
           now,
           now,
+          expiresAt,
           user.id,
           profile.version,
         ),
@@ -549,9 +580,53 @@ async function handle(
   }
   if (path === "/api/admin/tickets" && request.method === "GET") {
     const rows = await env.DB.prepare(
-      "SELECT t.*,p.full_name,u.email FROM tickets t JOIN profiles p ON p.user_id=t.user_id JOIN user u ON u.id=t.user_id ORDER BY t.created_at DESC LIMIT 100",
+      "SELECT t.*,p.full_name,u.email FROM tickets t JOIN profiles p ON p.user_id=t.user_id JOIN user u ON u.id=t.user_id ORDER BY t.updated_at DESC LIMIT 100",
     ).all<Ticket>();
     return json(rows.results.map(publicTicket));
+  }
+  const messageMatch = path.match(
+    /^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)\/messages$/,
+  );
+  if (messageMatch) {
+    if (request.method !== "POST") fail(405, "Método no permitido.");
+    const target = await env.DB.prepare("SELECT * FROM tickets WHERE id=?")
+      .bind(messageMatch[2])
+      .first<Ticket>();
+    if (!target || (!messageMatch[1] && target.user_id !== user.id))
+      fail(404, "Solicitud no encontrada.");
+    if (
+      isTicketExpired(target!) ||
+      finalTicketStatuses.has(target!.status)
+    )
+      fail(409, "La conversación de este ticket ya está cerrada.");
+    await rate(env, `messages:${user.id}:${target!.id}`, 30, 3600);
+    const body = await payload(request),
+      message = messageBody(body.message),
+      id = crypto.randomUUID(),
+      now = Date.now(),
+      role = messageMatch[1] ? "admin" : "customer";
+    const result = await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO ticket_messages(id,ticket_id,author_id,author_role,body,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM tickets WHERE id=? AND expires_at>? AND status NOT IN ('closed','cancelled')) RETURNING id",
+      ).bind(id, target!.id, user.id, role, message, now, target!.id, now),
+      env.DB.prepare(
+        "UPDATE tickets SET updated_at=? WHERE id=? AND expires_at>? AND status NOT IN ('closed','cancelled')",
+      ).bind(now, target!.id, now),
+      env.DB.prepare(
+        "INSERT INTO audit_events SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM ticket_messages WHERE id=?)",
+      ).bind(
+        crypto.randomUUID(),
+        user.id,
+        target!.id,
+        "message_sent",
+        role,
+        now,
+        id,
+      ),
+    ]);
+    if (!result[0].results.length)
+      fail(409, "La conversación de este ticket ya está cerrada.");
+    return json({ id, author_role: role, body: message, created_at: now }, 201);
   }
   const ticketMatch = path.match(/^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)$/);
   if (ticketMatch) {
@@ -561,16 +636,30 @@ async function handle(
     if (!target || (!ticketMatch[1] && target.user_id !== user.id))
       fail(404, "Solicitud no encontrada.");
     if (request.method === "GET") {
-      const events = await env.DB.prepare(
-        "SELECT action,detail,created_at FROM audit_events WHERE target_id=? ORDER BY created_at",
-      )
-        .bind(target!.id)
-        .all();
-      return json({ ...publicTicket(target!), events: events.results });
+      const [events, messages] = await Promise.all([
+        env.DB.prepare(
+          "SELECT action,detail,created_at FROM audit_events WHERE target_id=? AND action!='message_sent' ORDER BY created_at",
+        )
+          .bind(target!.id)
+          .all(),
+        env.DB.prepare(
+          "SELECT id,author_role,body,created_at FROM ticket_messages WHERE ticket_id=? ORDER BY created_at,id LIMIT 200",
+        )
+          .bind(target!.id)
+          .all<TicketMessage>(),
+      ]);
+      return json({
+        ...publicTicket(target!),
+        events: events.results,
+        messages: messages.results,
+      });
     }
+    if (isTicketExpired(target!))
+      fail(409, "Este ticket venció. Crea uno nuevo para continuar.");
     const body = await payload(request);
     const ticket = {
       ...target!,
+      expiresAt: target!.expires_at,
       quote: target!.quote ? JSON.parse(target!.quote) : null,
       events: [],
     };
@@ -594,26 +683,28 @@ async function handle(
     }
     if (body.version !== target!.version)
       fail(409, "La solicitud cambió. Recarga antes de continuar.");
+    const now = Date.now();
     const result = await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE tickets SET status=?,quote=?,version=version+1,updated_at=? WHERE id=? AND version=? AND expires_at>? RETURNING id",
+      ).bind(
+        ticket.status,
+        ticket.quote ? JSON.stringify(ticket.quote) : null,
+        now,
+        target!.id,
+        body.version,
+        now,
+      ),
       guardedAudit(
         env,
         "tickets",
         user.id,
         target!.id,
-        body.version,
+        body.version + 1,
         ticket.status,
-      ),
-      env.DB.prepare(
-        "UPDATE tickets SET status=?,quote=?,version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id",
-      ).bind(
-        ticket.status,
-        ticket.quote ? JSON.stringify(ticket.quote) : null,
-        Date.now(),
-        target!.id,
-        body.version,
       ),
     ]);
-    if (!result[1].results.length)
+    if (!result[0].results.length)
       fail(409, "La solicitud cambió. Recarga antes de continuar.");
     return json({ ok: true });
   }

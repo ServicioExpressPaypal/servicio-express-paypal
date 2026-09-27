@@ -41,6 +41,7 @@ async function setup(open = true, overrides = {}) {
     "0001_auth.sql",
     "0002_portal.sql",
     "0003_admin_setup.sql",
+    "0004_ticket_chat.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -484,6 +485,12 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     assert.equal(persisted.data.mode, "express");
     assert.equal(persisted.data.estimate.amount, 16400);
     assert.equal(persisted.data.estimate.net, 14500);
+    assert.equal(
+      persisted.data.expires_at - persisted.data.created_at,
+      24 * 60 * 60 * 1000,
+    );
+    assert.equal(persisted.data.expired, false);
+    assert.equal(persisted.data.canMessage, true);
     assert.notEqual(persisted.data.estimate.net, 999999);
     assert.equal((await b.req("/api/tickets/" + id)).status, 404);
     assert.equal(
@@ -492,6 +499,44 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       404,
     );
     assert.equal((await b.req("/api/tickets")).data.length, 0);
+    r = await a.req(`/api/tickets/${id}/messages`, {
+      message: "  Necesito confirmar el banco del beneficiario.  ",
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.equal(r.data.body, "Necesito confirmar el banco del beneficiario.");
+    assert.equal(r.data.author_role, "customer");
+    assert.equal(
+      (
+        await b.req(`/api/tickets/${id}/messages`, {
+          message: "No debo poder escribir aquí",
+        })
+      ).status,
+      404,
+    );
+    r = await admin.req(`/api/admin/tickets/${id}/messages`, {
+      message: "El banco fue confirmado. Continúa por el WhatsApp oficial.",
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.equal(r.data.author_role, "admin");
+    const conversation = await a.req("/api/tickets/" + id);
+    assert.deepEqual(
+      conversation.data.messages.map((message) => message.author_role),
+      ["customer", "admin"],
+    );
+    assert.equal(conversation.data.messages[0].author_id, undefined);
+    const messageAudit = await s.db
+      .prepare("SELECT action,detail FROM audit_events WHERE target_id=?")
+      .bind(id)
+      .all();
+    assert.ok(!JSON.stringify(messageAudit).includes("confirmar el banco"));
+    assert.equal(
+      (
+        await a.req(`/api/tickets/${id}/messages`, {
+          message: "x".repeat(1001),
+        })
+      ).status,
+      400,
+    );
     r = await a.req("/api/tickets", {
       amount: "164",
       mode: "express",
@@ -511,10 +556,36 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       requestKey: crypto.randomUUID(),
     });
     assert.equal(r.status, 201, JSON.stringify(r.data));
-    const international = await a.req("/api/tickets/" + r.data.id);
+    const internationalId = r.data.id;
+    const international = await a.req("/api/tickets/" + internationalId);
     assert.equal(international.data.mode, "international");
     assert.equal(international.data.estimate.amount, 60000);
     assert.equal((await a.req("/api/tickets")).data.length, 2);
+    await s.db
+      .prepare("UPDATE tickets SET expires_at=? WHERE id=?")
+      .bind(Date.now() - 1, internationalId)
+      .run();
+    const expired = await a.req("/api/tickets/" + internationalId);
+    assert.equal(expired.data.status, "expired");
+    assert.equal(expired.data.expired, true);
+    assert.equal(expired.data.canMessage, false);
+    assert.equal(
+      (
+        await a.req(`/api/tickets/${internationalId}/messages`, {
+          message: "Mensaje fuera de tiempo",
+        })
+      ).status,
+      409,
+    );
+    assert.equal(
+      (
+        await admin.req(`/api/admin/tickets/${internationalId}`, {
+          action: "reviewing",
+          version: 0,
+        })
+      ).status,
+      409,
+    );
     r = await admin.req("/api/admin/tickets/" + id, {
       action: "reviewing",
       version: 0,
@@ -539,6 +610,8 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       (await a.req("/api/tickets/" + id)).data.quote.received,
       15000,
     );
+    const quoted = await a.req("/api/tickets/" + id);
+    assert.ok(quoted.data.quote.expiresAt <= quoted.data.expires_at);
     assert.equal(
       (await a.req("/api/tickets/" + id, { action: "cancelled", version: 2 }))
         .status,
