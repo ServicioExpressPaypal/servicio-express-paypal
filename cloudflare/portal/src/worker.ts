@@ -13,7 +13,11 @@ import {
 } from "./protection";
 import { purgeExpiredTicketData } from "./retention";
 import { eraseAccount, purgeDeletedDocuments } from "./customer-account";
-import { ticketStage, deliveryAmount } from "../public/processing.js";
+import {
+  ticketStage,
+  deliveryAmount,
+  ticketExpiry,
+} from "../public/processing.js";
 
 // The same tested calculator and state machines power the demo and the API.
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
@@ -67,7 +71,6 @@ type TicketNotification = {
   whatsapp_delivered: number;
   whatsapp_attempts: number;
 };
-const TICKET_TTL_MS = 24 * 60 * 60 * 1000;
 const finalTicketStatuses = new Set(["closed", "cancelled"]);
 class HttpError extends Error {
   constructor(
@@ -766,7 +769,7 @@ async function handle(
     }
     const id = `SE-${crypto.randomUUID().toUpperCase()}`,
       now = Date.now(),
-      expiresAt = now + TICKET_TTL_MS;
+      expiresAt = ticketExpiry(estimate.amount, now);
     try {
       await env.DB.batch([
         env.DB.prepare(
@@ -1008,6 +1011,13 @@ async function handle(
     const column = starting
       ? "processing_started_at"
       : "processing_completed_at";
+    // Only extend retention for tickets that accepted the new conditions.
+    const expiresAt =
+      starting &&
+      target!.amount > 50000 &&
+      target!.terms_version === CertificateModel.ticketConditionsVersion
+        ? ticketExpiry(target!.amount, now)
+        : target!.expires_at;
     let delivery = target!.delivery_amount;
     if (!starting) {
       try {
@@ -1027,8 +1037,8 @@ async function handle(
     }
     const result = await env.DB.batch([
       env.DB.prepare(
-        `UPDATE tickets SET ${column}=?,delivery_amount=?,${starting ? "" : "status='closed',"}version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id`,
-      ).bind(now, delivery, now, target!.id, body.version),
+        `UPDATE tickets SET ${column}=?,delivery_amount=?,expires_at=?,${starting ? "" : "status='closed',"}version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id`,
+      ).bind(now, delivery, expiresAt, now, target!.id, body.version),
       env.DB.prepare(
         "INSERT INTO audit_events(id,actor_id,target_id,action,detail,created_at) SELECT ?,?,?,?,'',? WHERE changes()=1",
       ).bind(

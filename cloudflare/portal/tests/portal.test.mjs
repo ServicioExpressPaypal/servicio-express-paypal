@@ -10,6 +10,7 @@ import {
   ticketShareText,
   ticketStage,
   deliveryAmount,
+  ticketExpiry,
 } from "../public/processing.js";
 
 const origin = "https://portal.example.test";
@@ -1862,6 +1863,20 @@ test("six preset amounts use the same validated ticket contract as a custom amou
     await s.mf.dispose();
   }
 });
+test("ticket expiry distinguishes USD 500 from international and skips weekends", () => {
+  const friday = Date.parse("2026-09-25T23:30:00-06:00");
+  assert.equal(ticketExpiry(50000, friday), friday + 86400000);
+  assert.equal(
+    ticketExpiry(50001, friday),
+    Date.parse("2026-10-05T23:30:00-06:00"),
+  );
+  const saturday = Date.parse("2026-09-26T10:00:00-06:00");
+  assert.equal(
+    ticketExpiry(60000, saturday),
+    Date.parse("2026-10-05T10:00:00-06:00"),
+  );
+});
+
 test("international business-day counter skips weekends and respects local dates", () => {
   const friday = Date.parse("2026-09-25T23:30:00-06:00");
   assert.equal(
@@ -1920,6 +1935,44 @@ test("WhatsApp summary links to authenticated ticket without destination data", 
   );
 });
 
+test("legacy international tickets keep their accepted retention when payment is confirmed", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("legacy-retention@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(customer.id)
+      .run();
+    const created = await customer.req(
+      "/api/tickets",
+      ticket({ amount: "600" }),
+    );
+    assert.equal(created.status, 201);
+    const id = created.data.id;
+    const oldExpiry = Date.now() + 86400000;
+    await s.db
+      .prepare("UPDATE tickets SET terms_version=?,expires_at=? WHERE id=?")
+      .bind("ticket-condiciones-2026-09-27-v3", oldExpiry, id)
+      .run();
+    assert.equal(
+      (
+        await admin.req(`/api/admin/tickets/${id}/processing`, {
+          action: "start",
+          version: 0,
+        })
+      ).status,
+      200,
+    );
+    const detail = (await customer.req(`/api/tickets/${id}`)).data;
+    assert.equal(detail.expires_at, oldExpiry);
+    assert.equal(detail.status, "paid");
+    assert.equal(detail.terms_version, "ticket-condiciones-2026-09-27-v3");
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
 test("only admin can start paid international tracking; expiry erases destination but retains tracking", async () => {
   const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
   try {
@@ -1938,6 +1991,24 @@ test("only admin can start paid international tracking; expiry erases destinatio
     const id = created.data.id;
     const path = `/api/admin/tickets/${id}`;
     const action = path + "/processing";
+    const initial = (await customer.req(`/api/tickets/${id}`)).data;
+    assert.equal(initial.expires_at, addBusinessDays(initial.created_at, 6));
+    // A still-open international ticket retains destination and chat after 24h.
+    await s.db
+      .prepare("UPDATE tickets SET created_at=?,expires_at=? WHERE id=?")
+      .bind(Date.now() - 2 * 86400000, Date.now() + 86400000, id)
+      .run();
+    const afterDayOne = (await customer.req(`/api/tickets/${id}`)).data;
+    assert.equal(afterDayOne.bank_account, ticket().bankAccount);
+    assert.equal(afterDayOne.canMessage, true);
+    assert.equal(
+      (
+        await customer.req(`/api/tickets/${id}/messages`, {
+          message: "Consulta de seguimiento",
+        })
+      ).status,
+      201,
+    );
     assert.equal(
       (await s.client()(action, { action: "start", version: 0 })).status,
       401,
@@ -1989,7 +2060,12 @@ test("only admin can start paid international tracking; expiry erases destinatio
     assert.deepEqual(started.quote.businessDays, { min: 2, max: 6 });
     assert.equal(started.quote.hours, undefined);
     assert.equal(started.processing_completed_at, null);
-    assert.equal(started.expires_at - started.created_at, 86400000);
+    assert.equal(
+      started.expires_at,
+      addBusinessDays(started.processing_started_at, 6),
+    );
+    assert.equal(started.bank_account, ticket().bankAccount);
+    assert.equal(started.canMessage, true);
     assert.equal(
       started.events.filter((e) => e.action === "payment_confirmed").length,
       1,
@@ -2007,6 +2083,8 @@ test("only admin can start paid international tracking; expiry erases destinatio
     assert.equal(expired.status, "paid");
     assert.equal(expired.bank_account, "");
     assert.equal(expired.beneficiary_name, "");
+    assert.equal(expired.canMessage, false);
+    assert.deepEqual(expired.messages, []);
     assert.equal(expired.processing_started_at, started.processing_started_at);
     assert.equal(
       (await admin.req(action, { action: "complete", version: 3 })).status,

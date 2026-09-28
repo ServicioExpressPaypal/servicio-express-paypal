@@ -45,7 +45,11 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
   Elegir uno precarga el mismo formulario que Ticket personalizado; no crea ni
   paga un ticket. El monto sigue siendo editable y se valida en el servidor.
 
-- Cada ticket dura 24 horas. Nombre del beneficiario, banco, cuenta y comentarios
+- Express dura 24 horas desde la creacion. Internacional dura 6 dias habiles
+  desde la creacion; confirmar el pago vigente fija el vencimiento a 6 dias
+  habiles desde esa confirmacion. Aplica a nuevas condiciones v4; tickets
+  anteriores conservan la retencion aceptada, sin recuperar datos borrados.
+  Nombre del beneficiario, banco, cuenta y comentarios
   son temporales. Las consultas ocultan estos datos al vencer, cerrar o cancelar.
 - retention.ts elimina esos campos y mensajes de la base activa cada 15 minutos
   y antes de consultar tickets; cerrar/cancelar tambien ejecuta la limpieza.
@@ -78,10 +82,12 @@ no concede acceso por si mismo ni envia mensajes automaticamente.
 
 Los tickets mayores de USD 500 tienen seguimiento estimado de 2 a 6 dias
 habiles, iniciado unicamente por un administrador al confirmar el pago de un
-ticket cotizado y vigente. Se cuentan lunes a viernes en America/Managua, sin
+ticket vigente, sin emitir una segunda cotizacion. Se cuentan lunes a viernes en America/Managua, sin
 ajuste por feriados. El administrador confirma la entrega por separado. Las
-fechas quedan en el historial; no extienden las 24 horas del ticket ni la
-retencion de datos de destino. Aplicar 0009_ticket_processing.sql antes de
+fechas quedan en el historial. Internacional v4 conserva datos de destino
+hasta su nuevo vencimiento o cierre/cancelacion, lo que ocurra primero.
+El vencimiento no equivale a entrega ni elimina una obligacion pagada.
+Aplicar 0009_ticket_processing.sql antes de
 desplegar. El contador no puede reiniciarse desde la API.
 La automatizacion Meta requiere plantilla aprobada y secretos WHATSAPP_ACCESS_TOKEN,
 WHATSAPP_PHONE_NUMBER_ID y WHATSAPP_ADMIN_NUMBER; no activar sin probarla. No hay

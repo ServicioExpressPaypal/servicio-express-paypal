@@ -1,11 +1,11 @@
 export default (function () {
   "use strict";
-  const version = "cuenta-minima-2026-09-27-v3";
-  const ticketConditionsVersion = "ticket-condiciones-2026-09-27-v3";
+  const version = "cuenta-minima-2026-09-28-v4";
+  const ticketConditionsVersion = "ticket-condiciones-2026-09-28-v4";
   const title = "Certificado de regalo en efectivo";
   const presetAmounts = Object.freeze([50, 100, 200, 300, 400, 500]);
   const description =
-    "Un regalo de valor monetario para compartir con tu familia o con un beneficiario que elijas. Su solicitud se gestiona de forma digital mediante un ticket con vigencia de 24 horas. Crear el ticket no completa la compra ni emite el certificado; el pago y la entrega se coordinan por separado.";
+    "Un regalo de valor monetario para compartir con tu familia o con un beneficiario que elijas. Su solicitud se gestiona de forma digital mediante un ticket. Crear el ticket no completa la compra ni emite el certificado; el pago y la entrega se coordinan por separado.";
   const banks = ["LAFISE", "BDF", "Banpro", "BAC", "Ficohsa", "Avanz"];
   const ticketConditions = [
     "Solo se procesan órdenes pagadas con cuentas verificadas por PayPal.",
@@ -15,7 +15,8 @@ export default (function () {
     "No se aceptan solicitudes de personas menores de edad.",
     "Un dato incorrecto puede atrasar o impedir la atención del ticket.",
     "El Método Express tiene un límite de USD 500 por ticket. Los montos mayores se clasifican como Método internacional.",
-    "Para montos mayores de USD 500, el plazo estimado es de 2 a 6 días hábiles desde la confirmación manual del pago. El contador considera lunes a viernes, hora de Nicaragua, sin ajuste por feriados. No confirma automáticamente la entrega ni extiende las 24 horas del ticket. Las fechas de confirmación de pago y entrega quedan en el historial.",
+    "Express: vigencia de 24 horas desde la creación. Método internacional (más de USD 500): vigencia de 6 días hábiles desde la creación; al confirmar manualmente el pago durante la vigencia, el vencimiento pasa a 6 días hábiles desde esa confirmación. La entrega internacional se estima entre 2 y 6 días hábiles desde el pago confirmado. El contador usa lunes a viernes, hora de Nicaragua, sin ajuste por feriados. Vencer no confirma la entrega ni extingue una operación pagada pendiente.",
+    "Revisa los datos y el importe antes de pagar. No se ofrecen reembolsos voluntarios por cambio de opinión ni por errores en datos suministrados por el comprador cuando el envío ya se ejecutó conforme a ellos. Antes del envío, solicita la revisión de cualquier error. Esta regla no excluye devoluciones por servicio no prestado, cobro duplicado, error atribuible al operador ni derechos irrenunciables o mecanismos de reclamación de PayPal. Crear un ticket no genera por sí mismo un cobro.",
     "El nombre del beneficiario, banco, número de cuenta y comentarios se usan durante la vigencia del ticket. Al vencer, cerrarse o cancelarse dejan de estar disponibles y se eliminan de la base activa en la siguiente limpieza, programada cada 15 minutos. Conservamos referencia, montos, moneda, fechas, estado y la aceptación de condiciones. Las copias técnicas de recuperación pueden conservar versiones anteriores hasta 30 días.",
   ];
   const declaration =
@@ -27,7 +28,7 @@ export default (function () {
     ],
     [
       "Ticket",
-      "Vigencia de 24 horas. El nombre del beneficiario, banco, cuenta y comentarios son temporales; se ocultan al vencer o cerrar y se eliminan de la base activa en la siguiente limpieza, cada 15 minutos.",
+      "Express: 24 horas. Internacional: 6 días hábiles desde la creación o, si se confirma el pago mientras está vigente, desde esa confirmación. Los datos de destino y comentarios se ocultan al vencer, cerrar o cancelar y se eliminan de la base activa en la siguiente limpieza, cada 15 minutos.",
     ],
     [
       "Historial",

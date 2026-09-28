@@ -93,7 +93,12 @@ test("terms describe automatic ticket modes without a commission table", () => {
   assert.match(terms, /solicitud se gestiona de forma digital/);
   assert.match(terms, /no completa la compra ni emite el certificado/);
   assert.match(terms, /un solo familiar o beneficiario.*una sola cuenta/s);
-  assert.match(terms, /vigencia de 24 horas/);
+  assert.match(terms, /Express: 24 horas de vigencia/);
+  assert.match(terms, /6 días hábiles desde la creación/);
+  assert.match(terms, /No ofrecemos reembolsos voluntarios/);
+  assert.match(terms, /servicio no prestado/);
+  assert.match(terms, /derechos irrenunciables/);
+  assert.doesNotMatch(terms, /cotización definitiva requiere/);
   assert.match(terms, /canal\s+oficial de WhatsApp/s);
   const description = terms.split("<h2>Certificado de regalo en efectivo</h2>")[1].split("<h2>Condiciones del ticket</h2>")[0];
   assert.doesNotMatch(description, /Nicaragua|banco|autoridades|depósito/i);
@@ -105,7 +110,8 @@ test("ticket source includes the 24-hour conversation and WhatsApp handoff", () 
   const migration = read("cloudflare/portal/migrations/0004_ticket_chat.sql");
   assert.match(app, /Conversación del ticket/);
   assert.match(app, /wa\.me\/50586199889/);
-  assert.match(app, /vigencia de 24 horas/);
+  assert.match(app, /vigencia es de 24 horas/);
+  assert.match(app, /6 días hábiles desde la confirmación del pago/);
   assert.match(migration, /CREATE TABLE ticket_messages/);
   assert.match(migration, /86400000/);
 });

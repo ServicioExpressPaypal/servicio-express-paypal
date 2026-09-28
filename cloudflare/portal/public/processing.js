@@ -50,6 +50,12 @@ export function addBusinessDays(timestamp, days) {
   return local.getTime() + MANAGUA_OFFSET;
 }
 
+export function ticketExpiry(amount, timestamp) {
+  return amount > 50000
+    ? addBusinessDays(timestamp, 6)
+    : timestamp + 24 * 60 * 60 * 1000;
+}
+
 export function processingWindow(ticket, now = Date.now()) {
   if (ticket.amount <= 50000) return null;
   const start = ticket.processing_started_at;
