@@ -1,6 +1,64 @@
 .workspace {
   min-height: 100vh;
 }
+.order-progress {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line);
+}
+.order-progress h2 {
+  font-size: 18px;
+  margin: 0 0 20px;
+}
+.order-progress ol {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+.order-progress li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--muted);
+}
+.order-progress li svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.order-progress li.done {
+  color: #267052;
+}
+.order-progress strong {
+  display: block;
+  font-size: 13px;
+}
+.order-progress small {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.order-progress p {
+  margin: 18px 0 0;
+  line-height: 1.6;
+}
+.badge.paid {
+  color: #285b9a;
+  background: #edf4fc;
+}
+.badge.delivered {
+  color: #216348;
+  background: #eaf6ef;
+}
+@media (max-width: 700px) {
+  .order-progress ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 14px;
+  }
+}
 .settings-section {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr);

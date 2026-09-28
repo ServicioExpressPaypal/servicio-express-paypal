@@ -8,9 +8,172 @@ import {
   addBusinessDays,
   processingWindow,
   ticketShareText,
+  ticketStage,
 } from "../public/processing.js";
 
 const origin = "https://portal.example.test";
+test("ticket display distinguishes payment, delivery, expiration and legacy closure", () => {
+  const t = { status: "quoted", expires_at: 50 };
+  assert.equal(ticketStage(t, 100), "expired");
+  assert.equal(ticketStage({ ...t, processing_started_at: 20 }, 100), "paid");
+  assert.equal(
+    ticketStage(
+      { ...t, processing_started_at: 20, processing_completed_at: 30 },
+      100,
+    ),
+    "delivered",
+  );
+  assert.equal(ticketStage({ ...t, status: "closed" }, 100), "closed");
+  assert.equal(
+    ticketStage({ ...t, status: "cancelled", processing_started_at: 20 }, 100),
+    "cancelled",
+  );
+});
+test("Express purchases require payment then delivery confirmation and finish in customer history", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("expressflow@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(customer.id)
+      .run();
+    for (const amount of ["50", "500"]) {
+      const r = await customer.req(
+        "/api/tickets",
+        ticket({ amount, currency: "NIO" }),
+      );
+      assert.equal(r.status, 201);
+      const id = r.data.id,
+        path = "/api/admin/tickets/" + id;
+      assert.equal(
+        (await admin.req(path, { action: "reviewing", version: 0 })).status,
+        200,
+      );
+      const quote = {
+        fee: "6.00",
+        received: ((Number(amount) - 6) * 36.23).toFixed(2),
+        rate: "36.23",
+        hours: "1",
+        validity: "60",
+      };
+      assert.equal(
+        (await admin.req(path, { action: "quote", quote, version: 1 })).status,
+        200,
+      );
+      assert.equal(
+        (await admin.req(path, { action: "closed", version: 2 })).status,
+        409,
+      );
+      assert.equal(
+        (
+          await admin.req(path + "/processing", {
+            action: "complete",
+            version: 2,
+          })
+        ).status,
+        409,
+      );
+      assert.equal(
+        (
+          await customer.req(path + "/processing", {
+            action: "start",
+            version: 2,
+          })
+        ).status,
+        403,
+      );
+      assert.equal(
+        (await admin.req(path + "/processing", { action: "start", version: 2 }))
+          .status,
+        200,
+      );
+      const paid = (await customer.req("/api/tickets/" + id)).data;
+      assert.equal(paid.status, "paid");
+      assert.equal(paid.processing_completed_at, null);
+      assert.equal(
+        (await admin.req(path, { action: "cancelled", version: 3 })).status,
+        409,
+      );
+      assert.equal(
+        (await admin.req(path, { action: "quote", quote, version: 3 })).status,
+        409,
+      );
+      assert.equal(
+        (
+          await customer.req("/api/tickets/" + id, {
+            action: "cancelled",
+            version: 3,
+          })
+        ).status,
+        409,
+      );
+      await s.db
+        .prepare("UPDATE tickets SET expires_at=? WHERE id=?")
+        .bind(Date.now() - 1000, id)
+        .run();
+      assert.equal(
+        (await customer.req("/api/tickets/" + id)).data.status,
+        "paid",
+      );
+      assert.equal(
+        (await customer.req("/api/account/history?status=paid")).data.total,
+        1,
+      );
+      assert.equal(
+        (await customer.req("/api/account/history?status=active")).data.total,
+        1,
+      );
+      assert.equal(
+        (await customer.req("/api/account/history?status=expired")).data.total,
+        0,
+      );
+      const done = await Promise.all([
+        admin.req(path + "/processing", { action: "complete", version: 3 }),
+        admin.req(path + "/processing", { action: "complete", version: 3 }),
+      ]);
+      assert.deepEqual(done.map((r) => r.status).sort(), [200, 409]);
+      const delivered = (await customer.req("/api/tickets/" + id)).data;
+      assert.equal(delivered.status, "delivered");
+      assert.equal(delivered.canMessage, false);
+      assert.equal(delivered.bank_account, "");
+      assert.equal(delivered.beneficiary_name, "");
+      assert.equal(
+        delivered.events.filter((e) => e.action === "delivery_confirmed")
+          .length,
+        1,
+      );
+      assert.equal((await admin.req(path)).data.status, "delivered");
+      assert.equal(
+        (
+          await s.db
+            .prepare("SELECT status FROM tickets WHERE id=?")
+            .bind(id)
+            .first()
+        ).status,
+        "closed",
+      );
+      assert.equal(
+        (await customer.req("/api/account/history?status=paid")).data.total,
+        0,
+      );
+    }
+    assert.equal(
+      (await customer.req("/api/account/history?status=delivered")).data.total,
+      2,
+    );
+    assert.equal(
+      (await customer.req("/api/account/history?status=active")).data.total,
+      0,
+    );
+    assert.equal(
+      (await customer.req("/api/account/history?status=closed")).data.total,
+      0,
+    );
+  } finally {
+    await s.mf.dispose();
+  }
+});
 test("customer password changes require proof and revoke other sessions", async () => {
   const s = await setup();
   try {
@@ -1700,6 +1863,7 @@ test("only admin can start paid international tracking; expiry erases destinatio
     ]);
     assert.deepEqual(confirmations.map((r) => r.status).sort(), [200, 409]);
     const started = (await customer.req(`/api/tickets/${id}`)).data;
+    assert.equal(started.status, "paid");
     assert.ok(started.processing_started_at > 0);
     assert.deepEqual(started.quote.businessDays, { min: 2, max: 6 });
     assert.equal(started.quote.hours, undefined);
@@ -1719,6 +1883,7 @@ test("only admin can start paid international tracking; expiry erases destinatio
       .bind(Date.now() - 1, id)
       .run();
     const expired = (await customer.req(`/api/tickets/${id}`)).data;
+    assert.equal(expired.status, "paid");
     assert.equal(expired.bank_account, "");
     assert.equal(expired.beneficiary_name, "");
     assert.equal(expired.processing_started_at, started.processing_started_at);
@@ -1732,6 +1897,10 @@ test("only admin can start paid international tracking; expiry erases destinatio
     );
     assert.ok(
       (await customer.req(`/api/tickets/${id}`)).data.processing_completed_at,
+    );
+    assert.equal(
+      (await customer.req(`/api/tickets/${id}`)).data.status,
+      "delivered",
     );
     const unstarted = await customer.req(
       "/api/tickets",
@@ -1761,7 +1930,7 @@ test("only admin can start paid international tracking; expiry erases destinatio
           version: 0,
         })
       ).status,
-      400,
+      409,
     );
   } finally {
     await s.mf.dispose();

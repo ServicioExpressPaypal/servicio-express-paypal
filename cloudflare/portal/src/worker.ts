@@ -13,6 +13,7 @@ import {
 } from "./protection";
 import { purgeExpiredTicketData } from "./retention";
 import { eraseAccount, purgeDeletedDocuments } from "./customer-account";
+import { ticketStage } from "../public/processing.js";
 
 // The same tested calculator and state machines power the demo and the API.
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
@@ -211,7 +212,8 @@ function isTicketExpired(t: Ticket, now = Date.now()) {
 }
 function publicTicket(t: Ticket, now = Date.now(), includeBankAccount = false) {
   const expired = isTicketExpired(t, now);
-  const erased = expired || finalTicketStatuses.has(t.status);
+  const erased =
+    expired || finalTicketStatuses.has(t.status) || !!t.processing_completed_at;
   const { bank_account, ...safeTicket } = t;
   return {
     ...safeTicket,
@@ -219,10 +221,9 @@ function publicTicket(t: Ticket, now = Date.now(), includeBankAccount = false) {
     bank: erased ? "" : t.bank,
     destinationErased: erased,
     ...(includeBankAccount ? { bank_account: erased ? "" : bank_account } : {}),
-    status:
-      expired && !finalTicketStatuses.has(t.status) ? "expired" : t.status,
+    status: ticketStage(t, now),
     expired,
-    canMessage: !expired && !finalTicketStatuses.has(t.status),
+    canMessage: !erased,
     estimate: JSON.parse(t.estimate),
     quote: t.quote ? JSON.parse(t.quote) : null,
   };
@@ -622,9 +623,13 @@ async function handle(
     const predicates: Record<string, string> = {
       all: "1=1",
       active:
-        "(status NOT IN ('closed','cancelled') AND expires_at>?) OR (processing_started_at IS NOT NULL AND processing_completed_at IS NULL AND status!='cancelled')",
-      expired: "expires_at<=? AND status NOT IN ('closed','cancelled')",
-      closed: "status='closed'",
+        "(status NOT IN ('closed','cancelled') AND expires_at>? AND processing_completed_at IS NULL) OR (processing_started_at IS NOT NULL AND processing_completed_at IS NULL AND status!='cancelled')",
+      expired:
+        "expires_at<=? AND status NOT IN ('closed','cancelled') AND processing_started_at IS NULL AND processing_completed_at IS NULL",
+      closed:
+        "status='closed' AND processing_started_at IS NULL AND processing_completed_at IS NULL",
+      paid: "processing_started_at IS NOT NULL AND processing_completed_at IS NULL AND status!='cancelled'",
+      delivered: "processing_completed_at IS NOT NULL AND status!='cancelled'",
       cancelled: "status='cancelled'",
     };
     if (!Object.hasOwn(predicates, filter)) fail(400, "Filtro inválido.");
@@ -975,8 +980,6 @@ async function handle(
       .bind(processingMatch[1])
       .first<Ticket>();
     if (!target) fail(404, "Solicitud no encontrada.");
-    if (target!.amount <= 50000)
-      fail(400, "Este seguimiento es para montos mayores de USD 500.");
     if (body.version !== target!.version)
       fail(409, "La solicitud cambió. Recarga antes de continuar.");
     const now = Date.now();
@@ -985,7 +988,8 @@ async function handle(
       if (
         target!.status !== "quoted" ||
         isTicketExpired(target!, now) ||
-        target!.processing_started_at
+        target!.processing_started_at ||
+        target!.processing_completed_at
       )
         fail(
           409,
@@ -1004,7 +1008,7 @@ async function handle(
       : "processing_completed_at";
     const result = await env.DB.batch([
       env.DB.prepare(
-        `UPDATE tickets SET ${column}=?,version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id`,
+        `UPDATE tickets SET ${column}=?,${starting ? "" : "status='closed',"}version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id`,
       ).bind(now, now, target!.id, body.version),
       env.DB.prepare(
         "INSERT INTO audit_events(id,actor_id,target_id,action,detail,created_at) SELECT ?,?,?,?,'',? WHERE changes()=1",
@@ -1053,7 +1057,9 @@ async function handle(
         ...publicTicket(target!, Date.now(), true),
         events: events.results,
         messages:
-          isTicketExpired(target!) || finalTicketStatuses.has(target!.status)
+          isTicketExpired(target!) ||
+          finalTicketStatuses.has(target!.status) ||
+          !!target!.processing_completed_at
             ? []
             : messages.results,
         ...(ticketMatch[1] ? { notification } : {}),
@@ -1062,6 +1068,16 @@ async function handle(
     if (isTicketExpired(target!))
       fail(409, "Este ticket venció. Crea uno nuevo para continuar.");
     const body = await payload(request);
+    if (target!.processing_started_at || target!.processing_completed_at)
+      fail(
+        409,
+        "El pago ya fue confirmado. Completa el envío desde la acción de entrega; no puedes cancelar ni cambiar la cotización.",
+      );
+    if (body.action === "closed")
+      fail(
+        409,
+        "Para finalizar, confirma primero el pago y después el envío al beneficiario.",
+      );
     const ticket = {
       ...target!,
       expiresAt: target!.expires_at,

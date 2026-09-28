@@ -1,5 +1,13 @@
 const MANAGUA_OFFSET = 6 * 60 * 60 * 1000;
 
+export function ticketStage(ticket, now = Date.now()) {
+  if (ticket.status === "cancelled") return "cancelled";
+  if (ticket.processing_completed_at) return "delivered";
+  if (ticket.processing_started_at) return "paid";
+  if (ticket.status === "closed") return "closed";
+  return ticket.expires_at <= now ? "expired" : ticket.status;
+}
+
 // Preserve the local confirmation time; Nicaragua uses UTC-6 without DST.
 export function addBusinessDays(timestamp, days) {
   const local = new Date(timestamp - MANAGUA_OFFSET);

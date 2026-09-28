@@ -25,12 +25,14 @@ import { processingWindow, ticketShareText } from "./processing.js";
   const labels = {
     submitted: "Nueva",
     reviewing: "En revisión",
-    quoted: "Cotizada",
-    closed: "Cerrada",
+    quoted: "Pendiente de pago",
+    paid: "Pago confirmado",
+    delivered: "Enviado al beneficiario",
+    closed: "Cerrada sin confirmación de envío",
     cancelled: "Cancelada",
     expired: "Vencida",
     payment_confirmed: "Pago confirmado por el administrador",
-    delivery_confirmed: "Entrega confirmada por el administrador",
+    delivery_confirmed: "Envío al beneficiario confirmado por el administrador",
   };
   const methodLabel = (mode) =>
     mode === "express" ? "Certificado en efectivo" : "Método internacional";
@@ -52,7 +54,7 @@ import { processingWindow, ticketShareText } from "./processing.js";
     historyQuery = "",
     historyStatus = "all",
     timer;
-  let botId, botLoading, detailExpiry, processingTimer;
+  let botId, botLoading, detailExpiry, processingTimer, ticketRefreshTimer;
   const botActions = {
     "/api/auth/sign-up/email": "signup",
     "/api/auth/sign-in/email": "login",
@@ -222,6 +224,7 @@ import { processingWindow, ticketShareText } from "./processing.js";
     });
   }
   async function render() {
+    clearInterval(ticketRefreshTimer);
     clearInterval(processingTimer);
     clearTimeout(detailExpiry);
     if (me && !me.admin && view === "dashboard") view = "tickets";
@@ -530,7 +533,7 @@ import { processingWindow, ticketShareText } from "./processing.js";
   }
   function historyRow(t) {
     const tracking = processingWindow(t);
-    return `<button class="ticket-row" data-ticket="${esc(t.id)}"><span><strong>${money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>Monto base ${money(t.amount)} · ${dateTime(t.created_at)}</small><small class="ticket-id">${esc(t.id)}</small>${tracking && t.processing_started_at ? `<small>${t.processing_completed_at ? "Entrega confirmada" : "Entrega en proceso"}</small>` : ""}</span><span class="badge ${esc(t.status)}">${esc(labels[t.status])}</span></button>`;
+    return `<button class="ticket-row" data-ticket="${esc(t.id)}"><span><strong>${t.quote ? money(t.quote.received, t.currency) : money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>${t.quote ? "Valor cotizado" : "Valor estimado"} · Monto base ${money(t.amount)}</small><small>${dateTime(t.created_at)}</small><small class="ticket-id">${esc(t.id)}</small>${tracking && t.processing_started_at ? `<small>${t.processing_completed_at ? "Envío confirmado" : "Entrega en proceso"}</small>` : ""}</span><span class="badge ${esc(t.status)}">${esc(labels[t.status])}</span></button>`;
   }
   async function ticketHistory() {
     const params = new URLSearchParams({
@@ -546,7 +549,9 @@ import { processingWindow, ticketShareText } from "./processing.js";
           all: "Todos",
           active: "Vigentes o en proceso",
           expired: "Vencidos",
-          closed: "Cerrados",
+          paid: "Pago confirmado",
+          delivered: "Enviados al beneficiario",
+          closed: "Cerrados anteriormente",
           cancelled: "Cancelados",
         },
       )
@@ -665,6 +670,7 @@ import { processingWindow, ticketShareText } from "./processing.js";
     });
   }
   async function detail(id) {
+    clearInterval(ticketRefreshTimer);
     clearTimeout(detailExpiry);
     clearInterval(processingTimer);
     const base = me.admin ? "/api/admin/tickets/" : "/api/tickets/";
@@ -702,16 +708,39 @@ import { processingWindow, ticketShareText } from "./processing.js";
           ? '<button class="button primary" data-action="reviewing">Iniciar revisión</button>'
           : t.status === "reviewing"
             ? '<button class="button primary" id="quote">Emitir cotización</button>'
-            : t.status === "quoted"
-              ? '<button class="button" data-action="closed">Cerrar atención</button>'
-              : ""
+            : ""
         : "";
-    const cancelAction = ["submitted", "reviewing"].includes(t.status)
-      ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>'
-      : "";
+    const cancelAction =
+      !t.expired &&
+      !t.processing_started_at &&
+      (["submitted", "reviewing"].includes(t.status) ||
+        (me.admin && t.status === "quoted"))
+        ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>'
+        : "";
     main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>La vigencia es de 24 horas desde su creación.</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "Eliminado o no disponible")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "Eliminado o no disponible")}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}<section class="ticket-chat"><div class="section-heading"><div><h2>Conversación del ticket</h2><p>Los comentarios se eliminan al vencer o cerrar el ticket. No escribas nombres, cuentas, contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section>`;
     $("#back").onclick = render;
-    if (t.amount > 50000) {
+    if (t.quote) {
+      $(".ticket-value-label").textContent = "Valor cotizado del certificado";
+      $(".heading h1").textContent = money(t.quote.received, t.currency);
+    }
+    if (t.processing_started_at)
+      $(".ticket-deadline > span").textContent =
+        "Vigencia de datos y conversación";
+    if (t.processing_completed_at && t.status !== "cancelled")
+      $(".ticket-deadline").innerHTML =
+        `<span>Solicitud completada</span><strong>Enviado ${dateTime(t.processing_completed_at)}</strong><small>Los datos de destino y los comentarios ya fueron eliminados. Se conserva el historial de la solicitud.</small>`;
+    const progress = document.createElement("section");
+    progress.className = "order-progress";
+    progress.setAttribute("aria-label", "Estado de la compra");
+    const steps = [
+      ["Solicitud recibida", t.created_at],
+      ["Cotización emitida", t.quote?.createdAt],
+      ["Pago confirmado", t.processing_started_at],
+      ["Enviado al beneficiario", t.processing_completed_at],
+    ];
+    progress.innerHTML = `<h2>Estado de la compra</h2><ol>${steps.map(([label, at]) => `<li class="${at ? "done" : ""}">${icon(at ? "circle-check" : "circle")}<span><strong>${label}</strong><small>${at ? dateTime(at) : "Pendiente"}</small></span></li>`).join("")}</ol>${t.processing_completed_at ? "<p>El administrador confirmó el pago y el envío al beneficiario. Tu solicitud está completada.</p>" : t.processing_started_at ? "<p>Pago confirmado. El envío al beneficiario está pendiente.</p>" : t.status === "quoted" ? "<p>La cotización está lista. Coordiná el pago por WhatsApp; todavía no está confirmado.</p>" : t.status === "closed" ? "<p>Este ticket se cerró con el flujo anterior. No hay una confirmación registrada de pago y envío.</p>" : ""}`;
+    $(".ticket-deadline").after(progress);
+    if (t.amount > 50000 && !["cancelled", "closed"].includes(t.status)) {
       const section = document.createElement("section");
       section.className = "processing-window";
       section.setAttribute("aria-label", "Seguimiento de entrega");
@@ -736,39 +765,41 @@ import { processingWindow, ticketShareText } from "./processing.js";
         }
         updateProcessing();
       }, 60000);
-      const canStart =
-        !t.expired && t.status === "quoted" && !t.processing_started_at;
-      const canComplete =
-        t.processing_started_at &&
-        !t.processing_completed_at &&
-        t.status !== "cancelled";
-      if (me.admin && (canStart || canComplete)) {
-        const button = document.createElement("button");
-        button.className = "button primary";
-        button.id = "processing-action";
-        button.innerHTML = `${icon(canStart ? "check-circle" : "package-check")}${canStart ? "Confirmar pago e iniciar plazo" : "Confirmar entrega"}`;
-        $(".actions").append(button);
-        button.onclick = () => {
-          modal(
-            canStart ? "Confirmar pago" : "Confirmar entrega",
-            `<p>${canStart ? "Confirmá solo si verificaste el pago por su canal oficial. El plazo de 2 a 6 días hábiles empieza ahora y no se puede reiniciar." : "Confirmá solo si verificaste que la entrega se realizó. Esta acción finaliza el contador."}</p><button class="button primary" id="confirm-processing">${canStart ? "Pago verificado: iniciar plazo" : "Entrega verificada: finalizar"}</button><p class="form-error" id="processing-error" role="alert"></p>`,
-          );
-          $("#confirm-processing").onclick = async (event) => {
-            event.currentTarget.disabled = true;
-            try {
-              await api(`/api/admin/tickets/${id}/processing`, {
-                action: canStart ? "start" : "complete",
-                version: t.version,
-              });
-              $("#dialog").close();
-              await detail(id);
-            } catch (error) {
-              $("#processing-error").textContent = error.message;
-              $("#confirm-processing").disabled = false;
-            }
-          };
+    }
+    const canStart =
+      !t.expired && t.status === "quoted" && !t.processing_started_at;
+    const canComplete =
+      t.processing_started_at &&
+      !t.processing_completed_at &&
+      t.status !== "cancelled";
+    if (me.admin && (canStart || canComplete)) {
+      const button = document.createElement("button");
+      button.className = "button primary";
+      button.id = "processing-action";
+      button.innerHTML = `${icon(canStart ? "check-circle" : "package-check")}${canStart ? "Confirmar pago recibido" : "Confirmar envío al beneficiario"}`;
+      $(".actions").append(button);
+      button.onclick = () => {
+        modal(
+          canStart
+            ? "Confirmar pago recibido"
+            : "Confirmar envío al beneficiario",
+          `<p>${canStart ? "Confirmá solo si verificaste el pago por su canal oficial. El cliente verá «Pago confirmado»." + (t.amount > 50000 ? " El plazo de 2 a 6 días hábiles empieza ahora." : "") : "Confirmá solo si ya realizaste y verificaste el envío al beneficiario. El ticket quedará completado y el cliente verá «Enviado al beneficiario». Los datos de destino y comentarios se eliminarán."}</p><button class="button primary" id="confirm-processing">${canStart ? "Sí, recibí el pago" : "Sí, confirmé el envío"}</button><p class="form-error" id="processing-error" role="alert"></p>`,
+        );
+        $("#confirm-processing").onclick = async (event) => {
+          event.currentTarget.disabled = true;
+          try {
+            await api(`/api/admin/tickets/${id}/processing`, {
+              action: canStart ? "start" : "complete",
+              version: t.version,
+            });
+            $("#dialog").close();
+            await detail(id);
+          } catch (error) {
+            $("#processing-error").textContent = error.message;
+            $("#confirm-processing").disabled = false;
+          }
         };
-      }
+      };
     }
     if (t.canMessage) {
       const marker = main.firstElementChild;
@@ -816,6 +847,40 @@ import { processingWindow, ticketShareText } from "./processing.js";
             "Guardar cotización",
           ),
         );
+        const quoteForm = $("#quote-form");
+        quoteForm.elements.fee.value = (t.estimate.total / 100).toFixed(2);
+        quoteForm.elements.received.readOnly = true;
+        if (quoteForm.elements.hours) quoteForm.elements.hours.value = "1";
+        quoteForm.elements.received.insertAdjacentHTML(
+          "afterend",
+          '<small class="field-hint">Calculado a partir del monto menos la comisión, convertido a la moneda de destino.</small>',
+        );
+        quoteForm.insertAdjacentHTML(
+          "afterbegin",
+          `<p>Monto base: <strong>${money(t.amount)}</strong>. Costos estimados: <strong>${money(t.estimate.total)}</strong>.</p><p id="quote-net" class="notice" aria-live="polite"></p>`,
+        );
+        const updateQuote = () => {
+          const fee = Number(quoteForm.elements.fee.value);
+          const net = t.amount - Math.round(fee * 100);
+          const rate =
+            t.currency === "NIO" ? Number(quoteForm.elements.rate.value) : 1;
+          const valid =
+            quoteForm.elements.fee.value !== "" &&
+            Number.isFinite(fee) &&
+            fee >= 0 &&
+            net > 0;
+          quoteForm.elements.received.value =
+            valid && rate > 0 ? (Math.round(net * rate) / 100).toFixed(2) : "";
+          $("#quote-net").textContent = valid
+            ? "Valor después de costos: " +
+              money(net) +
+              (t.currency === "NIO" && !rate
+                ? ". Ingresa el tipo de cambio para calcular el importe en córdobas."
+                : "")
+            : "La comisión debe ser menor que el monto base.";
+        };
+        quoteForm.oninput = updateQuote;
+        updateQuote();
         bind("quote-form", async (f) => {
           await api(base + id, {
             action: "quote",
@@ -827,6 +892,36 @@ import { processingWindow, ticketShareText } from "./processing.js";
         });
       };
     icons();
+    if (
+      !me.admin &&
+      !["delivered", "cancelled", "closed", "expired"].includes(t.status)
+    ) {
+      const marker = main.firstElementChild;
+      let loading = false;
+      ticketRefreshTimer = setInterval(async () => {
+        if (
+          loading ||
+          document.visibilityState !== "visible" ||
+          main.firstElementChild !== marker ||
+          $("#ticket-message")?.value.trim()
+        )
+          return;
+        loading = true;
+        try {
+          const latest = await api(base + id);
+          if (
+            main.firstElementChild === marker &&
+            !$("#ticket-message")?.value.trim() &&
+            (latest.version !== t.version || latest.status !== t.status)
+          )
+            await detail(id);
+        } catch {
+          /* Keep the current view available during a temporary connection failure. */
+        } finally {
+          loading = false;
+        }
+      }, 30000);
+    }
   }
   async function dashboard() {
     const [users, tickets] = await Promise.all([
@@ -835,7 +930,8 @@ import { processingWindow, ticketShareText } from "./processing.js";
     ]);
     const count = (status) => users.filter((u) => u.status === status).length;
     const openTickets = tickets.filter(
-      (t) => !["closed", "cancelled", "expired"].includes(t.status),
+      (t) =>
+        !["closed", "delivered", "cancelled", "expired"].includes(t.status),
     );
     const pending = users.filter((u) => u.status === "pending");
     const needsAttention = users.filter((u) =>
