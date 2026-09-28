@@ -1,5 +1,9 @@
 import CertificateModel from "./certificate.js";
-import { processingWindow, ticketShareText } from "./processing.js";
+import {
+  processingWindow,
+  ticketShareText,
+  deliveryAmount,
+} from "./processing.js";
 
 (() => {
   "use strict";
@@ -533,7 +537,7 @@ import { processingWindow, ticketShareText } from "./processing.js";
   }
   function historyRow(t) {
     const tracking = processingWindow(t);
-    return `<button class="ticket-row" data-ticket="${esc(t.id)}"><span><strong>${t.quote ? money(t.quote.received, t.currency) : money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>${t.quote ? "Valor cotizado" : "Valor estimado"} · Monto base ${money(t.amount)}</small><small>${dateTime(t.created_at)}</small><small class="ticket-id">${esc(t.id)}</small>${tracking && t.processing_started_at ? `<small>${t.processing_completed_at ? "Envío confirmado" : "Entrega en proceso"}</small>` : ""}</span><span class="badge ${esc(t.status)}">${esc(labels[t.status])}</span></button>`;
+    return `<button class="ticket-row" data-ticket="${esc(t.id)}"><span><strong>${t.delivery_amount ? money(t.delivery_amount.received, t.delivery_amount.currency) : t.quote ? money(t.quote.received, t.currency) : money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>${t.delivery_amount ? "Importe enviado" : t.quote ? "Importe acordado" : "Valor del ticket"} · Monto base ${money(t.amount)}</small><small>${dateTime(t.created_at)}</small><small class="ticket-id">${esc(t.id)}</small>${tracking && t.processing_started_at ? `<small>${t.processing_completed_at ? "Envío confirmado" : "Entrega en proceso"}</small>` : ""}</span><span class="badge ${esc(t.status)}">${esc(labels[t.status])}</span></button>`;
   }
   async function ticketHistory() {
     const params = new URLSearchParams({
@@ -702,14 +706,7 @@ import { processingWindow, ticketShareText } from "./processing.js";
     const notification = me.admin
       ? `<p class="notice"><strong>Aviso del ticket:</strong> Correo ${t.notification?.email_delivered ? "enviado" : "pendiente"} · WhatsApp ${t.notification?.whatsapp_delivered ? "enviado" : config.whatsappEnabled ? (t.notification?.whatsapp_attempts ? "en reintento" : "en cola") : "pendiente de activación"}. El aviso no contiene el número de cuenta.</p>`
       : "";
-    const adminActions =
-      me.admin && !t.expired
-        ? t.status === "submitted"
-          ? '<button class="button primary" data-action="reviewing">Iniciar revisión</button>'
-          : t.status === "reviewing"
-            ? '<button class="button primary" id="quote">Emitir cotización</button>'
-            : ""
-        : "";
+    const adminActions = "";
     const cancelAction =
       !t.expired &&
       !t.processing_started_at &&
@@ -717,11 +714,23 @@ import { processingWindow, ticketShareText } from "./processing.js";
         (me.admin && t.status === "quoted"))
         ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>'
         : "";
-    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>La vigencia es de 24 horas desde su creación.</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "Eliminado o no disponible")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "Eliminado o no disponible")}</p></div></div>${t.quote ? `<div class="notice"><strong>Cotización: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}<section class="ticket-chat"><div class="section-heading"><div><h2>Conversación del ticket</h2><p>Los comentarios se eliminan al vencer o cerrar el ticket. No escribas nombres, cuentas, contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section>`;
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>La vigencia es de 24 horas desde su creación.</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "Eliminado o no disponible")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "Eliminado o no disponible")}</p></div></div>${t.quote ? `<div class="notice"><strong>Importe acordado anteriormente: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}<section class="ticket-chat"><div class="section-heading"><div><h2>Conversación del ticket</h2><p>Los comentarios se eliminan al vencer o cerrar el ticket. No escribas nombres, cuentas, contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section>`;
     $("#back").onclick = render;
     if (t.quote) {
-      $(".ticket-value-label").textContent = "Valor cotizado del certificado";
+      $(".ticket-value-label").textContent = "Valor acordado anteriormente";
       $(".heading h1").textContent = money(t.quote.received, t.currency);
+    }
+    if (t.delivery_amount) {
+      $(".ticket-value-label").textContent = "Importe enviado al beneficiario";
+      $(".heading h1").textContent = money(
+        t.delivery_amount.received,
+        t.delivery_amount.currency,
+      );
+      if (t.delivery_amount.currency === "NIO")
+        $(".ticket-deadline").insertAdjacentHTML(
+          "beforebegin",
+          `<p class="notice">Valor del ticket: ${money(t.delivery_amount.netUSD)} · Tipo de cambio aplicado: ${esc(t.delivery_amount.rate)} NIO por USD.</p>`,
+        );
     }
     if (t.processing_started_at)
       $(".ticket-deadline > span").textContent =
@@ -734,11 +743,10 @@ import { processingWindow, ticketShareText } from "./processing.js";
     progress.setAttribute("aria-label", "Estado de la compra");
     const steps = [
       ["Solicitud recibida", t.created_at],
-      ["Cotización emitida", t.quote?.createdAt],
       ["Pago confirmado", t.processing_started_at],
       ["Enviado al beneficiario", t.processing_completed_at],
     ];
-    progress.innerHTML = `<h2>Estado de la compra</h2><ol>${steps.map(([label, at]) => `<li class="${at ? "done" : ""}">${icon(at ? "circle-check" : "circle")}<span><strong>${label}</strong><small>${at ? dateTime(at) : "Pendiente"}</small></span></li>`).join("")}</ol>${t.processing_completed_at ? "<p>El administrador confirmó el pago y el envío al beneficiario. Tu solicitud está completada.</p>" : t.processing_started_at ? "<p>Pago confirmado. El envío al beneficiario está pendiente.</p>" : t.status === "quoted" ? "<p>La cotización está lista. Coordiná el pago por WhatsApp; todavía no está confirmado.</p>" : t.status === "closed" ? "<p>Este ticket se cerró con el flujo anterior. No hay una confirmación registrada de pago y envío.</p>" : ""}`;
+    progress.innerHTML = `<h2>Estado de la compra</h2><ol>${steps.map(([label, at]) => `<li class="${at ? "done" : ""}">${icon(at ? "circle-check" : "circle")}<span><strong>${label}</strong><small>${at ? dateTime(at) : "Pendiente"}</small></span></li>`).join("")}</ol>${t.processing_completed_at ? "<p>El administrador confirmó el pago y el envío al beneficiario. Tu solicitud está completada.</p>" : t.processing_started_at ? "<p>Pago confirmado. El envío al beneficiario está pendiente.</p>" : t.status === "quoted" ? "<p>Coordiná el pago por WhatsApp; todavía no está confirmado.</p>" : t.status === "closed" ? "<p>Este ticket se cerró con el flujo anterior. No hay una confirmación registrada de pago y envío.</p>" : ""}`;
     $(".ticket-deadline").after(progress);
     if (t.amount > 50000 && !["cancelled", "closed"].includes(t.status)) {
       const section = document.createElement("section");
@@ -767,7 +775,9 @@ import { processingWindow, ticketShareText } from "./processing.js";
       }, 60000);
     }
     const canStart =
-      !t.expired && t.status === "quoted" && !t.processing_started_at;
+      !t.expired &&
+      ["submitted", "reviewing", "quoted"].includes(t.status) &&
+      !t.processing_started_at;
     const canComplete =
       t.processing_started_at &&
       !t.processing_completed_at &&
@@ -777,7 +787,7 @@ import { processingWindow, ticketShareText } from "./processing.js";
       button.className = "button primary";
       button.id = "processing-action";
       button.innerHTML = `${icon(canStart ? "check-circle" : "package-check")}${canStart ? "Confirmar pago recibido" : "Confirmar envío al beneficiario"}`;
-      $(".actions").append(button);
+      $(".actions").prepend(button);
       button.onclick = () => {
         modal(
           canStart
@@ -785,12 +795,34 @@ import { processingWindow, ticketShareText } from "./processing.js";
             : "Confirmar envío al beneficiario",
           `<p>${canStart ? "Confirmá solo si verificaste el pago por su canal oficial. El cliente verá «Pago confirmado»." + (t.amount > 50000 ? " El plazo de 2 a 6 días hábiles empieza ahora." : "") : "Confirmá solo si ya realizaste y verificaste el envío al beneficiario. El ticket quedará completado y el cliente verá «Enviado al beneficiario». Los datos de destino y comentarios se eliminarán."}</p><button class="button primary" id="confirm-processing">${canStart ? "Sí, recibí el pago" : "Sí, confirmé el envío"}</button><p class="form-error" id="processing-error" role="alert"></p>`,
         );
+        const needsRate = !canStart && t.currency === "NIO" && !t.quote;
+        if (canStart)
+          $("#confirm-processing").insertAdjacentHTML(
+            "beforebegin",
+            `<p>Monto base: <strong>${money(t.amount)}</strong> · Valor del ticket: <strong>${t.quote ? money(t.quote.received, t.currency) : money(t.estimate.net)}</strong>.</p>`,
+          );
+        if (needsRate) {
+          $("#confirm-processing").insertAdjacentHTML(
+            "beforebegin",
+            `<p>Valor del ticket: <strong>${money(t.estimate.net)}</strong>. La comisión no cambia.</p>${field("Tipo de cambio aplicado (NIO por USD)", "exchangeRate", "number", 'id="delivery-rate" min="0.0001" max="1000" step="0.0001"')}<p id="delivery-preview" class="notice" aria-live="polite">Ingresa el tipo de cambio aplicado al envío.</p>`,
+          );
+          $("#delivery-rate").oninput = () => {
+            try {
+              const amount = deliveryAmount(t, $("#delivery-rate").value);
+              $("#delivery-preview").textContent =
+                "Importe enviado: " + money(amount.received, amount.currency);
+            } catch (error) {
+              $("#delivery-preview").textContent = error.message;
+            }
+          };
+        }
         $("#confirm-processing").onclick = async (event) => {
           event.currentTarget.disabled = true;
           try {
             await api(`/api/admin/tickets/${id}/processing`, {
               action: canStart ? "start" : "complete",
               version: t.version,
+              ...(needsRate ? { exchangeRate: $("#delivery-rate").value } : {}),
             });
             $("#dialog").close();
             await detail(id);
@@ -837,60 +869,6 @@ import { processingWindow, ticketShareText } from "./processing.js";
         await api(base + id + "/messages", { message: f.get("message") });
         await detail(id);
       });
-    if ($("#quote"))
-      $("#quote").onclick = () => {
-        modal(
-          "Emitir cotización",
-          form(
-            "quote-form",
-            `${field("Comisión total en USD", "fee", "number", 'min="0" step="0.01"')}${field("Importe que recibiría en " + t.currency, "received", "number", 'min="0.01" step="0.01"')}${t.currency === "NIO" ? field("Tipo de cambio", "rate", "number", 'min="0.0001" step="0.0001"') : ""}${t.amount > 50000 ? "<p>Plazo estimado: 2 a 6 días hábiles desde la confirmación del pago. Lunes a viernes, sin ajuste por feriados.</p>" : field("Plazo de referencia (horas)", "hours", "number", 'min="1" max="168"')}<label class="field">Vigencia<select name="validity"><option value="60">1 hora</option><option value="1440">24 horas</option></select></label>`,
-            "Guardar cotización",
-          ),
-        );
-        const quoteForm = $("#quote-form");
-        quoteForm.elements.fee.value = (t.estimate.total / 100).toFixed(2);
-        quoteForm.elements.received.readOnly = true;
-        if (quoteForm.elements.hours) quoteForm.elements.hours.value = "1";
-        quoteForm.elements.received.insertAdjacentHTML(
-          "afterend",
-          '<small class="field-hint">Calculado a partir del monto menos la comisión, convertido a la moneda de destino.</small>',
-        );
-        quoteForm.insertAdjacentHTML(
-          "afterbegin",
-          `<p>Monto base: <strong>${money(t.amount)}</strong>. Costos estimados: <strong>${money(t.estimate.total)}</strong>.</p><p id="quote-net" class="notice" aria-live="polite"></p>`,
-        );
-        const updateQuote = () => {
-          const fee = Number(quoteForm.elements.fee.value);
-          const net = t.amount - Math.round(fee * 100);
-          const rate =
-            t.currency === "NIO" ? Number(quoteForm.elements.rate.value) : 1;
-          const valid =
-            quoteForm.elements.fee.value !== "" &&
-            Number.isFinite(fee) &&
-            fee >= 0 &&
-            net > 0;
-          quoteForm.elements.received.value =
-            valid && rate > 0 ? (Math.round(net * rate) / 100).toFixed(2) : "";
-          $("#quote-net").textContent = valid
-            ? "Valor después de costos: " +
-              money(net) +
-              (t.currency === "NIO" && !rate
-                ? ". Ingresa el tipo de cambio para calcular el importe en córdobas."
-                : "")
-            : "La comisión debe ser menor que el monto base.";
-        };
-        quoteForm.oninput = updateQuote;
-        updateQuote();
-        bind("quote-form", async (f) => {
-          await api(base + id, {
-            action: "quote",
-            version: t.version,
-            quote: Object.fromEntries(f),
-          });
-          $("#dialog").close();
-          await detail(id);
-        });
-      };
     icons();
     if (
       !me.admin &&

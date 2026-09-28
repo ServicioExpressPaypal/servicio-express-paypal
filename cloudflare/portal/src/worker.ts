@@ -13,7 +13,7 @@ import {
 } from "./protection";
 import { purgeExpiredTicketData } from "./retention";
 import { eraseAccount, purgeDeletedDocuments } from "./customer-account";
-import { ticketStage } from "../public/processing.js";
+import { ticketStage, deliveryAmount } from "../public/processing.js";
 
 // The same tested calculator and state machines power the demo and the API.
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
@@ -48,6 +48,7 @@ type Ticket = {
   expires_at: number;
   processing_started_at: number | null;
   processing_completed_at: number | null;
+  delivery_amount: string | null;
 };
 type TicketMessage = {
   id: string;
@@ -226,6 +227,7 @@ function publicTicket(t: Ticket, now = Date.now(), includeBankAccount = false) {
     canMessage: !erased,
     estimate: JSON.parse(t.estimate),
     quote: t.quote ? JSON.parse(t.quote) : null,
+    delivery_amount: t.delivery_amount ? JSON.parse(t.delivery_amount) : null,
   };
 }
 function messageBody(value: unknown) {
@@ -986,14 +988,14 @@ async function handle(
     const starting = body.action === "start";
     if (starting) {
       if (
-        target!.status !== "quoted" ||
+        !["submitted", "reviewing", "quoted"].includes(target!.status) ||
         isTicketExpired(target!, now) ||
         target!.processing_started_at ||
         target!.processing_completed_at
       )
         fail(
           409,
-          "Solo puedes confirmar el pago de un ticket cotizado, vigente y sin confirmación previa.",
+          "Solo puedes confirmar el pago de un ticket vigente, no cancelado y sin confirmación previa.",
         );
     } else if (body.action === "complete") {
       if (
@@ -1006,10 +1008,27 @@ async function handle(
     const column = starting
       ? "processing_started_at"
       : "processing_completed_at";
+    let delivery = target!.delivery_amount;
+    if (!starting) {
+      try {
+        delivery = JSON.stringify(
+          deliveryAmount(
+            {
+              ...target!,
+              estimate: JSON.parse(target!.estimate),
+              quote: target!.quote ? JSON.parse(target!.quote) : null,
+            },
+            body.exchangeRate,
+          ),
+        );
+      } catch (error) {
+        fail(400, (error as Error).message);
+      }
+    }
     const result = await env.DB.batch([
       env.DB.prepare(
-        `UPDATE tickets SET ${column}=?,${starting ? "" : "status='closed',"}version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id`,
-      ).bind(now, now, target!.id, body.version),
+        `UPDATE tickets SET ${column}=?,delivery_amount=?,${starting ? "" : "status='closed',"}version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id`,
+      ).bind(now, delivery, now, target!.id, body.version),
       env.DB.prepare(
         "INSERT INTO audit_events(id,actor_id,target_id,action,detail,created_at) SELECT ?,?,?,?,'',? WHERE changes()=1",
       ).bind(

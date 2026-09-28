@@ -9,9 +9,129 @@ import {
   processingWindow,
   ticketShareText,
   ticketStage,
+  deliveryAmount,
 } from "../public/processing.js";
 
 const origin = "https://portal.example.test";
+test("delivery uses the frozen ticket calculation and validates currency conversion", () => {
+  const t = {
+    amount: 5000,
+    currency: "NIO",
+    estimate: { net: 4400 },
+    quote: null,
+  };
+  assert.equal(deliveryAmount(t, "36.23").received, 159412);
+  assert.equal(deliveryAmount({ ...t, currency: "USD" }).received, 4400);
+  for (const rate of ["", 0, -1, "abc", "1e2", "36.12345", 1001])
+    assert.throws(() => deliveryAmount(t, rate));
+  assert.equal(
+    deliveryAmount({ ...t, quote: { fee: 600, received: 159412, rate: 36.23 } })
+      .received,
+    159412,
+  );
+});
+test("new and reviewing tickets accept payment without issuing a quotation", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("directpayment@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(customer.id)
+      .run();
+    for (const [amount, currency, review] of [
+      ["50", "USD", false],
+      ["50", "NIO", true],
+      ["600", "USD", false],
+    ]) {
+      const created = await customer.req(
+        "/api/tickets",
+        ticket({ amount, currency }),
+      );
+      assert.equal(created.status, 201);
+      const p = "/api/admin/tickets/" + created.data.id;
+      let version = 0;
+      if (review) {
+        assert.equal(
+          (await admin.req(p, { action: "reviewing", version })).status,
+          200,
+        );
+        version++;
+      }
+      const initial = (await customer.req("/api/tickets/" + created.data.id))
+        .data;
+      assert.equal(initial.quote, null);
+      assert.equal(
+        (
+          await admin.req(p + "/processing", {
+            action: "start",
+            version,
+            fee: "0",
+            received: "99999",
+          })
+        ).status,
+        200,
+      );
+      version++;
+      const paid = (await customer.req("/api/tickets/" + created.data.id)).data;
+      assert.equal(paid.status, "paid");
+      assert.equal(paid.quote, null);
+      assert.deepEqual(paid.estimate, initial.estimate);
+      if (currency === "NIO") {
+        assert.equal(
+          (await admin.req(p + "/processing", { action: "complete", version }))
+            .status,
+          400,
+        );
+        assert.equal(
+          (await customer.req("/api/tickets/" + created.data.id)).data.status,
+          "paid",
+        );
+      }
+      assert.equal(
+        (
+          await admin.req(p + "/processing", {
+            action: "complete",
+            version,
+            exchangeRate: "36.23",
+            received: 99999,
+          })
+        ).status,
+        200,
+      );
+      const done = (await customer.req("/api/tickets/" + created.data.id)).data;
+      assert.equal(done.status, "delivered");
+      assert.equal(done.quote, null);
+      assert.equal(done.delivery_amount.netUSD, initial.estimate.net);
+      assert.equal(
+        done.delivery_amount.received,
+        currency === "NIO" ? 159412 : initial.estimate.net,
+      );
+      assert.equal(done.delivery_amount.currency, currency);
+    }
+    const cancelled = await customer.req("/api/tickets", ticket());
+    assert.equal(
+      (
+        await customer.req("/api/tickets/" + cancelled.data.id, {
+          action: "cancelled",
+          version: 0,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await admin.req(
+          "/api/admin/tickets/" + cancelled.data.id + "/processing",
+          { action: "start", version: 1 },
+        )
+      ).status,
+      409,
+    );
+  } finally {
+    await s.mf.dispose();
+  }
+});
 test("ticket display distinguishes payment, delivery, expiration and legacy closure", () => {
   const t = { status: "quoted", expires_at: 50 };
   assert.equal(ticketStage(t, 100), "expired");
@@ -603,6 +723,7 @@ async function setup(open = true, overrides = {}) {
     "0008_privacy_security.sql",
     "0009_ticket_processing.sql",
     "0010_account_deletion.sql",
+    "0011_ticket_delivery_amount.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -1826,7 +1947,7 @@ test("only admin can start paid international tracking; expiry erases destinatio
       403,
     );
     assert.equal(
-      (await admin.req(action, { action: "start", version: 0 })).status,
+      (await admin.req(action, { action: "start", version: 99 })).status,
       409,
     );
     assert.equal(
@@ -1930,7 +2051,7 @@ test("only admin can start paid international tracking; expiry erases destinatio
           version: 0,
         })
       ).status,
-      409,
+      200,
     );
   } finally {
     await s.mf.dispose();

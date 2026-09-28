@@ -1,5 +1,37 @@
 const MANAGUA_OFFSET = 6 * 60 * 60 * 1000;
 
+export function deliveryAmount(ticket, exchangeRate) {
+  // Preserve amounts already agreed through the previous quotation workflow.
+  if (ticket.quote)
+    return {
+      netUSD: ticket.amount - ticket.quote.fee,
+      received: ticket.quote.received,
+      rate: ticket.quote.rate,
+      currency: ticket.currency,
+    };
+  const net = ticket.estimate.net;
+  if (!Number.isSafeInteger(net) || net <= 0)
+    throw new Error("El monto del ticket no es válido.");
+  if (ticket.currency === "USD")
+    return { netUSD: net, received: net, rate: 1, currency: "USD" };
+  const value = String(exchangeRate ?? "");
+  if (
+    !/^\d{1,4}(\.\d{1,4})?$/.test(value) ||
+    Number(value) <= 0 ||
+    Number(value) > 1000
+  )
+    throw new Error(
+      "Ingresa el tipo de cambio aplicado, mayor que cero y con hasta cuatro decimales.",
+    );
+  const scaledRate = Math.round(Number(value) * 10000);
+  return {
+    netUSD: net,
+    received: Math.round((net * scaledRate) / 10000),
+    rate: scaledRate / 10000,
+    currency: "NIO",
+  };
+}
+
 export function ticketStage(ticket, now = Date.now()) {
   if (ticket.status === "cancelled") return "cancelled";
   if (ticket.processing_completed_at) return "delivered";
