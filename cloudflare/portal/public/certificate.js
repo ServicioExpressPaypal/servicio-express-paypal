@@ -1,6 +1,6 @@
 export default (function () {
   "use strict";
-  const version = "cuenta-minima-2026-09-27-v2";
+  const version = "cuenta-minima-2026-09-27-v3";
   const ticketConditionsVersion = "ticket-condiciones-2026-09-27-v3";
   const title = "Certificado de regalo en efectivo";
   const presetAmounts = Object.freeze([50, 100, 200, 300, 400, 500]);
