@@ -12,6 +12,7 @@ import {
   ProtectionError,
 } from "./protection";
 import { purgeExpiredTicketData } from "./retention";
+import { eraseAccount, purgeDeletedDocuments } from "./customer-account";
 
 // The same tested calculator and state machines power the demo and the API.
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
@@ -89,6 +90,7 @@ const authPaths = new Set([
   "/send-verification-email",
   "/request-password-reset",
   "/reset-password",
+  "/change-password",
   "/two-factor/enable",
   "/two-factor/verify-totp",
   "/two-factor/verify-backup-code",
@@ -463,7 +465,10 @@ async function handle(
   const auth = createAuth(env, ctx);
   if (path.startsWith("/api/auth/")) {
     const endpoint = path.slice("/api/auth".length);
-    if (!authPaths.has(endpoint)) fail(404, "No disponible.");
+    const resetCallback =
+      request.method === "GET" &&
+      /^\/reset-password\/[A-Za-z0-9_-]{10,200}$/.test(endpoint);
+    if (!authPaths.has(endpoint) && !resetCallback) fail(404, "No disponible.");
     if (
       endpoint === "/sign-up/email" &&
       (env.REGISTRATION_OPEN !== "true" || env.EMAIL_PROVIDER === "disabled")
@@ -483,6 +488,7 @@ async function handle(
       "/sign-in/email": "login",
       "/request-password-reset": "recover",
       "/send-verification-email": "resend",
+      "/change-password": "password",
     };
     const action = actions[endpoint];
     let key: string | undefined;
@@ -502,10 +508,16 @@ async function handle(
       data.name = "Cliente";
       delete data.image;
     }
+    if (endpoint === "/change-password") data.revokeOtherSessions = true;
     const response = await auth.handler(
       new Request(request, { body: JSON.stringify(data) }),
     );
-    if (endpoint === "/sign-in/email" && response.ok && key && reservation)
+    if (
+      ["/sign-in/email", "/change-password"].includes(endpoint) &&
+      response.ok &&
+      key &&
+      reservation
+    )
       await releaseSuccessfulLogin(env, key, reservation.count);
     return response;
   }
@@ -530,7 +542,17 @@ async function handle(
   const adminReady = admin && (!requireMfa || !!grant);
   if (path === "/api/me")
     return json({
-      user: { id: user.id, email: user.email },
+      user: {
+        id: user.id,
+        email: user.email,
+        createdAt: user.createdAt,
+        emailVerified: user.emailVerified,
+      },
+      consent: await env.DB.prepare(
+        "SELECT version,accepted_at FROM registration_consents WHERE user_id=?",
+      )
+        .bind(user.id)
+        .first(),
       admin,
       adminReady,
       twoFactorEnabled: !!user.twoFactorEnabled,
@@ -545,6 +567,87 @@ async function handle(
       },
     });
   if (request.method === "POST") await rate(env, `user:${user.id}`, 30, 60);
+  if (path === "/api/account/delete" && request.method === "POST") {
+    if (admin)
+      fail(
+        403,
+        "La cuenta de administrador no se elimina desde el portal de clientes.",
+      );
+    const data = await payload(request);
+    if (data.confirmation !== "ELIMINAR")
+      fail(400, "Escribe ELIMINAR para confirmar.");
+    if (
+      typeof data.password !== "string" ||
+      !data.password ||
+      data.password.length > 128
+    )
+      fail(400, "Escribe tu contraseña actual.");
+    const key = await ipKey(request, env);
+    const reservation = await reserveAttempt(env, key);
+    await verifyBot(request, env, data.turnstileToken, "delete");
+    try {
+      await auth.api.verifyPassword({
+        headers: request.headers,
+        body: { password: data.password },
+      });
+    } catch {
+      fail(
+        403,
+        "Contraseña incorrecta o sesión vencida. Vuelve a iniciar sesión si el problema continúa.",
+      );
+    }
+    await releaseSuccessfulLogin(env, key, reservation.count);
+    const erased = await eraseAccount(env, user.id, user.email);
+    if (!erased)
+      fail(
+        409,
+        "Hay una cotización vigente o una entrega pendiente. Contacta al administrador para resolverla antes de eliminar tu cuenta.",
+      );
+    ctx.waitUntil(purgeDeletedDocuments(env));
+    return json({ ok: true });
+  }
+  if (path === "/api/account/history" && request.method === "GET") {
+    await purgeExpiredTicketData(env);
+    const url = new URL(request.url);
+    const page = Math.max(
+      1,
+      Math.min(
+        100000,
+        Number.parseInt(url.searchParams.get("page") || "1", 10) || 1,
+      ),
+    );
+    const query = (url.searchParams.get("q") || "").slice(0, 80).trim();
+    const filter = url.searchParams.get("status") || "all";
+    const now = Date.now();
+    const predicates: Record<string, string> = {
+      all: "1=1",
+      active:
+        "(status NOT IN ('closed','cancelled') AND expires_at>?) OR (processing_started_at IS NOT NULL AND processing_completed_at IS NULL AND status!='cancelled')",
+      expired: "expires_at<=? AND status NOT IN ('closed','cancelled')",
+      closed: "status='closed'",
+      cancelled: "status='cancelled'",
+    };
+    if (!Object.hasOwn(predicates, filter)) fail(400, "Filtro inválido.");
+    const where = `user_id=? AND instr(lower(id),lower(?))>0 AND (${predicates[filter]})`;
+    const args: (string | number)[] = [user.id, query];
+    if (filter === "active" || filter === "expired") args.push(now);
+    const count = await env.DB.prepare(
+      `SELECT count(*) AS total FROM tickets WHERE ${where}`,
+    )
+      .bind(...args)
+      .first<{ total: number }>();
+    const rows = await env.DB.prepare(
+      `SELECT * FROM tickets WHERE ${where} ORDER BY created_at DESC,id DESC LIMIT 20 OFFSET ?`,
+    )
+      .bind(...args, (page - 1) * 20)
+      .all<Ticket>();
+    return json({
+      items: rows.results.map((ticket) => publicTicket(ticket)),
+      total: count!.total,
+      page,
+      pageSize: 20,
+    });
+  }
   if (path === "/api/admin/unlock" && request.method === "POST") {
     if (!admin || !user.twoFactorEnabled)
       fail(403, "Configura el doble factor primero.");
@@ -1061,6 +1164,7 @@ export default {
     return new Response(response.body, { status: response.status, headers });
   },
   async scheduled(_event, env, ctx) {
+    await purgeDeletedDocuments(env);
     await purgeExpiredTicketData(env);
     await env.DB.prepare("DELETE FROM request_limits WHERE expires_at<?")
       .bind(Date.now())

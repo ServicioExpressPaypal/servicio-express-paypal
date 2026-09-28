@@ -11,6 +11,352 @@ import {
 } from "../public/processing.js";
 
 const origin = "https://portal.example.test";
+test("customer password changes require proof and revoke other sessions", async () => {
+  const s = await setup();
+  try {
+    const u = await s.registered("password@example.test");
+    const second = s.client();
+    assert.equal(
+      (
+        await second("/api/auth/sign-in/email", {
+          email: "password@example.test",
+          password: u.password,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await u.req("/api/auth/change-password", {
+          currentPassword: "wrong-password",
+          newPassword: "replacement-password-12345",
+        })
+      ).status,
+      400,
+    );
+    const changed = await u.req("/api/auth/change-password", {
+      currentPassword: u.password,
+      newPassword: "replacement-password-12345",
+      revokeOtherSessions: false,
+    });
+    assert.equal(changed.status, 200, JSON.stringify(changed.data));
+    assert.equal((await u.req("/api/me")).status, 200);
+    assert.equal((await second("/api/me")).status, 401);
+    const third = s.client();
+    assert.equal(
+      (
+        await third("/api/auth/sign-in/email", {
+          email: "password@example.test",
+          password: u.password,
+        })
+      ).status,
+      401,
+    );
+    assert.equal(
+      (
+        await third("/api/auth/sign-in/email", {
+          email: "password@example.test",
+          password: "replacement-password-12345",
+        })
+      ).status,
+      200,
+    );
+    await u.req("/api/auth/request-password-reset", {
+      email: "password@example.test",
+      redirectTo: origin + "/",
+    });
+    for (let n = 0; n < 30 && s.emails.length < 2; n++)
+      await new Promise((r) => setTimeout(r, 20));
+    const reset = new URL(s.emails.at(-1).text.match(/https:\/\/\S+/)[0]);
+    const redirect = await s.client()(reset.pathname + reset.search);
+    const token = new URL(redirect.headers.get("location")).searchParams.get(
+      "token",
+    );
+    assert.ok(token);
+    assert.equal(
+      (
+        await s.client()("/api/auth/reset-password", {
+          token,
+          newPassword: "reset-password-123456789",
+        })
+      ).status,
+      200,
+    );
+    assert.equal((await u.req("/api/me")).status, 401);
+    assert.equal((await third("/api/me")).status, 401);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
+test("history paginates, filters, scopes ownership and hides expired destinations", async () => {
+  const s = await setup();
+  try {
+    const u = await s.registered("history@example.test");
+    const other = await s.registered("otherhistory@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(u.id)
+      .run();
+    const made = await u.req("/api/tickets", ticket());
+    assert.equal(made.status, 201);
+    const source = await s.db
+      .prepare("SELECT * FROM tickets WHERE id=?")
+      .bind(made.data.id)
+      .first();
+    const inserts = [];
+    for (let n = 0; n < 24; n++)
+      inserts.push(
+        s.db
+          .prepare(
+            "INSERT INTO tickets(id,user_id,request_key,amount,mode,bank,currency,estimate,status,created_at,updated_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            "SE-HISTORY-" + n,
+            u.id,
+            crypto.randomUUID(),
+            source.amount,
+            source.mode,
+            "",
+            source.currency,
+            source.estimate,
+            n === 0 ? "closed" : "submitted",
+            Date.now() - n - 1,
+            Date.now(),
+            Date.now() - 1000,
+          ),
+      );
+    await s.db.batch(inserts);
+    const first = (await u.req("/api/account/history")).data;
+    const second = (await u.req("/api/account/history?page=2")).data;
+    assert.equal(first.total, 25);
+    assert.equal(first.items.length, 20);
+    assert.equal(second.items.length, 5);
+    assert.equal(
+      new Set([...first.items, ...second.items].map((t) => t.id)).size,
+      25,
+    );
+    assert.equal((await other.req("/api/account/history")).data.total, 0);
+    assert.equal(
+      (await u.req("/api/account/history?status=closed")).data.total,
+      1,
+    );
+    assert.equal(
+      (await u.req("/api/account/history?status=active")).data.total,
+      1,
+    );
+    const expired = (await u.req("/api/account/history?status=expired")).data;
+    assert.equal(expired.total, 23);
+    assert.ok(
+      expired.items.every(
+        (t) => t.status === "expired" && !t.beneficiary_name && !t.bank_account,
+      ),
+    );
+    assert.equal(
+      (await u.req("/api/account/history?q=SE-HISTORY-23")).data.total,
+      1,
+    );
+    assert.equal(
+      (await u.req("/api/account/history?status=invalid")).status,
+      400,
+    );
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
+test("account deletion erases related records and legacy files, not other users", async () => {
+  const s = await setup();
+  try {
+    const u = await s.registered("delete@example.test");
+    const other = await s.registered("keep@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active',dossier=? WHERE user_id=?")
+      .bind(
+        JSON.stringify({ front: "legacy/front", back: "legacy/back" }),
+        u.id,
+      )
+      .run();
+    const bucket = await s.mf.getR2Bucket("DOCUMENTS");
+    await bucket.put("legacy/front", "test front");
+    await bucket.put("legacy/back", "test back");
+    const created = await u.req("/api/tickets", ticket());
+    assert.equal(created.status, 201);
+    const tid = created.data.id;
+    assert.equal(
+      (
+        await u.req("/api/tickets/" + tid + "/messages", {
+          message: "Comentario de prueba",
+        })
+      ).status,
+      201,
+    );
+    await s.db
+      .prepare(
+        "INSERT INTO account_notices(id,user_id,status,reason,created_at) VALUES(?,?,'active','Cuenta aprobada',?)",
+      )
+      .bind(crypto.randomUUID(), u.id, Date.now())
+      .run();
+    await s.db
+      .prepare(
+        "INSERT INTO verification(id,identifier,value,expiresAt,createdAt,updatedAt) VALUES(?,?,?,?,?,?)",
+      )
+      .bind(
+        "reset-delete",
+        "reset-password:delete",
+        u.id,
+        Date.now() + 60000,
+        Date.now(),
+        Date.now(),
+      )
+      .run();
+    assert.equal(
+      (
+        await u.req("/api/account/delete", {
+          password: u.password,
+          confirmation: "no",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await u.req("/api/account/delete", {
+          password: "wrong-password",
+          confirmation: "ELIMINAR",
+        })
+      ).status,
+      403,
+    );
+    const result = await u.req("/api/account/delete", {
+      password: u.password,
+      confirmation: "ELIMINAR",
+      userId: other.id,
+    });
+    assert.equal(result.status, 200, JSON.stringify(result.data));
+    assert.equal((await u.req("/api/me")).status, 401);
+    assert.equal((await other.req("/api/me")).status, 200);
+    for (const [table, column] of [
+      ["user", "id"],
+      ["session", "userId"],
+      ["account", "userId"],
+      ["profiles", "user_id"],
+      ["registration_consents", "user_id"],
+      ["tickets", "user_id"],
+      ["account_notices", "user_id"],
+      ["ticket_messages", "author_id"],
+      ["audit_events", "actor_id"],
+    ]) {
+      assert.equal(
+        (
+          await s.db
+            .prepare(`SELECT count(*) AS n FROM ${table} WHERE ${column}=?`)
+            .bind(u.id)
+            .first()
+        ).n,
+        0,
+        table,
+      );
+    }
+    assert.equal(
+      (
+        await s.db
+          .prepare("SELECT count(*) AS n FROM audit_events WHERE target_id=?")
+          .bind(tid)
+          .first()
+      ).n,
+      0,
+    );
+    assert.equal(
+      (
+        await s.db
+          .prepare("SELECT count(*) AS n FROM notifications WHERE ticket_id=?")
+          .bind(tid)
+          .first()
+      ).n,
+      0,
+    );
+    assert.equal(
+      (
+        await s.db
+          .prepare("SELECT count(*) AS n FROM verification WHERE value=?")
+          .bind(u.id)
+          .first()
+      ).n,
+      0,
+    );
+    for (let n = 0; n < 30 && (await bucket.head("legacy/back")); n++)
+      await new Promise((r) => setTimeout(r, 20));
+    assert.equal(await bucket.head("legacy/front"), null);
+    assert.equal(await bucket.head("legacy/back"), null);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
+test("deletion blocks live quotes, pending deliveries and admin; bad passwords lock IP", async () => {
+  const s = await setup();
+  try {
+    const u = await s.registered("blockeddelete@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(u.id)
+      .run();
+    const t = await u.req("/api/tickets", ticket({ amount: "600" }));
+    await s.db
+      .prepare("UPDATE tickets SET status='quoted' WHERE id=?")
+      .bind(t.data.id)
+      .run();
+    const body = { password: u.password, confirmation: "ELIMINAR" };
+    assert.equal((await u.req("/api/account/delete", body)).status, 409);
+    await s.db
+      .prepare(
+        "UPDATE tickets SET expires_at=?,processing_started_at=? WHERE id=?",
+      )
+      .bind(Date.now() - 1000, Date.now(), t.data.id)
+      .run();
+    assert.equal((await u.req("/api/account/delete", body)).status, 409);
+    assert.equal((await u.req("/api/me")).status, 200);
+    const admin = await s.registered("admin@example.test");
+    assert.equal(
+      (
+        await admin.req("/api/account/delete", {
+          password: admin.password,
+          confirmation: "ELIMINAR",
+        })
+      ).status,
+      403,
+    );
+    for (let n = 0; n < 3; n++)
+      assert.equal(
+        (
+          await u.req("/api/account/delete", {
+            ...body,
+            password: "wrong-password",
+          })
+        ).status,
+        403,
+      );
+    assert.equal((await u.req("/api/account/delete", body)).status, 429);
+    await s.db
+      .prepare("UPDATE tickets SET processing_completed_at=? WHERE id=?")
+      .bind(Date.now(), t.data.id)
+      .run();
+    const fresh = s.client();
+    assert.equal(
+      (
+        await fresh("/api/auth/sign-in/email", {
+          email: "blockeddelete@example.test",
+          password: u.password,
+        })
+      ).status,
+      200,
+    );
+    assert.equal((await fresh("/api/account/delete", body)).status, 200);
+  } finally {
+    await s.mf.dispose();
+  }
+});
 async function setup(open = true, overrides = {}) {
   const emails = [];
   const whatsapp = [];
@@ -93,6 +439,7 @@ async function setup(open = true, overrides = {}) {
     "0007_ticket_whatsapp.sql",
     "0008_privacy_security.sql",
     "0009_ticket_processing.sql",
+    "0010_account_deletion.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -159,9 +506,19 @@ async function setup(open = true, overrides = {}) {
       legalVersion: CertificateModel.version,
     });
     assert.equal(r.status, 200, JSON.stringify(r.data));
-    for (let n = 0; n < 30 && !emails.some((e) => e.to.includes(email)); n++)
+    for (
+      let n = 0;
+      n < 30 &&
+      !emails.some(
+        (e) =>
+          e.to.includes(email) && e.text.includes("/api/auth/verify-email"),
+      );
+      n++
+    )
       await new Promise((r) => setTimeout(r, 20));
-    const message = emails.find((e) => e.to.includes(email));
+    const message = emails.find(
+      (e) => e.to.includes(email) && e.text.includes("/api/auth/verify-email"),
+    );
     assert.ok(message, "verification email dispatched");
     const url = new URL(message.text.match(/https:\/\/\S+/)[0]);
     r = await req(url.pathname + url.search);

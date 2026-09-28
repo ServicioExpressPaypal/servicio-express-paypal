@@ -1,6 +1,105 @@
 .workspace {
   min-height: 100vh;
 }
+.settings-section {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr);
+  gap: 32px;
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+}
+.settings-section h2 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+.settings-section p {
+  margin: 0 0 16px;
+  line-height: 1.6;
+}
+.settings-section .muted,
+.muted {
+  color: var(--muted);
+}
+.settings-actions {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 16px;
+}
+.account-data {
+  margin: 0 0 16px;
+  display: grid;
+  gap: 18px;
+}
+.account-data > div {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 12px;
+}
+.account-data dt {
+  color: var(--muted);
+}
+.account-data dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.account-data small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+}
+.button.danger {
+  color: #a52226;
+  border: 1px solid #a52226;
+  background: #fff;
+}
+.button.danger:hover {
+  background: #fff2f2;
+}
+.danger-section h2 {
+  color: #a52226;
+}
+.history-filters {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(150px, 220px) auto;
+  gap: 16px;
+  align-items: end;
+  margin: 24px 0;
+}
+.history-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0;
+  font-variant-numeric: tabular-nums;
+}
+.history-pagination button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.settings-section .button {
+  white-space: normal;
+  text-align: left;
+}
+@media (max-width: 640px) {
+  .settings-section {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 22px 0;
+  }
+  .account-data > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+  }
+  .history-filters {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  #navigation {
+    gap: 12px;
+  }
+}
 #navigation {
   justify-content: flex-end;
   flex-wrap: wrap;

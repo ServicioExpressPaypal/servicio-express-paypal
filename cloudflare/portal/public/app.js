@@ -48,6 +48,9 @@ import { processingWindow, ticketShareText } from "./processing.js";
     config,
     view = "dashboard",
     userFilter = "all",
+    historyPage = 1,
+    historyQuery = "",
+    historyStatus = "all",
     timer;
   let botId, botLoading, detailExpiry, processingTimer;
   const botActions = {
@@ -55,6 +58,8 @@ import { processingWindow, ticketShareText } from "./processing.js";
     "/api/auth/sign-in/email": "login",
     "/api/auth/request-password-reset": "recover",
     "/api/auth/send-verification-email": "resend",
+    "/api/auth/change-password": "password",
+    "/api/account/delete": "delete",
   };
   function mountBot(action) {
     if (!config.turnstileSiteKey) return;
@@ -141,6 +146,9 @@ import { processingWindow, ticketShareText } from "./processing.js";
           INVALID_EMAIL_OR_PASSWORD:
             "El correo o la contraseña no son correctos.",
           EMAIL_NOT_VERIFIED: "Verifica tu correo antes de entrar.",
+          INVALID_PASSWORD: "La contraseña actual no es correcta.",
+          SESSION_EXPIRED:
+            "Por seguridad, vuelve a iniciar sesión y reintenta.",
         }[data.code] ||
           data.error ||
           data.message ||
@@ -197,7 +205,7 @@ import { processingWindow, ticketShareText } from "./processing.js";
   function nav() {
     $("#navigation").innerHTML = !me
       ? ""
-      : `${me.admin ? '<button class="nav" data-view="dashboard">Resumen</button><button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="users">Usuarios</button>' : '<button class="nav" data-view="tickets">Mis solicitudes</button><button class="nav" data-view="profile">Mi cuenta</button>'}<button class="icon-button" id="logout" title="Cerrar sesión" aria-label="Cerrar sesión">${icon("log-out")}</button>`;
+      : `${me.admin ? '<button class="nav" data-view="dashboard">Resumen</button><button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="users">Usuarios</button>' : '<button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="history">Historial</button><button class="nav" data-view="settings">Ajustes</button>'}<button class="icon-button" id="logout" title="Cerrar sesión" aria-label="Cerrar sesión">${icon("log-out")}</button>`;
     if ($("#logout"))
       $("#logout").onclick = async () => {
         await api("/api/auth/sign-out", {});
@@ -216,7 +224,9 @@ import { processingWindow, ticketShareText } from "./processing.js";
   async function render() {
     clearInterval(processingTimer);
     clearTimeout(detailExpiry);
+    if (me && !me.admin && view === "dashboard") view = "tickets";
     nav();
+    if (resetToken) return login();
     if (!me && setupMode) return adminSetup();
     if (!me) return login();
     if (me.admin && !me.adminReady) return security();
@@ -229,6 +239,8 @@ import { processingWindow, ticketShareText } from "./processing.js";
       }
       if (me.admin && view === "users") await users();
       else if (me.admin && view === "dashboard") await dashboard();
+      else if (!me.admin && view === "settings") settings();
+      else if (!me.admin && view === "history") await ticketHistory();
       else if (
         !me.admin &&
         (view === "profile" || me.profile.status !== "active")
@@ -398,6 +410,14 @@ import { processingWindow, ticketShareText } from "./processing.js";
   function profile() {
     const p = me.profile;
     main.innerHTML = `<div class="onboarding"><h1>Mi cuenta</h1><p>${esc(me.user.email)}</p><span class="badge">${esc(AccountModel.labels[p.status])}</span>${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}${p.status === "pending" ? "<p>Recibimos tus datos. Tu cuenta se activará después de la aprobación manual.</p>" : p.status === "active" ? `<p>${esc(p.name)}</p>` : !config.kycOpen ? '<div class="notice">La recepción de datos para revisión todavía no está habilitada.</div>' : ""}</div>`;
+    $(".onboarding").insertAdjacentHTML(
+      "beforeend",
+      '<button class="button" id="open-settings">Ver ajustes de mi cuenta</button>',
+    );
+    $("#open-settings").onclick = () => {
+      view = "settings";
+      render();
+    };
     if (!config.kycOpen || !["incomplete", "correction"].includes(p.status))
       return;
     main.innerHTML = `<div class="onboarding"><h1>Solicita la activación</h1>${form("profile", `<p>Revisaremos tu correo y tu solicitud. Los datos del beneficiario se piden solamente al crear un ticket.</p><label class="check"><input type="checkbox" name="declaration" required>Declaro que soy mayor de edad.</label><label class="check"><input type="checkbox" name="terms" required>Acepto los términos y condiciones.</label><label class="check"><input type="checkbox" name="privacy" required>He leído el aviso de privacidad.</label><button type="button" class="text-button" id="legal">Términos y privacidad</button>`, "Enviar a revisión")}</div>`;
@@ -410,8 +430,163 @@ import { processingWindow, ticketShareText } from "./processing.js";
       await refresh();
     });
   }
+  function settings() {
+    const p = me.profile;
+    main.innerHTML = `<div class="heading"><h1>Ajustes</h1><span class="badge">${esc(AccountModel.labels[p.status])}</span></div>
+      <section class="settings-section"><div><h2>Mi cuenta</h2><p class="muted">Tu acceso a Saldo Express.</p></div><div>
+        <dl class="account-data"><div><dt>Correo electrónico</dt><dd>${esc(me.user.email)}</dd></div><div><dt>Verificación</dt><dd>${me.user.emailVerified ? "Correo verificado" : "Pendiente"}</dd></div><div><dt>Cuenta creada</dt><dd>${dateTime(me.user.createdAt)}</dd></div><div><dt>Estado</dt><dd>${esc(AccountModel.labels[p.status])}</dd></div>${me.consent ? `<div><dt>Aceptación de condiciones</dt><dd>${dateTime(me.consent.accepted_at)}<small>${esc(me.consent.version)}</small></dd></div>` : ""}</dl>
+        ${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}${p.status === "pending" ? '<p class="notice">Tu cuenta está pendiente de aprobación manual. Podrás crear tickets cuando sea activada.</p>' : ""}
+        <a class="text-button" href="mailto:info@softohmsystems.com">Solicitar corrección de mis datos</a>
+      </div></section>
+      <section class="settings-section"><div><h2>Contraseña</h2><p class="muted">Al cambiarla, se cerrarán las otras sesiones.</p></div><div class="settings-actions"><button class="button" id="change-password">${icon("key-round")}Cambiar contraseña</button><button class="text-button" id="reset-password">Recibir enlace de recuperación</button></div></section>
+      <section class="settings-section"><div><h2>Privacidad</h2></div><div><p>Los datos de destino y los comentarios del ticket se eliminan al vencer o cerrarse. El historial conserva montos, estados y condiciones aceptadas.</p><a href="/privacidad.html" target="_blank" rel="noopener">Ver aviso de privacidad</a></div></section>
+      <section class="settings-section danger-section"><div><h2>Eliminar cuenta</h2><p class="muted">Esta acción es permanente.</p></div><div><p>Se eliminarán tu cuenta, sesiones, tickets, comentarios y aceptaciones de la base activa. Las cotizaciones vigentes y entregas pendientes deben resolverse primero.</p><button class="button danger" id="delete-account">${icon("trash-2")}Eliminar mi cuenta</button></div></section>`;
+    $("#change-password").onclick = () => {
+      modal(
+        "Cambiar contraseña",
+        form(
+          "password-change",
+          field(
+            "Contraseña actual",
+            "currentPassword",
+            "password",
+            'autocomplete="current-password" maxlength="128"',
+          ) +
+            field(
+              "Nueva contraseña",
+              "newPassword",
+              "password",
+              'autocomplete="new-password" minlength="12" maxlength="128"',
+            ) +
+            '<p class="field-hint">Usa al menos 12 caracteres.</p>' +
+            field(
+              "Repite la nueva contraseña",
+              "confirmation",
+              "password",
+              'autocomplete="new-password" minlength="12" maxlength="128"',
+            ) +
+            '<div id="bot-check"></div>',
+          "Guardar contraseña",
+        ),
+      );
+      mountBot("password");
+      bind("password-change", async (f) => {
+        if (f.get("newPassword") !== f.get("confirmation"))
+          throw new Error("Las contraseñas no coinciden.");
+        if (f.get("newPassword") === f.get("currentPassword"))
+          throw new Error("Elige una contraseña distinta a la actual.");
+        await api("/api/auth/change-password", {
+          currentPassword: f.get("currentPassword"),
+          newPassword: f.get("newPassword"),
+          revokeOtherSessions: true,
+        });
+        $("#dialog").close();
+        toast("Contraseña actualizada. Se cerraron las otras sesiones.");
+      });
+    };
+    $("#reset-password").onclick = () => {
+      modal(
+        "Recuperar contraseña",
+        form(
+          "password-email",
+          `<p>Enviaremos un enlace a <strong>${esc(me.user.email)}</strong>.</p><div id="bot-check"></div>`,
+          "Enviar enlace",
+        ),
+      );
+      mountBot("recover");
+      bind("password-email", async () => {
+        await api("/api/auth/request-password-reset", {
+          email: me.user.email,
+          redirectTo: location.origin + "/",
+        });
+        $("#dialog").close();
+        toast("Revisa tu correo para restablecer la contraseña.");
+      });
+    };
+    $("#delete-account").onclick = () => {
+      modal(
+        "Eliminar mi cuenta",
+        form(
+          "account-delete",
+          `<p>Perderás el acceso a tu cuenta y a todo tu historial. Esta acción no cancela pagos ni elimina copias de correos o WhatsApp.</p><p>Las copias técnicas de recuperación pueden conservar datos hasta 30 días. Si existen documentos antiguos, su borrado se reintentará automáticamente hasta completarse.</p>${field("Contraseña actual", "password", "password", 'autocomplete="current-password" maxlength="128"')}${field("Escribe ELIMINAR para confirmar", "confirmation", "text", 'autocomplete="off" pattern="ELIMINAR"')}<label class="check"><input type="checkbox" name="acknowledge" required>Entiendo que perderé mi cuenta y mi historial.</label><div id="bot-check"></div>`,
+          "Eliminar definitivamente",
+        ),
+      );
+      $("#account-delete button[type=submit]").classList.add("danger");
+      mountBot("delete");
+      bind("account-delete", async (f) => {
+        await api("/api/account/delete", {
+          password: f.get("password"),
+          confirmation: f.get("confirmation"),
+        });
+        await api("/api/auth/sign-out", {}).catch(() => {});
+        $("#dialog").close();
+        me = null;
+        view = "dashboard";
+        render();
+        toast("Tu cuenta y su historial fueron eliminados de la base activa.");
+      });
+    };
+  }
+  function historyRow(t) {
+    const tracking = processingWindow(t);
+    return `<button class="ticket-row" data-ticket="${esc(t.id)}"><span><strong>${money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>Monto base ${money(t.amount)} · ${dateTime(t.created_at)}</small><small class="ticket-id">${esc(t.id)}</small>${tracking && t.processing_started_at ? `<small>${t.processing_completed_at ? "Entrega confirmada" : "Entrega en proceso"}</small>` : ""}</span><span class="badge ${esc(t.status)}">${esc(labels[t.status])}</span></button>`;
+  }
+  async function ticketHistory() {
+    const params = new URLSearchParams({
+      page: String(historyPage),
+      q: historyQuery,
+      status: historyStatus,
+    });
+    const result = await api("/api/account/history?" + params);
+    const pages = Math.max(1, Math.ceil(result.total / result.pageSize));
+    main.innerHTML = `<div class="heading"><h1>Historial</h1><span class="muted">${result.total} solicitudes</span></div>
+      <form id="history-search" class="history-filters"><label class="field">Número de ticket<input type="search" name="query" maxlength="80" value="${esc(historyQuery)}" placeholder="SE-…"></label><label class="field">Estado<select name="status">${Object.entries(
+        {
+          all: "Todos",
+          active: "Vigentes o en proceso",
+          expired: "Vencidos",
+          closed: "Cerrados",
+          cancelled: "Cancelados",
+        },
+      )
+        .map(
+          ([key, label]) =>
+            `<option value="${key}" ${key === historyStatus ? "selected" : ""}>${label}</option>`,
+        )
+        .join(
+          "",
+        )}</select></label><button class="button" type="submit">${icon("search")}Buscar</button></form>
+      <div class="ticket-list">${result.items.length ? result.items.map(historyRow).join("") : '<p class="empty">No hay solicitudes con estos filtros.</p>'}</div>
+      <div class="history-pagination"><button class="icon-button" id="previous-page" aria-label="Página anterior" title="Página anterior" ${historyPage <= 1 ? "disabled" : ""}>${icon("chevron-left")}</button><span>Página ${historyPage} de ${pages}</span><button class="icon-button" id="next-page" aria-label="Página siguiente" title="Página siguiente" ${historyPage >= pages ? "disabled" : ""}>${icon("chevron-right")}</button></div>`;
+    $("#history-search").onsubmit = (e) => {
+      e.preventDefault();
+      const f = new FormData(e.currentTarget);
+      historyQuery = String(f.get("query")).trim();
+      historyStatus = String(f.get("status"));
+      historyPage = 1;
+      render();
+    };
+    $("#previous-page").onclick = () => {
+      historyPage--;
+      render();
+    };
+    $("#next-page").onclick = () => {
+      historyPage++;
+      render();
+    };
+    document
+      .querySelectorAll("[data-ticket]")
+      .forEach(
+        (b) =>
+          (b.onclick = () =>
+            detail(b.dataset.ticket).catch((e) => toast(e.message))),
+      );
+  }
   async function tickets() {
-    const rows = await api(me.admin ? "/api/admin/tickets" : "/api/tickets");
+    const rows = me.admin
+      ? await api("/api/admin/tickets")
+      : (await api("/api/account/history?status=active")).items;
     main.innerHTML = `<div class="heading"><h1>${me.admin ? "Solicitudes" : "Mis solicitudes"}</h1>${!me.admin ? `<button class="button primary" id="new-ticket">${icon("plus")}Nueva solicitud</button>` : ""}</div><div class="ticket-list">${rows.length ? rows.map((t) => `<button class="ticket-row" data-ticket="${t.id}"><span><strong>${money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>Valor estimado · Monto base ${money(t.amount)}</small><small>${esc(t.beneficiary_name || t.full_name || t.bank)} · ${new Date(t.created_at).toLocaleDateString("es-NI")}</small><small class="ticket-expiry">${esc(expiryText(t))}</small><small class="ticket-id">${esc(t.id)}</small></span><span class="badge ${t.status}">${labels[t.status]}</span></button>`).join("") : '<p class="empty">Todavía no hay solicitudes.</p>'}</div>`;
     if (!me.admin) {
       const cards = CertificateModel.presetAmounts
@@ -427,6 +602,19 @@ import { processingWindow, ticketShareText } from "./processing.js";
       });
     }
     if ($("#new-ticket")) $("#new-ticket").onclick = () => newTicket();
+    if (!me.admin) {
+      $(".ticket-list").insertAdjacentHTML(
+        "afterend",
+        '<button class="text-button" id="all-history">Ver todo el historial</button>',
+      );
+      $("#all-history").onclick = () => {
+        view = "history";
+        historyPage = 1;
+        historyStatus = "all";
+        historyQuery = "";
+        render();
+      };
+    }
     document
       .querySelectorAll("[data-ticket]")
       .forEach(
