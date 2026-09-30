@@ -38,7 +38,7 @@ export default (function () {
     ],
     [
       "Proveedores y derechos",
-      "Cloudflare aloja y protege el portal; Resend envía los correos. WhatsApp/Meta trata los mensajes que decidas enviar por ese canal. Responsable: SoftOhm Systems LLC. Contacto: info@softohmsystems.com.",
+      "Cloudflare aloja y protege el portal; Resend envía los correos. WhatsApp/Meta trata los mensajes que decidas enviar por ese canal. Responsable: SoftOhm Systems LLC. Contacto: soporte@saldoexpressnicaragua.com.",
     ],
   ];
   function contact(data) {

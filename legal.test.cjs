@@ -11,7 +11,7 @@ test("legal notices are published while the home stays in construction", () => {
   for (const path of ["terminos.html", "privacidad.html"]) {
     const html = read(path);
     assert.match(html, /SoftOhm Systems LLC/);
-    assert.match(html, /mailto:info@softohmsystems.com/);
+    assert.match(html, /mailto:soporte@saldoexpressnicaragua.com/);
     assert.match(html, /registro/i);
     assert.doesNotMatch(html, /<form|<script/i);
     assert.doesNotMatch(home, new RegExp(`href="${path}"`));

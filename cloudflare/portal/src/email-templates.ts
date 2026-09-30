@@ -15,7 +15,7 @@ type Spec = {
   small?: string[];
 };
 
-const CONTACT = "info@softohmsystems.com";
+const CONTACT = "soporte@saldoexpressnicaragua.com";
 const escapes: Record<string, string> = {
   "&": "&amp;",
   "<": "&lt;",

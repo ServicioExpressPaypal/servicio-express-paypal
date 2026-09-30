@@ -88,7 +88,7 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
   consola, correos o WhatsApp automatico. No registrar cuerpos ni tokens.
 - /privacidad.html y /terminos.html se copian desde la raiz al build. Conservar
   versiones aceptadas en Git, identificadas por certificate.js. Responsable:
-  SoftOhm Systems LLC, info@softohmsystems.com. Los textos no certifican
+  SoftOhm Systems LLC, soporte@saldoexpressnicaragua.com. Los textos no certifican
   cumplimiento ni autorizacion de actividad financiera.
 
 ## Comunicaciones
