@@ -853,3 +853,102 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* Rediseño: paleta Saldo Express (naranja + carbón), interfaz simple.
+   Solo estilos: no cambia funciones, textos ni datos. */
+:root {
+  --ink: #15181c;
+  --muted: #5b6675;
+  --line: #e4e7ec;
+  --paper: #f7f8fa;
+  --orange: #b84a0c;
+  --blue: #b84a0c;
+  --brand: #f26c1f;
+  font:
+    15px/1.5 system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+}
+body {
+  background: var(--paper);
+}
+.badge[class][class] {
+  background: none;
+  color: var(--ink);
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.button {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 15px;
+}
+.button.primary,
+.gift-select {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--ink);
+}
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  min-height: 44px;
+  border-radius: 10px;
+  border-color: #8b94a1;
+  font-size: 16px;
+}
+.ticket-list,
+.admin-list {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.ticket-row,
+.admin-list-row {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: #fff;
+}
+.ticket-row:last-child,
+.admin-list-row:last-child {
+  border-bottom: 0;
+}
+.metric-card,
+.dashboard-section,
+.gift-option,
+.order-progress,
+.ticket-deadline {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.nav.active {
+  color: var(--ink);
+  border-bottom-color: var(--brand);
+  border-bottom-width: 3px;
+}
+.dashboard-section {
+  overflow: hidden;
+  padding: 0;
+}
+.dashboard-section .section-heading {
+  padding: 16px;
+  margin: 0;
+}
+.dashboard-section .admin-list {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+.admin-list-row {
+  padding: 14px 16px;
+}
+.order-progress li.done {
+  color: var(--ink);
+}
