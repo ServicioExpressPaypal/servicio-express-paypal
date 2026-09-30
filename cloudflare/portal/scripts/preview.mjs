@@ -91,6 +91,7 @@ for (const file of [
   "0010_account_deletion.sql",
   "0011_ticket_delivery_amount.sql",
   "0012_security_events.sql",
+  "0013_chat_encrypted_length.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),

@@ -1049,6 +1049,7 @@ async function setup(open = true, overrides = {}) {
     "0010_account_deletion.sql",
     "0011_ticket_delivery_amount.sql",
     "0012_security_events.sql",
+    "0013_chat_encrypted_length.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -1762,6 +1763,20 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       .bind(id)
       .all();
     assert.ok(!JSON.stringify(messageAudit).includes("confirmar el banco"));
+    // Ciphertext is longer than the plaintext: the largest accepted messages
+    // (1000 UTF-16 units, up to 3 bytes each) must fit the column and decrypt
+    // to the exact original text.
+    const longMessages = ["ñ".repeat(1000), "😀".repeat(500), "€".repeat(1000)];
+    for (const text of longMessages) {
+      r = await a.req(`/api/tickets/${id}/messages`, { message: text });
+      assert.equal(r.status, 201, JSON.stringify(r.data));
+      assert.equal(r.data.body, text);
+    }
+    const longConversation = await a.req("/api/tickets/" + id);
+    const longBodies = longConversation.data.messages.map(
+      (message) => message.body,
+    );
+    for (const text of longMessages) assert.ok(longBodies.includes(text));
     assert.equal(
       (
         await a.req(`/api/tickets/${id}/messages`, {
