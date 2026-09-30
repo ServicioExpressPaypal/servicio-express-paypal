@@ -5,6 +5,11 @@ import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { createOTP } from "@better-auth/utils/otp";
 import CertificateModel from "../public/certificate.js";
 import {
+  encryptField,
+  decryptField,
+  encryptLegacyData,
+} from "../src/encryption.ts";
+import {
   addBusinessDays,
   processingWindow,
   ticketShareText,
@@ -14,6 +19,323 @@ import {
 } from "../public/processing.js";
 
 const origin = "https://portal.example.test";
+const encryptionEnv = {
+  DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+};
+
+test("scheduled security alerts aggregate counts, rate-limit mail and expire old events", async () => {
+  const s = await setup();
+  try {
+    const now = Date.now();
+    await s.db
+      .prepare(
+        "INSERT INTO security_events VALUES('old','auth_failed','oldhash',?)",
+      )
+      .bind(now - 31 * 86400000)
+      .run();
+    for (let i = 0; i < 5; i++)
+      await s.db
+        .prepare("INSERT INTO security_events VALUES(?,'server_error','',?)")
+        .bind(`event-${i}`, now)
+        .run();
+    const worker = await s.mf.getWorker();
+    assert.equal(
+      (await worker.scheduled({ cron: "*/15 * * * *" })).outcome,
+      "ok",
+    );
+    assert.equal(
+      await s.db
+        .prepare("SELECT id FROM security_events WHERE id='old'")
+        .first(),
+      null,
+    );
+    for (let i = 0; i < 30 && s.emails.length === 0; i++)
+      await new Promise((r) => setTimeout(r, 20));
+    assert.equal(s.emails.length, 1);
+    assert.match(s.emails[0].subject, /Alerta de seguridad/);
+    assert.match(s.emails[0].text, /server_error: 5/);
+    assert.ok(!s.emails[0].text.includes("oldhash"));
+    await worker.scheduled({ cron: "*/15 * * * *" });
+    assert.equal(s.emails.length, 1);
+    await s.db.prepare("UPDATE security_alerts SET next_at=0").run();
+    await worker.scheduled({ cron: "*/15 * * * *" });
+    for (let i = 0; i < 30 && s.emails.length < 2; i++)
+      await new Promise((r) => setTimeout(r, 20));
+    assert.equal(s.emails.length, 2);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
+test("field encryption uses random authenticated ciphertext bound to record and field", async () => {
+  const first = await encryptField(
+    encryptionEnv,
+    "sensitive test data",
+    "profile:one:name",
+  );
+  const second = await encryptField(
+    encryptionEnv,
+    "sensitive test data",
+    "profile:one:name",
+  );
+  assert.notEqual(first, second);
+  assert.ok(!first.includes("sensitive"));
+  assert.equal(
+    await decryptField(encryptionEnv, first, "profile:one:name"),
+    "sensitive test data",
+  );
+  await assert.rejects(decryptField(encryptionEnv, first, "profile:two:name"));
+  const altered = Buffer.from(first.slice(7), "base64");
+  altered[15] ^= 1;
+  await assert.rejects(
+    decryptField(
+      encryptionEnv,
+      "enc:v1:" + altered.toString("base64"),
+      "profile:one:name",
+    ),
+  );
+  await assert.rejects(
+    encryptField({ DATA_ENCRYPTION_KEY: "" }, "data", "context"),
+  );
+  assert.equal(
+    await decryptField(encryptionEnv, "legacy", "context"),
+    "legacy",
+  );
+});
+
+test("HTTP redirects safely and HTTPS errors retain security headers", async () => {
+  const s = await setup(false);
+  try {
+    const redirect = await s.mf.dispatchFetch(
+      "http://portal.example.test/api/config?test=1",
+      { redirect: "manual" },
+    );
+    assert.equal(redirect.status, 308);
+    assert.equal(
+      redirect.headers.get("location"),
+      origin + "/api/config?test=1",
+    );
+    const unauthorized = await s.client()("/api/admin/users");
+    assert.equal(unauthorized.status, 401);
+    assert.match(
+      unauthorized.headers.get("strict-transport-security"),
+      /max-age=15552000/,
+    );
+    assert.equal(unauthorized.headers.get("x-content-type-options"), "nosniff");
+    assert.match(
+      unauthorized.headers.get("content-security-policy"),
+      /frame-ancestors 'none'/,
+    );
+    assert.deepEqual((await s.client()("/api/health")).data, { ok: true });
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
+test("account limit blocks distributed login attempts without exposing identifiers", async () => {
+  const s = await setup();
+  try {
+    const user = await s.registered("target@example.test");
+    for (let i = 0; i < 5; i++) {
+      const result = await s.client()("/api/auth/sign-in/email", {
+        email: "target@example.test",
+        password: "incorrect-test-password",
+      });
+      assert.equal(result.status, 401);
+    }
+    const blocked = await s.client()("/api/auth/sign-in/email", {
+      email: "TARGET@example.test",
+      password: user.password,
+    });
+    assert.equal(blocked.status, 429);
+    assert.ok(Number(blocked.headers.get("retry-after")) > 0);
+    const rows = await s.db.prepare("SELECT * FROM request_limits").all();
+    assert.ok(!JSON.stringify(rows).includes("target@example.test"));
+    assert.ok(!JSON.stringify(rows).includes("192.0.2."));
+    await s.db.prepare("DELETE FROM request_limits").run();
+    assert.equal(
+      (
+        await s.client()("/api/auth/sign-in/email", {
+          email: "target@example.test",
+          password: user.password,
+        })
+      ).status,
+      200,
+    );
+    for (let i = 0; i < 30; i++) {
+      const events = await s.db.prepare("SELECT * FROM security_events").all();
+      if (events.results.some((e) => e.event === "account_locked")) {
+        assert.ok(!JSON.stringify(events).includes("target@example.test"));
+        assert.ok(
+          events.results
+            .filter((e) => e.subject_hash)
+            .every((e) => /^[a-f0-9]{64}$/.test(e.subject_hash)),
+        );
+        break;
+      }
+      if (i === 29) assert.fail("Security event was not persisted");
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
+test("encrypted profiles, tickets and chat stay usable; legacy migration is idempotent", async () => {
+  const s = await setup();
+  try {
+    const u = await s.registered("encrypted@example.test");
+    const profile = await s.db
+      .prepare("SELECT * FROM profiles WHERE user_id=?")
+      .bind(u.id)
+      .first();
+    assert.match(profile.full_name, /^enc:v1:/);
+    assert.match(JSON.parse(profile.dossier).phone, /^enc:v1:/);
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(u.id)
+      .run();
+    const created = await u.req("/api/tickets", ticket());
+    assert.equal(created.status, 201);
+    const id = created.data.id;
+    assert.equal(
+      (
+        await u.req(`/api/tickets/${id}/messages`, {
+          message: "Comentario de prueba",
+        })
+      ).status,
+      201,
+    );
+    const raw = await s.db
+      .prepare("SELECT * FROM tickets WHERE id=?")
+      .bind(id)
+      .first();
+    assert.match(raw.beneficiary_name, /^enc:v1:/);
+    assert.match(raw.bank_account, /^enc:v1:/);
+    const message = await s.db
+      .prepare("SELECT * FROM ticket_messages WHERE ticket_id=?")
+      .bind(id)
+      .first();
+    assert.match(message.body, /^enc:v1:/);
+    const detail = (await u.req(`/api/tickets/${id}`)).data;
+    assert.equal(detail.beneficiary_name, ticket().beneficiaryName);
+    assert.equal(detail.bank_account, ticket().bankAccount);
+    assert.equal(detail.messages[0].body, "Comentario de prueba");
+    await s.db
+      .prepare(
+        "UPDATE profiles SET full_name='Legacy Name',dossier=? WHERE user_id=?",
+      )
+      .bind(
+        JSON.stringify({
+          ...JSON.parse(profile.dossier),
+          phone: "+12025550123",
+        }),
+        u.id,
+      )
+      .run();
+    await s.db
+      .prepare(
+        "UPDATE tickets SET beneficiary_name='Legacy Recipient',bank_account='12345678' WHERE id=?",
+      )
+      .bind(id)
+      .run();
+    await s.db
+      .prepare("UPDATE ticket_messages SET body='Legacy comment' WHERE id=?")
+      .bind(message.id)
+      .run();
+    const env = { ...encryptionEnv, DB: s.db };
+    assert.equal(await encryptLegacyData(env), 3);
+    assert.equal(await encryptLegacyData(env), 0);
+    assert.equal((await u.req("/api/me")).data.profile.name, "Legacy Name");
+    assert.equal(
+      (await u.req(`/api/tickets/${id}`)).data.messages[0].body,
+      "Legacy comment",
+    );
+    assert.equal(
+      (await u.req(`/api/tickets/${id}`, { action: "cancelled", version: 0 }))
+        .status,
+      200,
+    );
+    assert.equal(await encryptLegacyData(env), 0);
+    const erased = await s.db
+      .prepare("SELECT beneficiary_name,bank_account FROM tickets WHERE id=?")
+      .bind(id)
+      .first();
+    assert.deepEqual(erased, { beneficiary_name: "", bank_account: "" });
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
+test("legacy documents download with sandboxed headers and admin MFA recovery is single-use", async () => {
+  const s = await setup();
+  try {
+    const admin = await s.registered("admin@example.test");
+    const user = await s.registered("legacydoc@example.test");
+    const enabled = await admin.req("/api/auth/two-factor/enable", {
+      password: admin.password,
+    });
+    assert.equal(enabled.status, 200);
+    const secret = decodeBase32(
+      new URL(enabled.data.totpURI).searchParams.get("secret"),
+    );
+    assert.equal(
+      (
+        await admin.req("/api/auth/two-factor/verify-totp", {
+          code: await createOTP(secret).totp(),
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await admin.req("/api/admin/unlock", {
+          code: enabled.data.backupCodes[0],
+          backup: true,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await admin.req("/api/admin/unlock", {
+          code: enabled.data.backupCodes[0],
+          backup: true,
+        })
+      ).status,
+      403,
+    );
+    const profile = await s.db
+      .prepare("SELECT dossier FROM profiles WHERE user_id=?")
+      .bind(user.id)
+      .first();
+    await s.db
+      .prepare("UPDATE profiles SET dossier=? WHERE user_id=?")
+      .bind(
+        JSON.stringify({
+          ...JSON.parse(profile.dossier),
+          front: "legacy/file",
+        }),
+        user.id,
+      )
+      .run();
+    await (
+      await s.mf.getR2Bucket("DOCUMENTS")
+    ).put("legacy/file", "<script>alert(1)</script>", {
+      httpMetadata: { contentType: "text/html" },
+    });
+    const download = await admin.req(`/api/admin/documents/${user.id}/front`);
+    assert.equal(download.status, 200);
+    assert.match(download.headers.get("content-disposition"), /^attachment/);
+    assert.equal(
+      download.headers.get("content-type"),
+      "application/octet-stream",
+    );
+    assert.match(download.headers.get("content-security-policy"), /sandbox/);
+  } finally {
+    await s.mf.dispose();
+  }
+});
 test("delivery uses the frozen ticket calculation and validates currency conversion", () => {
   const t = {
     amount: 5000,
@@ -664,6 +986,7 @@ async function setup(open = true, overrides = {}) {
       bindings: {
         APP_URL: origin,
         BETTER_AUTH_SECRET: "test-only-secret-at-least-32-characters-long",
+        DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
         ADMIN_EMAIL: "admin@example.test",
         REGISTRATION_OPEN: String(open),
         KYC_OPEN: String(open),
@@ -725,6 +1048,7 @@ async function setup(open = true, overrides = {}) {
     "0009_ticket_processing.sql",
     "0010_account_deletion.sql",
     "0011_ticket_delivery_amount.sql",
+    "0012_security_events.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -1792,7 +2116,7 @@ test("Turnstile rejects absent, invalid, wrong-host, wrong-action and reused tok
       "pending",
       "visible to admin before first login",
     );
-    assert.equal(profile.full_name, "Cliente de Prueba");
+    assert.match(profile.full_name, /^enc:v1:/);
     assert.equal(JSON.parse(profile.dossier).bankAccount, undefined);
   } finally {
     await s.mf.dispose();

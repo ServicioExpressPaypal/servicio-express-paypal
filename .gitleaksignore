@@ -1,0 +1,4 @@
+# Public Supabase anon client JWT, not a service-role secret. Project confirmed
+# INACTIVE on 2026-09-29. See cloudflare/portal/SECURITY.md before reactivating.
+# This exact historical fingerprint is the only accepted exception.
+66f1507ebe5a578bd0bd797124a30da57195ebc4:kyc.js:jwt:3

@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth";
 import { twoFactor } from "better-auth/plugins";
 import CertificateModel from "../public/certificate.js";
+import { profileFields } from "./encryption";
 
 type MailEnv = Pick<Env, "EMAIL_PROVIDER" | "EMAIL_FROM" | "RESEND_API_KEY"> & {
   EMAIL?: SendEmail;
@@ -36,6 +37,12 @@ export function authOptions(
       requireEmailVerification: true,
       autoSignIn: false,
       revokeSessionsOnPasswordReset: true,
+      onPasswordReset: async ({ user }) =>
+        queueEmail(
+          user.email,
+          "Tu contraseña fue restablecida",
+          "Se restableció la contraseña de Saldo Express y se cerraron las sesiones anteriores. Si no fuiste tú, contacta a info@softohmsystems.com.",
+        ),
       sendResetPassword: async ({ user, url }) =>
         queueEmail(
           user.email,
@@ -94,13 +101,20 @@ export function createAuth(env: Env, ctx: ExecutionContext) {
                 body,
                 now,
               );
+              const secured = await profileFields(
+                env,
+                user.id,
+                fullName,
+                JSON.stringify(reviewData),
+                true,
+              );
               await env.DB.batch([
                 env.DB.prepare(
                   "INSERT INTO registration_consents(user_id,version,accepted_at) VALUES(?,?,?)",
                 ).bind(user.id, CertificateModel.version, now),
                 env.DB.prepare(
                   "INSERT INTO profiles(user_id,status,full_name,dossier,updated_at) VALUES(?,'pending',?,?,?)",
-                ).bind(user.id, fullName, JSON.stringify(reviewData), now),
+                ).bind(user.id, secured.full_name, secured.dossier, now),
               ]);
             }
           },

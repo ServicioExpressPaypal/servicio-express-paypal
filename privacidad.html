@@ -15,7 +15,7 @@
     </header>
     <main>
       <p class="meta">
-        Versión cuenta-revision-2026-09-29-v5 · 29 de septiembre de 2026
+        Versión cuenta-revision-2026-09-29-v6 · 29 de septiembre de 2026
       </p>
       <h1>Aviso de privacidad</h1>
       <p>
@@ -111,7 +111,29 @@
         derivado de la IP mediante HMAC, con una ventana de 15 minutos y
         limpieza al vencer. Tres intentos de registro o accesos fallidos pueden
         bloquear temporalmente nuevos intentos de autenticación desde la misma
-        IP. También limitamos la frecuencia de solicitudes.
+        IP. También hay un límite por cuenta, independiente de la IP, de cinco
+        intentos por cada 15 minutos para acceso, recuperación o reenvío de
+        verificación. Estos contadores usan identificadores HMAC y se eliminan
+        al vencer. También limitamos la frecuencia general de solicitudes.
+      </p>
+      <p>
+        El nombre y teléfono del perfil, el nombre del beneficiario, el número
+        de cuenta del ticket y los comentarios se cifran en la aplicación con
+        AES-256-GCM. La clave se guarda separada de la base de datos. El correo
+        de acceso y los datos operativos necesarios para autenticación y
+        seguimiento no utilizan ese cifrado de campos. El acceso administrativo
+        exige doble factor. Ninguna medida elimina todos los riesgos.
+      </p>
+      <p>
+        Para detectar abuso y fallos conservamos eventos de seguridad durante
+        30 días: tipo de evento, fecha e identificador seudonimizado mediante
+        HMAC cuando corresponda. No incluyen nombres, cuentas bancarias,
+        mensajes, contraseñas ni códigos. Estos eventos pueden permanecer hasta
+        cumplir ese plazo aunque elimines tu cuenta. Los registros técnicos de
+        la aplicación incluyen estado de respuesta, categoría de ruta, duración,
+        cantidad de consultas y errores, sin cuerpos de solicitudes, direcciones
+        completas ni parámetros SQL. Se envían avisos de seguridad al operador
+        con conteos agregados, sin datos de clientes.
       </p>
       <p>
         No cargamos publicidad ni scripts de analítica comercial. Turnstile
@@ -150,7 +172,9 @@
         En Ajustes puedes cambiar tu contraseña, solicitar un enlace de
         recuperación y eliminar tu cuenta confirmando tu contraseña actual. La
         eliminación borra de la base activa tu cuenta, sesiones, credenciales,
-        perfil, tickets, comentarios, aceptaciones y registros asociados. Es
+        perfil, tickets, comentarios, aceptaciones y registros operativos
+        asociados. Los eventos de seguridad se conservan hasta 30 días como se
+        explica arriba. Es
         irreversible y no cancela pagos realizados fuera del portal. Si tienes
         una cotización vigente o una entrega pendiente, contacta al
         administrador para resolverla antes de eliminar la cuenta.

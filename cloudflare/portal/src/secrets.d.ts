@@ -1,6 +1,7 @@
 interface Env {
   TURNSTILE_SECRET?: string;
   BETTER_AUTH_SECRET: string;
+  DATA_ENCRYPTION_KEY: string;
   ADMIN_EMAIL: string;
   RESEND_API_KEY?: string;
   WHATSAPP_ACCESS_TOKEN?: string;

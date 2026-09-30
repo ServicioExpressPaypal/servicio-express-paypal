@@ -5,13 +5,15 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
 
 ## Registro y permisos
 
-- Correo y contrasena, aceptacion versionada, verificacion de correo y aprobacion
-  manual. El perfil no recibe nombre, cedula, fotografias, telefono ni banco.
+- Correo y contrasena, nombre completo, telefono, aceptacion versionada,
+  verificacion de correo y aprobacion manual. Sin cedula, fotografias ni banco
+  en el perfil.
 - Better Auth guarda un hash de la contrasena y sesiones HttpOnly/Secure. La
   cuenta queda pendiente desde su alta; solo una cuenta activa puede crear tickets.
 - ADMIN_EMAIL define el unico administrador. ADMIN_SETUP_OPEN debe permanecer
-  false. ADMIN_REQUIRE_MFA=false conserva la decision del propietario de no
-  exigir doble factor; esto deja un riesgo adicional ante robo de contrasena.
+  false. ADMIN_REQUIRE_MFA=true exige TOTP o codigo de recuperacion de un solo
+  uso para abrir el panel. La autorizacion administrativa vence en 15 minutos.
+  El QR se genera localmente, sin enviar su secreto a otro proveedor.
 - REGISTRATION_OPEN y KYC_OPEN controlan registro y aceptacion del perfil.
   KYC_OPEN es un nombre heredado: este flujo no certifica identidad ni KYC legal.
 - El administrador puede activar, pedir correccion, suspender y cerrar con motivo
@@ -31,6 +33,9 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
   limpia fallos de acceso, pero no el contador independiente de registros.
 - D1 reserva cada intento atomicamente antes del hash de contrasena. Usa HMAC de
   CF-Connecting-IP, no X-Forwarded-For; la limpieza elimina contadores vencidos.
+- Cinco intentos por cuenta/accion en 15 minutos limitan ataques distribuidos
+  entre IP distintas. Un bloqueo no extiende su propio vencimiento. No se
+  almacena el correo en estos contadores, solo un HMAC con dominio separado.
 - API_LIMITER limita 60 solicitudes/minuto/IP por ubicacion Cloudflare antes de
   consultar D1. Es aproximado y distribuido; no sustituye proteccion DDoS.
 - Limites adicionales por usuario, payload de 16 KiB, origen estricto, CSP,
@@ -40,13 +45,20 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
 
 ## Datos y retencion
 
-- Registro v5: nombre completo en profiles.full_name; telefono internacional y
+- Registro v6: nombre completo en profiles.full_name; telefono internacional y
   declaracion de titularidad de PayPal en profiles.dossier. No se pide correo
   PayPal separado, documentos ni datos bancarios de perfil. La declaracion no
   es verificacion. Revision manual: hasta 2 dias habiles, lunes a viernes, tras
   correo verificado y formulario completo; sin activacion automatica ni reloj
   horario (no se ha configurado apertura/cierre). Se conservan mientras exista
   la cuenta y se eliminan con ella, tambien si se rechaza o suspende.
+- AES-256-GCM cifra nombre, telefono, beneficiario, cuenta bancaria y mensajes.
+  Cada valor tiene IV aleatorio y AAD ligado a fila/campo. DATA_ENCRYPTION_KEY
+  esta en Worker Secrets, no en D1. El correo de autenticacion no se cifra a
+  nivel de campo. Ver SECURITY.md para migracion, respaldo y recuperacion.
+- Eventos de seguridad con identificador HMAC se conservan 30 dias, incluso
+  tras eliminar una cuenta. Las metricas omiten cuerpos, URLs y parametros SQL.
+  El cron evalua umbrales cada 15 minutos y envia alertas agregadas por Resend.
 
 - El cliente activo ve certificados con montos base de USD 50, 100, 200, 300,
   400 y 500, junto con su neto y costos estimados por la calculadora compartida.
@@ -66,9 +78,9 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
 - D1 Time Travel puede conservar versiones previas hasta 30 dias segun plan.
   Restaurar con el portal cerrado y limpiar antes de reabrir. El borrado activo
   no elimina inmediatamente respaldos.
-- R2 permanece privado por compatibilidad, no recibe nuevos documentos. Antes
-  de abrir se verifico que produccion solo tenia la cuenta administradora,
-  sin expedientes ni tickets de clientes.
+- R2 permanece privado por compatibilidad, no recibe nuevos documentos. Las
+  descargas historicas requieren administrador autorizado, se sirven como
+  adjuntos y llevan CSP sandbox, nunca HTML inline.
 - No guardar datos bancarios/personales en motivos administrativos, registros de
   consola, correos o WhatsApp automatico. No registrar cuerpos ni tokens.
 - /privacidad.html y /terminos.html se copian desde la raiz al build. Conservar
@@ -81,7 +93,7 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
 Resend envia verificacion, recuperacion y decisiones. Remitente:
 cuentas@saldoexpressnicaragua.com. RESEND_API_KEY tiene permiso de envio y se
 guarda como secreto, al igual que TURNSTILE_SECRET, BETTER_AUTH_SECRET y
-ADMIN_EMAIL. Nunca imprimirlos ni guardarlos en Git.
+ADMIN_EMAIL y DATA_ENCRYPTION_KEY. Nunca imprimirlos ni guardarlos en Git.
 
 WHATSAPP_PROVIDER=disabled: el cliente usa el enlace oficial y confirma su envio.
 El administrador tambien puede compartir un resumen sin datos de destino desde
@@ -115,8 +127,9 @@ npm run deploy
 ```
 
 Tests con workerd/D1/R2 efimeros y proveedores simulados: registro, verificacion,
-hash, consentimiento, permisos, activacion, MFA opcional, destinos, chat, borrado
-al vencer/cancelar, Turnstile y bloqueo IP concurrente. No envian mensajes reales.
+hash, consentimiento, permisos, activacion, MFA obligatorio, destinos, chat,
+borrado al vencer/cancelar, cifrado, migracion, Turnstile, bloqueo IP concurrente
+y por cuenta. No envian mensajes reales.
 Avisos legales: `node --test ../../legal.test.cjs`.
 
 `npm run preview` es una demo aislada en 127.0.0.1:8792 con cliente@example.test,
@@ -126,7 +139,8 @@ dev, usar .dev.vars ignorado por Git con APP_URL local, TURNSTILE_ENABLED=false
 y secretos exclusivos de desarrollo.
 
 Mantener REGISTRATION_OPEN=false hasta verificar migraciones, secretos,
-Turnstile y avisos en produccion; entonces abrir y comprobar /api/config.
+Turnstile, avisos y MFA del propietario en produccion; entonces abrir y comprobar
+/api/config. El cierre del registro no interrumpe cuentas existentes.
 No regenerar BETTER_AUTH_SECRET al desplegar: invalidaria sesiones y MFA.
 
 Limitacion conocida: listas limitadas a los 100 registros mas recientes. Agregar

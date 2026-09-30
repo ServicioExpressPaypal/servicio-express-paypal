@@ -37,9 +37,9 @@
   "vars": {
     "APP_URL": "https://portal.saldoexpressnicaragua.com",
     "MAINTENANCE_MODE": "false",
-    "REGISTRATION_OPEN": "true",
+    "REGISTRATION_OPEN": "false",
     "ADMIN_SETUP_OPEN": "false",
-    "ADMIN_REQUIRE_MFA": "false",
+    "ADMIN_REQUIRE_MFA": "true",
     "KYC_OPEN": "true",
     "EMAIL_PROVIDER": "resend",
     "TURNSTILE_ENABLED": "true",
@@ -52,6 +52,9 @@
   },
   "observability": {
     "enabled": true,
+    "redact_query_string": true,
+    // App metrics and security events omit URLs, auth tokens and query parameters.
+    // Automatic traces can capture reset tokens in paths and SQL parameters.
     "logs": { "enabled": true, "invocation_logs": false },
     "traces": { "enabled": false },
   },

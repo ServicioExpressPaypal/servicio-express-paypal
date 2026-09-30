@@ -745,10 +745,18 @@
   margin: 16px 0;
 }
 .mfa-secret {
+  overflow-wrap: anywhere;
   word-break: break-all;
   font:
     13px ui-monospace,
     monospace;
+}
+.mfa-qr {
+  display: block;
+  width: 224px;
+  height: 224px;
+  max-width: 100%;
+  margin: 20px auto;
 }
 .document-grid img {
   max-width: 100%;

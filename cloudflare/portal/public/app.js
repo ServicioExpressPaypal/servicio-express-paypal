@@ -1,4 +1,5 @@
 import CertificateModel from "./certificate.js";
+import { toCanvas } from "./qrcode.js";
 import {
   processingWindow,
   ticketShareText,
@@ -397,7 +398,7 @@ import {
       await refresh();
     });
   }
-  function security() {
+  function security(backup = false) {
     if (!me.twoFactorEnabled) {
       main.innerHTML = `<div class="onboarding"><h1>Protege tu acceso</h1>${form("enable", field("Confirma tu contraseña", "password", "password", 'autocomplete="current-password"'), "Configurar autenticador")}</div>`;
       bind("enable", async (f) => {
@@ -405,7 +406,25 @@ import {
           password: f.get("password"),
         });
         const key = new URL(data.totpURI).searchParams.get("secret");
-        main.innerHTML = `<div class="onboarding"><h1>Vincula tu autenticador</h1><p>Clave de configuración</p><p class="mfa-secret">${esc(key)}</p><details><summary>Códigos de recuperación</summary><p class="mfa-secret">${data.backupCodes.map(esc).join("<br>")}</p></details>${form("confirm", field("Código del autenticador", "code", "text", 'inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code"'), "Activar doble factor")}</div>`;
+        main.innerHTML = `<div class="onboarding"><h1>Vincula tu autenticador</h1><p>Escaneá este QR desde tu aplicación de autenticación.</p><canvas id="mfa-qr" class="mfa-qr" aria-label="QR para configurar el autenticador"></canvas><details><summary>Ingresar clave manualmente</summary><p class="mfa-secret">${esc(key)}</p></details><details><summary>Códigos de recuperación</summary><p class="mfa-secret">${data.backupCodes.map(esc).join("<br>")}</p></details><button type="button" class="button" id="save-backup">${icon("download")}Guardar códigos</button>${form("confirm", `<label class="check"><input type="checkbox" required>Guardé mis códigos de recuperación en un lugar seguro.</label>${field("Código de 6 dígitos de la aplicación", "code", "text", 'inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code"')}`, "Activar doble factor")}</div>`;
+        await toCanvas($("#mfa-qr"), data.totpURI, { width: 224, margin: 2 });
+        $("#save-backup").onclick = () => {
+          const url = URL.createObjectURL(
+            new Blob(
+              [
+                "Saldo Express - Codigos de recuperacion\nCada codigo es de un solo uso.\n\n" +
+                  data.backupCodes.join("\n"),
+              ],
+              { type: "text/plain" },
+            ),
+          );
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "saldo-express-recuperacion.txt";
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        };
+        icons();
         bind("confirm", async (f) => {
           await api("/api/auth/two-factor/verify-totp", {
             code: f.get("code"),
@@ -415,9 +434,10 @@ import {
       });
       return;
     }
-    main.innerHTML = `<div class="onboarding"><h1>Acceso de administrador</h1>${form("unlock", field("Código del autenticador", "code", "text", 'inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code"'), "Abrir panel")}</div>`;
+    main.innerHTML = `<div class="onboarding"><h1>Acceso de administrador</h1>${form("unlock", field(backup ? "Código de recuperación" : "Código del autenticador", "code", "text", backup ? 'autocomplete="off" maxlength="32"' : 'inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"'), "Abrir panel")}<button class="text-button" id="unlock-backup">${backup ? "Usar autenticador" : "Usar código de recuperación"}</button></div>`;
+    $("#unlock-backup").onclick = () => security(!backup);
     bind("unlock", async (f) => {
-      await api("/api/admin/unlock", { code: f.get("code") });
+      await api("/api/admin/unlock", { code: f.get("code"), backup });
       await refresh();
     });
   }
@@ -522,7 +542,7 @@ import {
         "Eliminar mi cuenta",
         form(
           "account-delete",
-          `<p>Perderás el acceso a tu cuenta y a todo tu historial. Esta acción no cancela pagos ni elimina copias de correos o WhatsApp.</p><p>Las copias técnicas de recuperación pueden conservar datos hasta 30 días. Si existen documentos antiguos, su borrado se reintentará automáticamente hasta completarse.</p>${field("Contraseña actual", "password", "password", 'autocomplete="current-password" maxlength="128"')}${field("Escribe ELIMINAR para confirmar", "confirmation", "text", 'autocomplete="off" pattern="ELIMINAR"')}<label class="check"><input type="checkbox" name="acknowledge" required>Entiendo que perderé mi cuenta y mi historial.</label><div id="bot-check"></div>`,
+          `<p>Perderás el acceso a tu cuenta y a todo tu historial. Esta acción no cancela pagos ni elimina copias de correos o WhatsApp.</p><p>Las copias técnicas de recuperación y los eventos seudonimizados de seguridad pueden conservarse hasta 30 días. Si existen documentos antiguos, su borrado se reintentará automáticamente hasta completarse.</p>${field("Contraseña actual", "password", "password", 'autocomplete="current-password" maxlength="128"')}${field("Escribe ELIMINAR para confirmar", "confirmation", "text", 'autocomplete="off" pattern="ELIMINAR"')}<label class="check"><input type="checkbox" name="acknowledge" required>Entiendo que perderé mi cuenta y mi historial.</label><div id="bot-check"></div>`,
           "Eliminar definitivamente",
         ),
       );

@@ -11,6 +11,9 @@ export class ProtectionError extends Error {
 export async function ipKey(request: Request, env: Env) {
   const ip = request.headers.get("cf-connecting-ip");
   if (!ip) throw new ProtectionError(403, "No se pudo verificar la conexión.");
+  return identityKey(env, "ip", ip);
+}
+export async function identityKey(env: Env, purpose: string, identity: string) {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(env.BETTER_AUTH_SECRET),
@@ -21,11 +24,42 @@ export async function ipKey(request: Request, env: Env) {
   const hash = await crypto.subtle.sign(
     "HMAC",
     key,
-    new TextEncoder().encode(ip),
+    new TextEncoder().encode(`${purpose}:${identity}`),
   );
   return Array.from(new Uint8Array(hash), (b) =>
     b.toString(16).padStart(2, "0"),
   ).join("");
+}
+export async function reserveAccountAttempt(
+  env: Env,
+  email: unknown,
+  action: string,
+) {
+  if (typeof email !== "string" || email.length > 254) return;
+  const key =
+    `account:${action}:` +
+    (await identityKey(env, "account", email.trim().toLowerCase()));
+  const now = Date.now();
+  const row = await env.DB.prepare(
+    "INSERT INTO request_limits(key,count,expires_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN expires_at<=? THEN 1 ELSE count+1 END,expires_at=CASE WHEN expires_at<=? THEN ? ELSE expires_at END WHERE expires_at<=? OR count<5 RETURNING count,expires_at",
+  )
+    .bind(key, now + WINDOW, now, now, now + WINDOW, now)
+    .first<{ count: number; expires_at: number }>();
+  if (!row)
+    throw new ProtectionError(
+      429,
+      "Demasiados intentos para esta cuenta. Intenta en 15 minutos.",
+      900,
+    );
+  return { key, ...row };
+}
+export async function releaseAccountAttempt(
+  env: Env,
+  reservation: { key: string; count: number },
+) {
+  await env.DB.prepare("DELETE FROM request_limits WHERE key=? AND count=?")
+    .bind(reservation.key, reservation.count)
+    .run();
 }
 export async function reserveAttempt(env: Env, key: string, signup = false) {
   const now = Date.now();

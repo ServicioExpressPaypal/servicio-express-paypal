@@ -10,6 +10,7 @@ const assets = new Set([
   "index.html",
   "app-shell.html",
   "app.js",
+  "qrcode.js",
   "app.css",
   "certificate.js",
   "processing.js",
@@ -44,7 +45,9 @@ const mf = new Miniflare(
       APP_URL: origin,
       BETTER_AUTH_SECRET: "local-preview-only-not-a-production-secret",
       ADMIN_EMAIL: "admin@example.test",
-      ADMIN_REQUIRE_MFA: "false",
+      ADMIN_REQUIRE_MFA:
+        process.env.PREVIEW_REQUIRE_MFA === "true" ? "true" : "false",
+      DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
       REGISTRATION_OPEN: "true",
       TURNSTILE_ENABLED: "false",
       KYC_OPEN: "true",
@@ -87,6 +90,7 @@ for (const file of [
   "0009_ticket_processing.sql",
   "0010_account_deletion.sql",
   "0011_ticket_delivery_amount.sql",
+  "0012_security_events.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),

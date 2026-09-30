@@ -10,7 +10,21 @@ import {
   releaseSuccessfulLogin,
   verifyBot,
   ProtectionError,
+  reserveAccountAttempt,
+  releaseAccountAttempt,
 } from "./protection";
+import {
+  encryptField,
+  decryptField,
+  profileFields,
+  ticketFields,
+  encryptLegacyData,
+} from "./encryption";
+import {
+  securityEvent,
+  securityMaintenance,
+  instrumentDatabase,
+} from "./security-events";
 import { purgeExpiredTicketData } from "./retention";
 import { eraseAccount, purgeDeletedDocuments } from "./customer-account";
 import {
@@ -207,24 +221,45 @@ async function profileFor(env: Env, id: string) {
       Date.now(),
     )
     .run();
-  return (await env.DB.prepare("SELECT * FROM profiles WHERE user_id=?")
+  const row = (await env.DB.prepare("SELECT * FROM profiles WHERE user_id=?")
     .bind(id)
     .first<Profile>())!;
+  return {
+    ...row,
+    ...(await profileFields(env, row.user_id, row.full_name, row.dossier)),
+  };
 }
 function isTicketExpired(t: Ticket, now = Date.now()) {
   return t.expires_at <= now;
 }
-function publicTicket(t: Ticket, now = Date.now(), includeBankAccount = false) {
+async function publicTicket(
+  env: Env,
+  t: Ticket,
+  now = Date.now(),
+  includeBankAccount = false,
+) {
   const expired = isTicketExpired(t, now);
   const erased =
     expired || finalTicketStatuses.has(t.status) || !!t.processing_completed_at;
   const { bank_account, ...safeTicket } = t;
   return {
     ...safeTicket,
-    beneficiary_name: erased ? "" : t.beneficiary_name,
+    beneficiary_name: erased
+      ? ""
+      : await decryptField(
+          env,
+          t.beneficiary_name,
+          `ticket:${t.id}:beneficiary`,
+        ),
     bank: erased ? "" : t.bank,
     destinationErased: erased,
-    ...(includeBankAccount ? { bank_account: erased ? "" : bank_account } : {}),
+    ...(includeBankAccount
+      ? {
+          bank_account: erased
+            ? ""
+            : await decryptField(env, bank_account, `ticket:${t.id}:account`),
+        }
+      : {}),
     status: ticketStage(t, now),
     expired,
     canMessage: !erased,
@@ -391,9 +426,16 @@ async function handle(
   request: Request,
   env: Env,
   ctx: ExecutionContext,
+  security: { actor?: string },
 ): Promise<Response> {
   const url = new URL(request.url),
     path = url.pathname;
+  const canonical = new URL(env.APP_URL);
+  if (canonical.protocol === "https:" && url.protocol !== "https:") {
+    url.protocol = "https:";
+    url.host = canonical.host;
+    return Response.redirect(url.toString(), 308);
+  }
   if (!["GET", "HEAD", "POST"].includes(request.method))
     fail(405, "Método no permitido.");
   if (env.MAINTENANCE_MODE === "true") {
@@ -425,7 +467,6 @@ async function handle(
       );
   }
   if (path === "/api/health") {
-    await env.DB.prepare("SELECT 1").first();
     return json({ ok: true });
   }
   if (path === "/api/config")
@@ -499,11 +540,26 @@ async function handle(
     const action = actions[endpoint];
     let key: string | undefined;
     let reservation: { count: number; expires_at: number } | undefined;
+    let accountReservation: Awaited<ReturnType<typeof reserveAccountAttempt>>;
     if (action) {
       key = await ipKey(request, env);
       reservation = await reserveAttempt(env, key, action === "signup");
       await verifyBot(request, env, data.turnstileToken, action);
       delete data.turnstileToken;
+      if (["login", "recover", "resend"].includes(action)) {
+        try {
+          accountReservation = await reserveAccountAttempt(
+            env,
+            data.email,
+            action,
+          );
+        } catch (error) {
+          ctx.waitUntil(
+            securityEvent(env, "account_locked", String(data.email || "")),
+          );
+          throw error;
+        }
+      }
     }
     if (endpoint === "/sign-up/email") {
       try {
@@ -520,6 +576,10 @@ async function handle(
       delete data.image;
     }
     if (endpoint === "/change-password") data.revokeOtherSessions = true;
+    const passwordOwner =
+      endpoint === "/change-password"
+        ? await auth.api.getSession({ headers: request.headers })
+        : null;
     const response = await auth.handler(
       new Request(request, { body: JSON.stringify(data) }),
     );
@@ -530,6 +590,27 @@ async function handle(
       reservation
     )
       await releaseSuccessfulLogin(env, key, reservation.count);
+    if (endpoint === "/sign-in/email" && response.ok && accountReservation)
+      await releaseAccountAttempt(env, accountReservation);
+    if (endpoint === "/sign-in/email" && !response.ok)
+      ctx.waitUntil(
+        securityEvent(env, "auth_failed", String(data.email || "")),
+      );
+    if (endpoint === "/change-password" && response.ok && passwordOwner) {
+      ctx.waitUntil(
+        sendMail(
+          env,
+          passwordOwner.user.email,
+          "Tu contraseña fue cambiada",
+          "Se cambió tu contraseña de Saldo Express y se cerraron las otras sesiones. Si no fuiste tú, contacta a info@softohmsystems.com.",
+        ).catch(() =>
+          console.error(JSON.stringify({ event: "security_mail_failed" })),
+        ),
+      );
+      ctx.waitUntil(
+        securityEvent(env, "password_changed", passwordOwner.user.id),
+      );
+    }
     return response;
   }
   const session = await auth.api.getSession({ headers: request.headers });
@@ -537,6 +618,7 @@ async function handle(
     fail(401, "Inicia sesión con tu correo verificado.");
   const user = session!.user,
     sid = session!.session.id;
+  security.actor = user.id;
   const admin =
     !!env.ADMIN_EMAIL &&
     user.email.toLowerCase() === env.ADMIN_EMAIL.toLowerCase();
@@ -661,7 +743,9 @@ async function handle(
       .bind(...args, (page - 1) * 20)
       .all<Ticket>();
     return json({
-      items: rows.results.map((ticket) => publicTicket(ticket)),
+      items: await Promise.all(
+        rows.results.map((ticket) => publicTicket(env, ticket)),
+      ),
       total: count!.total,
       page,
       pageSize: 20,
@@ -672,12 +756,27 @@ async function handle(
       fail(403, "Configura el doble factor primero.");
     await rate(env, `admin-unlock:${user.id}`, 5, 300);
     const body = await payload(request);
+    if (
+      typeof body.code !== "string" ||
+      (body.backup
+        ? !/^[A-Za-z0-9-]{8,32}$/.test(body.code)
+        : !/^\d{6}$/.test(body.code))
+    )
+      fail(400, "Escribe un código válido.");
     try {
-      await auth.api.verifyTOTP({
-        headers: request.headers,
-        body: { code: String(body.code || ""), trustDevice: false },
-      });
+      if (body.backup === true) {
+        await auth.api.verifyBackupCode({
+          headers: request.headers,
+          body: { code: body.code, trustDevice: false },
+        });
+      } else {
+        await auth.api.verifyTOTP({
+          headers: request.headers,
+          body: { code: body.code, trustDevice: false },
+        });
+      }
     } catch {
+      ctx.waitUntil(securityEvent(env, "admin_unlock_failed", user.id));
       fail(403, "Código incorrecto o vencido.");
     }
     await env.DB.batch([
@@ -725,6 +824,7 @@ async function handle(
       ...(old.front ? { front: old.front } : {}),
       ...(old.back ? { back: old.back } : {}),
     });
+    const secured = await profileFields(env, user.id, fullName, dossier, true);
     const result = await env.DB.batch([
       guardedAudit(
         env,
@@ -736,7 +836,13 @@ async function handle(
       ),
       env.DB.prepare(
         "UPDATE profiles SET full_name=?,dossier=?,status='pending',reason='',version=version+1,updated_at=? WHERE user_id=? AND version=? RETURNING user_id",
-      ).bind(fullName, dossier, Date.now(), user.id, profile.version),
+      ).bind(
+        secured.full_name,
+        secured.dossier,
+        Date.now(),
+        user.id,
+        profile.version,
+      ),
     ]);
     if (!result[1].results.length)
       fail(409, "El expediente cambió. Recarga e intenta de nuevo.");
@@ -749,7 +855,11 @@ async function handle(
     )
       .bind(user.id)
       .all<Ticket>();
-    return json(rows.results.map((ticket) => publicTicket(ticket)));
+    return json(
+      await Promise.all(
+        rows.results.map((ticket) => publicTicket(env, ticket)),
+      ),
+    );
   }
   if (path === "/api/tickets" && request.method === "POST") {
     if (profile.status !== "active")
@@ -761,7 +871,7 @@ async function handle(
     )
       .bind(user.id, body.requestKey)
       .first<Ticket>();
-    if (existing) return json(publicTicket(existing));
+    if (existing) return json(await publicTicket(env, existing));
     await rate(env, `tickets:${user.id}`, 10, 3600);
     let estimate;
     try {
@@ -780,6 +890,15 @@ async function handle(
     const id = `SE-${crypto.randomUUID().toUpperCase()}`,
       now = Date.now(),
       expiresAt = ticketExpiry(estimate.amount, now);
+    const secured = await ticketFields(
+      env,
+      {
+        id,
+        beneficiary_name: destination.beneficiaryName,
+        bank_account: destination.bankAccount,
+      },
+      true,
+    );
     try {
       await env.DB.batch([
         env.DB.prepare(
@@ -790,9 +909,9 @@ async function handle(
           body.requestKey,
           estimate.amount,
           estimate.mode,
-          destination.beneficiaryName,
+          secured.beneficiary_name,
           destination.bank,
-          destination.bankAccount,
+          secured.bank_account,
           destination.currency,
           destination.termsVersion,
           destination.termsAcceptedAt,
@@ -814,7 +933,7 @@ async function handle(
       )
         .bind(user.id, body.requestKey)
         .first<Ticket>();
-      if (replay) return json(publicTicket(replay));
+      if (replay) return json(await publicTicket(env, replay));
       throw e;
     }
     ctx.waitUntil(notify(env, id));
@@ -825,7 +944,18 @@ async function handle(
     const rows = await env.DB.prepare(
       "SELECT p.user_id,p.full_name,p.status,p.reason,p.version,u.email FROM profiles p JOIN user u ON u.id=p.user_id ORDER BY p.updated_at DESC LIMIT 100",
     ).all();
-    return json(rows.results);
+    return json(
+      await Promise.all(
+        rows.results.map(async (row) => ({
+          ...row,
+          full_name: await decryptField(
+            env,
+            String(row.full_name),
+            `profile:${row.user_id}:name`,
+          ),
+        })),
+      ),
+    );
   }
   const dossierMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
   if (dossierMatch) {
@@ -837,7 +967,13 @@ async function handle(
     if (!target) fail(404, "Usuario no encontrado.");
     if (request.method === "GET") {
       await audit(env, user.id, target!.user_id, "dossier_viewed").run();
-      const dossier = target!.dossier ? JSON.parse(target!.dossier) : null;
+      const decrypted = await profileFields(
+        env,
+        target!.user_id,
+        target!.full_name,
+        target!.dossier,
+      );
+      const dossier = decrypted.dossier ? JSON.parse(decrypted.dossier) : null;
       if (dossier) {
         dossier.hasDocuments = !!(dossier.front || dossier.back);
         delete dossier.front;
@@ -848,7 +984,12 @@ async function handle(
       )
         .bind(target!.user_id)
         .all();
-      return json({ ...target, dossier, notices: notices.results });
+      return json({
+        ...target,
+        full_name: decrypted.full_name,
+        dossier,
+        notices: notices.results,
+      });
     }
     const body = await payload(request);
     const owner = await env.DB.prepare(
@@ -932,9 +1073,10 @@ async function handle(
     ).run();
     return new Response(object!.body, {
       headers: {
-        "content-type":
-          object!.httpMetadata?.contentType || "application/octet-stream",
-        "content-disposition": "inline",
+        "content-type": "application/octet-stream",
+        "content-disposition": 'attachment; filename="documento"',
+        "content-security-policy":
+          "sandbox; default-src 'none'; frame-ancestors 'none'",
       },
     });
   }
@@ -943,7 +1085,18 @@ async function handle(
     const rows = await env.DB.prepare(
       "SELECT t.*,p.full_name,u.email FROM tickets t JOIN profiles p ON p.user_id=t.user_id JOIN user u ON u.id=t.user_id ORDER BY t.updated_at DESC LIMIT 100",
     ).all<Ticket>();
-    return json(rows.results.map((ticket) => publicTicket(ticket)));
+    return json(
+      await Promise.all(
+        rows.results.map(async (ticket) => ({
+          ...(await publicTicket(env, ticket)),
+          full_name: await decryptField(
+            env,
+            String((ticket as Ticket & { full_name: string }).full_name),
+            `profile:${ticket.user_id}:name`,
+          ),
+        })),
+      ),
+    );
   }
   const messageMatch = path.match(
     /^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)\/messages$/,
@@ -963,10 +1116,20 @@ async function handle(
       id = crypto.randomUUID(),
       now = Date.now(),
       role = messageMatch[1] ? "admin" : "customer";
+    const securedMessage = await encryptField(env, message, `message:${id}`);
     const result = await env.DB.batch([
       env.DB.prepare(
         "INSERT INTO ticket_messages(id,ticket_id,author_id,author_role,body,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM tickets WHERE id=? AND expires_at>? AND status NOT IN ('closed','cancelled')) RETURNING id",
-      ).bind(id, target!.id, user.id, role, message, now, target!.id, now),
+      ).bind(
+        id,
+        target!.id,
+        user.id,
+        role,
+        securedMessage,
+        now,
+        target!.id,
+        now,
+      ),
       env.DB.prepare(
         "UPDATE tickets SET updated_at=? WHERE id=? AND expires_at>? AND status NOT IN ('closed','cancelled')",
       ).bind(now, target!.id, now),
@@ -1093,14 +1256,23 @@ async function handle(
           : Promise.resolve(null),
       ]);
       return json({
-        ...publicTicket(target!, Date.now(), true),
+        ...(await publicTicket(env, target!, Date.now(), true)),
         events: events.results,
         messages:
           isTicketExpired(target!) ||
           finalTicketStatuses.has(target!.status) ||
           !!target!.processing_completed_at
             ? []
-            : messages.results,
+            : await Promise.all(
+                messages.results.map(async (message) => ({
+                  ...message,
+                  body: await decryptField(
+                    env,
+                    message.body,
+                    `message:${message.id}`,
+                  ),
+                })),
+              ),
         ...(ticketMatch[1] ? { notification } : {}),
       });
     }
@@ -1183,8 +1355,12 @@ async function handle(
 export default {
   async fetch(request, env, ctx) {
     let response: Response;
+    const metrics = { queries: 0, durationMs: 0, failures: 0 };
+    const securedEnv = { ...env, DB: instrumentDatabase(env.DB, metrics) };
+    const security: { actor?: string } = {};
+    const start = performance.now();
     try {
-      response = await handle(request, env, ctx);
+      response = await handle(request, securedEnv, ctx, security);
     } catch (e) {
       if (!(e instanceof HttpError) && !(e instanceof ProtectionError))
         console.error(
@@ -1203,7 +1379,45 @@ export default {
         response.headers.set("retry-after", String(e.retryAfter));
     }
     const headers = new Headers(response.headers);
+    const path = new URL(request.url).pathname;
+    const route = path.startsWith("/api/auth/")
+      ? "auth"
+      : path.startsWith("/api/admin/")
+        ? "admin"
+        : path.startsWith("/api/")
+          ? "api"
+          : "assets";
+    if (route !== "assets")
+      console.log(
+        JSON.stringify({
+          event: "request_metrics",
+          route,
+          status: response.status,
+          durationMs: Math.round(performance.now() - start),
+          dbQueries: metrics.queries,
+          dbMs: Math.round(metrics.durationMs),
+          dbFailures: metrics.failures,
+        }),
+      );
+    const event =
+      response.status >= 500 && response.status !== 503
+        ? "server_error"
+        : response.status === 429
+          ? "request_blocked"
+          : response.ok && route === "admin"
+            ? request.method === "POST"
+              ? "admin_write"
+              : "admin_read"
+            : null;
+    if (event)
+      ctx.waitUntil(
+        securityEvent(env, event, security.actor).catch(() =>
+          console.error(JSON.stringify({ event: "security_log_failed" })),
+        ),
+      );
     headers.set("cache-control", "no-store");
+    if (new URL(request.url).protocol === "https:")
+      headers.set("strict-transport-security", "max-age=15552000");
     headers.set("x-content-type-options", "nosniff");
     headers.set("referrer-policy", "no-referrer");
     headers.set("x-frame-options", "DENY");
@@ -1212,15 +1426,18 @@ export default {
       "permissions-policy",
       "camera=(), microphone=(), geolocation=()",
     );
-    headers.set(
-      "content-security-policy",
-      "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' https://challenges.cloudflare.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-    );
+    if (!headers.has("content-security-policy"))
+      headers.set(
+        "content-security-policy",
+        "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' https://challenges.cloudflare.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      );
     return new Response(response.body, { status: response.status, headers });
   },
   async scheduled(_event, env, ctx) {
     await purgeDeletedDocuments(env);
     await purgeExpiredTicketData(env);
+    await encryptLegacyData(env);
+    ctx.waitUntil(securityMaintenance(env));
     await env.DB.prepare("DELETE FROM request_limits WHERE expires_at<?")
       .bind(Date.now())
       .run();

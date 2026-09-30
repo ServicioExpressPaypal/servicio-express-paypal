@@ -1,6 +1,19 @@
 import { mkdir, cp, copyFile } from "node:fs/promises";
+import { build } from "esbuild";
 await mkdir("dist", { recursive: true });
 await cp("public", "dist", { recursive: true });
+await build({
+  stdin: {
+    contents:
+      'import QRCode from "qrcode"; export const toCanvas = QRCode.toCanvas;',
+    resolveDir: process.cwd(),
+  },
+  bundle: true,
+  minify: true,
+  format: "esm",
+  platform: "browser",
+  outfile: "dist/qrcode.js",
+});
 for (const name of [
   "portal.css",
   "lucide.min.js",
