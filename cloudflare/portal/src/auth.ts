@@ -89,21 +89,18 @@ export function createAuth(env: Env, ctx: ExecutionContext) {
               context.body.legalVersion === CertificateModel.version
             ) {
               const now = Date.now();
+              const { name: _name, ...body } = context.body;
+              const { fullName, ...reviewData } = CertificateModel.registration(
+                body,
+                now,
+              );
               await env.DB.batch([
                 env.DB.prepare(
                   "INSERT INTO registration_consents(user_id,version,accepted_at) VALUES(?,?,?)",
                 ).bind(user.id, CertificateModel.version, now),
                 env.DB.prepare(
-                  "INSERT INTO profiles(user_id,status,dossier,updated_at) VALUES(?,'pending',?,?)",
-                ).bind(
-                  user.id,
-                  JSON.stringify({
-                    kind: "minimal-account",
-                    version: CertificateModel.version,
-                    acceptedAt: now,
-                  }),
-                  now,
-                ),
+                  "INSERT INTO profiles(user_id,status,full_name,dossier,updated_at) VALUES(?,'pending',?,?,?)",
+                ).bind(user.id, fullName, JSON.stringify(reviewData), now),
               ]);
             }
           },

@@ -80,6 +80,11 @@ test("privacy matches temporary destination data and minimal registration", () =
   const app = read("cloudflare/portal/public/app.js");
   assert.match(app, /legalAccepted/);
   assert.match(app, /legalVersion/);
+  assert.match(privacy, /nombre completo, teléfono de contacto/);
+  assert.match(privacy, /No pedimos ni guardamos un correo de PayPal separado/);
+  assert.match(privacy, /declaración de titularidad no verifica/);
+  assert.match(privacy, /2 días hábiles, de lunes a viernes/);
+  assert.doesNotMatch(privacy, /No solicitamos nombre legal/);
 });
 
 test("terms describe automatic ticket modes without a commission table", () => {

@@ -789,6 +789,9 @@ async function setup(open = true, overrides = {}) {
       callbackURL: origin + "/",
       legalAccepted: true,
       legalVersion: CertificateModel.version,
+      fullName: "Cliente de Prueba",
+      phone: "+12025550123",
+      paypalOwnership: true,
     });
     assert.equal(r.status, 200, JSON.stringify(r.data));
     for (
@@ -841,6 +844,9 @@ async function setup(open = true, overrides = {}) {
 }
 function dossier() {
   return {
+    fullName: "Cliente de Prueba",
+    phone: "+12025550123",
+    paypalOwnership: "on",
     declaration: "on",
     terms: "on",
     privacy: "on",
@@ -861,6 +867,76 @@ function ticket(overrides = {}) {
     ...overrides,
   };
 }
+test("registration contact data is validated, private and never auto-approves", async () => {
+  const valid = {
+    fullName: "  Ana   María López  ",
+    phone: "+1 (202) 555-0123",
+    paypalOwnership: true,
+    legalAccepted: true,
+    legalVersion: CertificateModel.version,
+  };
+  const normalized = CertificateModel.registration(valid, 123);
+  assert.equal(normalized.fullName, "Ana María López");
+  assert.equal(normalized.phone, "+12025550123");
+  assert.equal(normalized.acceptedAt, 123);
+  assert.doesNotMatch(CertificateModel.reviewNotice, /Nicaragua|48 horas/);
+  assert.match(
+    CertificateModel.reviewNotice,
+    /2 días hábiles, de lunes a viernes/,
+  );
+  const invalid = [
+    { fullName: "Ana" },
+    { fullName: "<script> Test" },
+    { fullName: "a".repeat(121) },
+    { phone: "2025550123" },
+    { phone: "+000123456" },
+    { phone: 12025550123 },
+    { paypalOwnership: false },
+    { paypalOwnership: "false" },
+    { paypalEmail: "private@example.test" },
+    { legalVersion: "old" },
+  ];
+  for (const bad of invalid)
+    assert.throws(() => CertificateModel.registration({ ...valid, ...bad }));
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    for (const bad of invalid) {
+      const r = await s.client()("/api/auth/sign-up/email", {
+        ...valid,
+        email: "invalid@example.test",
+        password: "test-only-password-987654",
+        ...bad,
+      });
+      assert.equal(r.status, 400, JSON.stringify(r.data));
+    }
+    assert.equal(
+      (await s.db.prepare("SELECT COUNT(*) n FROM user").first()).n,
+      0,
+    );
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("contact@example.test");
+    const me = (await customer.req("/api/me")).data;
+    assert.equal(me.profile.name, "Cliente de Prueba");
+    assert.equal(me.profile.phone, "+12025550123");
+    assert.equal(me.profile.paypalOwnership, true);
+    assert.equal(me.profile.status, "pending");
+    assert.equal((await customer.req("/api/tickets", ticket())).status, 403);
+    assert.equal(
+      (await customer.req(`/api/admin/users/${customer.id}`)).status,
+      403,
+    );
+    const reviewed = await admin.req(`/api/admin/users/${customer.id}`);
+    assert.equal(reviewed.data.full_name, me.profile.name);
+    assert.equal(reviewed.data.dossier.phone, me.profile.phone);
+    assert.equal(reviewed.data.dossier.paypalOwnership, true);
+    assert.equal(reviewed.data.dossier.paypalEmail, undefined);
+    assert.ok(reviewed.data.emailVerified);
+    assert.ok(!JSON.stringify(s.emails).includes(me.profile.phone));
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
 test("certificate profile validates minimum data without accepting client-controlled verification", () => {
   const p = CertificateModel.validate(
     {
@@ -871,6 +947,7 @@ test("certificate profile validates minimum data without accepting client-contro
     123,
   );
   assert.equal(p.name, undefined);
+  assert.equal(p.fullName, "Cliente de Prueba");
   assert.equal(p.cedula, undefined);
   assert.throws(
     () =>
@@ -882,11 +959,20 @@ test("certificate profile validates minimum data without accepting client-contro
     /aviso cambió/,
   );
   assert.equal(p.bankAccount, undefined);
-  assert.equal(p.phone, undefined);
+  assert.equal(p.phone, "+12025550123");
+  assert.equal(p.paypalOwnership, true);
   assert.equal(p.acceptedAt, 123);
   assert.equal(p.status, undefined);
   assert.equal(p.front, undefined);
-  for (const key of ["version", "declaration", "terms", "privacy"])
+  for (const key of [
+    "version",
+    "declaration",
+    "terms",
+    "privacy",
+    "fullName",
+    "phone",
+    "paypalOwnership",
+  ])
     assert.throws(
       () => CertificateModel.validate({ ...dossier(), [key]: "" }),
       key,
@@ -1607,6 +1693,9 @@ test("unverified accounts cannot log in; passwords hashed; auth input and rate l
       role: "admin",
       legalAccepted: true,
       legalVersion: CertificateModel.version,
+      fullName: "Cliente de Prueba",
+      phone: "+12025550123",
+      paypalOwnership: true,
     };
     assert.equal((await req("/api/auth/sign-up/email", body)).status, 200);
     assert.equal((await req("/api/me")).status, 401);
@@ -1653,6 +1742,9 @@ test("Turnstile rejects absent, invalid, wrong-host, wrong-action and reused tok
       password: "test-only-password-987654",
       legalAccepted: true,
       legalVersion: CertificateModel.version,
+      fullName: "Cliente de Prueba",
+      phone: "+12025550123",
+      paypalOwnership: true,
     };
     for (const token of [
       undefined,
@@ -1700,7 +1792,7 @@ test("Turnstile rejects absent, invalid, wrong-host, wrong-action and reused tok
       "pending",
       "visible to admin before first login",
     );
-    assert.equal(profile.full_name, "");
+    assert.equal(profile.full_name, "Cliente de Prueba");
     assert.equal(JSON.parse(profile.dossier).bankAccount, undefined);
   } finally {
     await s.mf.dispose();

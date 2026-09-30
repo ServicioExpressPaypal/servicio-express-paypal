@@ -119,6 +119,9 @@ for (const [email, name] of [
       callbackURL: origin + "/",
       legalAccepted: true,
       legalVersion: CertificateModel.version,
+      fullName: "Cliente de Prueba",
+      phone: "+12025550123",
+      paypalOwnership: true,
     }),
   });
   if (!response.ok)
@@ -157,9 +160,11 @@ await db.batch([
     )
     .bind(
       pending.id,
-      "",
+      "Usuario Pendiente",
       JSON.stringify({
-        kind: "minimal-account",
+        kind: "review-account",
+        phone: "+12025550123",
+        paypalOwnership: true,
         version: CertificateModel.version,
         acceptedAt: now,
       }),
@@ -171,9 +176,11 @@ await db.batch([
     )
     .bind(
       customer.id,
-      "",
+      "Cliente de Prueba",
       JSON.stringify({
-        kind: "minimal-account",
+        kind: "review-account",
+        phone: "+12025550123",
+        paypalOwnership: true,
         version: CertificateModel.version,
         acceptedAt: now,
       }),

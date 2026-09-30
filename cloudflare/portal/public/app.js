@@ -290,15 +290,19 @@ import {
       );
     });
   }
+  function contactFields(p = {}) {
+    return `${field("Nombre completo", "fullName", "text", `autocomplete="name" minlength="5" maxlength="120" value="${esc(p.name || "")}"`)}${field("Teléfono de contacto", "phone", "tel", `autocomplete="tel" maxlength="30" placeholder="+ código de país y número" value="${esc(p.phone || "")}"`)}<label class="check"><input name="paypalOwnership" type="checkbox" required ${p.paypalOwnership ? "checked" : ""}><span>Declaro que utilizaré una cuenta de PayPal propia, a mi nombre.</span></label>`;
+  }
   function login(mode = "login") {
     const reset = !!resetToken;
     main.innerHTML = `<div class="onboarding">${!reset ? `<div class="auth-tabs" role="tablist"><button role="tab" data-auth="login" aria-selected="${mode === "login"}">Iniciar sesión</button><button role="tab" data-auth="signup" aria-selected="${mode === "signup"}">Crear cuenta</button></div>` : ""}<h1>${reset ? "Nueva contraseña" : mode === "signup" ? "Crea tu cuenta" : mode === "recover" ? "Recupera tu acceso" : "Bienvenido"}</h1>${mode === "signup" && !config.registrationOpen ? '<div class="notice">El registro de nuevas cuentas todavía no está abierto.</div>' : form("auth", `${!reset ? field("Correo electrónico", "email", "email", 'autocomplete="email" maxlength="254"') : ""}${mode !== "recover" ? field("Contraseña", "password", "password", `minlength="12" maxlength="128" autocomplete="${reset || mode === "signup" ? "new-password" : "current-password"}"`) : ""}`, reset ? "Guardar contraseña" : mode === "signup" ? "Crear cuenta" : mode === "recover" ? "Enviar enlace" : "Entrar")}${!reset ? '<button class="text-button" id="recover">Olvidé mi contraseña</button>' : ""}</div>`;
     if (mode === "signup" && !reset) {
       const note = document.createElement("p");
       note.className = "notice";
-      note.textContent =
-        "Verifica tu correo. Tu cuenta quedará pendiente de aprobación manual.";
-      $(".onboarding").append(note);
+      note.textContent = CertificateModel.reviewNotice;
+      $(".onboarding h1").after(note);
+      if ($("#auth"))
+        $("#auth").insertAdjacentHTML("afterbegin", contactFields());
     }
     document
       .querySelectorAll("[data-auth]")
@@ -342,6 +346,9 @@ import {
             email: f.get("email"),
             password: f.get("password"),
             name: "Cliente",
+            fullName: f.get("fullName"),
+            phone: f.get("phone"),
+            paypalOwnership: f.get("paypalOwnership") === "on",
             legalAccepted: f.get("legalAccepted") === "on",
             legalVersion: CertificateModel.version,
             callbackURL: location.origin + "/",
@@ -416,7 +423,7 @@ import {
   }
   function profile() {
     const p = me.profile;
-    main.innerHTML = `<div class="onboarding"><h1>Mi cuenta</h1><p>${esc(me.user.email)}</p><span class="badge">${esc(AccountModel.labels[p.status])}</span>${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}${p.status === "pending" ? "<p>Recibimos tus datos. Tu cuenta se activará después de la aprobación manual.</p>" : p.status === "active" ? `<p>${esc(p.name)}</p>` : !config.kycOpen ? '<div class="notice">La recepción de datos para revisión todavía no está habilitada.</div>' : ""}</div>`;
+    main.innerHTML = `<div class="onboarding"><h1>Mi cuenta</h1><p>${esc(me.user.email)}</p><span class="badge">${esc(AccountModel.labels[p.status])}</span>${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}${p.status === "pending" ? `<p>${esc(CertificateModel.reviewNotice)}</p>` : p.status === "active" ? `<p>${esc(p.name)}</p>` : !config.kycOpen ? '<div class="notice">La recepción de datos para revisión todavía no está habilitada.</div>' : ""}</div>`;
     $(".onboarding").insertAdjacentHTML(
       "beforeend",
       '<button class="button" id="open-settings">Ver ajustes de mi cuenta</button>',
@@ -427,7 +434,7 @@ import {
     };
     if (!config.kycOpen || !["incomplete", "correction"].includes(p.status))
       return;
-    main.innerHTML = `<div class="onboarding"><h1>Solicita la activación</h1>${form("profile", `<p>Revisaremos tu correo y tu solicitud. Los datos del beneficiario se piden solamente al crear un ticket.</p><label class="check"><input type="checkbox" name="declaration" required>Declaro que soy mayor de edad.</label><label class="check"><input type="checkbox" name="terms" required>Acepto los términos y condiciones.</label><label class="check"><input type="checkbox" name="privacy" required>He leído el aviso de privacidad.</label><button type="button" class="text-button" id="legal">Términos y privacidad</button>`, "Enviar a revisión")}</div>`;
+    main.innerHTML = `<div class="onboarding"><h1>Solicita la activación</h1>${form("profile", `${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}<p>${esc(CertificateModel.reviewNotice)}</p>${contactFields(p)}<label class="check"><input type="checkbox" name="declaration" required>Declaro que soy mayor de edad.</label><label class="check"><input type="checkbox" name="terms" required>Acepto los términos y condiciones.</label><label class="check"><input type="checkbox" name="privacy" required>He leído el aviso de privacidad.</label><button type="button" class="text-button" id="legal">Términos y privacidad</button>`, "Enviar a revisión")}</div>`;
     $("#legal").onclick = legalNotice;
     bind("profile", async (f) => {
       await api("/api/profile", {
@@ -441,8 +448,8 @@ import {
     const p = me.profile;
     main.innerHTML = `<div class="heading"><h1>Ajustes</h1><span class="badge">${esc(AccountModel.labels[p.status])}</span></div>
       <section class="settings-section"><div><h2>Mi cuenta</h2><p class="muted">Tu acceso a Saldo Express.</p></div><div>
-        <dl class="account-data"><div><dt>Correo electrónico</dt><dd>${esc(me.user.email)}</dd></div><div><dt>Verificación</dt><dd>${me.user.emailVerified ? "Correo verificado" : "Pendiente"}</dd></div><div><dt>Cuenta creada</dt><dd>${dateTime(me.user.createdAt)}</dd></div><div><dt>Estado</dt><dd>${esc(AccountModel.labels[p.status])}</dd></div>${me.consent ? `<div><dt>Aceptación de condiciones</dt><dd>${dateTime(me.consent.accepted_at)}<small>${esc(me.consent.version)}</small></dd></div>` : ""}</dl>
-        ${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}${p.status === "pending" ? '<p class="notice">Tu cuenta está pendiente de aprobación manual. Podrás crear tickets cuando sea activada.</p>' : ""}
+        <dl class="account-data"><div><dt>Nombre completo</dt><dd>${esc(p.name || "No registrado")}</dd></div><div><dt>Teléfono de contacto</dt><dd>${esc(p.phone || "No registrado")}</dd></div><div><dt>Titularidad de PayPal</dt><dd>${p.paypalOwnership ? "Declarada por el usuario; pendiente de contrastar al pagar" : "No declarada"}</dd></div><div><dt>Correo electrónico</dt><dd>${esc(me.user.email)}</dd></div><div><dt>Verificación</dt><dd>${me.user.emailVerified ? "Correo verificado" : "Pendiente"}</dd></div><div><dt>Cuenta creada</dt><dd>${dateTime(me.user.createdAt)}</dd></div><div><dt>Estado</dt><dd>${esc(AccountModel.labels[p.status])}</dd></div>${me.consent ? `<div><dt>Aceptación de condiciones</dt><dd>${dateTime(me.consent.accepted_at)}<small>${esc(me.consent.version)}</small></dd></div>` : ""}</dl>
+        ${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}${p.status === "pending" ? `<p class="notice">${esc(CertificateModel.reviewNotice)}</p>` : ""}
         <a class="text-button" href="mailto:info@softohmsystems.com">Solicitar corrección de mis datos</a>
       </div></section>
       <section class="settings-section"><div><h2>Contraseña</h2><p class="muted">Al cambiarla, se cerrarán las otras sesiones.</p></div><div class="settings-actions"><button class="button" id="change-password">${icon("key-round")}Cambiar contraseña</button><button class="text-button" id="reset-password">Recibir enlace de recuperación</button></div></section>
@@ -1053,9 +1060,9 @@ import {
           .join("")
       : '<li class="empty compact">Todavía no hay decisiones registradas.</li>';
     const profileData = p
-      ? `<section class="account-section"><h2>Aceptación registrada</h2><p>Cuenta identificada por su correo verificado. La aprobación habilita la creación de tickets.</p><p class="consent-record">Condiciones: ${esc(p.version)} · ${dateTime(p.acceptedAt)}</p></section>`
+      ? `<section class="account-section"><h2>Datos para revisión</h2><dl class="account-data"><div><dt>Nombre completo</dt><dd>${esc(u.full_name || "No registrado")}</dd></div><div><dt>Teléfono de contacto</dt><dd>${esc(p.phone || "No registrado")}</dd></div><div><dt>Correo</dt><dd>${u.emailVerified ? "Verificado" : "Pendiente de verificar"}</dd></div><div><dt>Titularidad de PayPal</dt><dd>${p.paypalOwnership ? "El usuario declara que la cuenta está a su nombre" : "No declarada"}</dd></div></dl><p>La declaración no acredita titularidad. Contrasta los datos del pagador por el canal oficial antes del envío; no solicites claves ni códigos.</p><p>Plazo de revisión: hasta 2 días hábiles, de lunes a viernes, después del correo verificado y el formulario completo.</p><p class="consent-record">Condiciones: ${esc(p.version)} · ${dateTime(p.acceptedAt)}</p></section>`
       : '<p class="notice">El usuario todavía no ha aceptado las condiciones.</p>';
-    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Usuarios</button><div class="heading account-heading"><div><h1>${esc(u.email)}</h1><p>${esc(u.email)}</p></div><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></div>${u.reason ? `<p class="notice"><strong>Último motivo:</strong> ${esc(u.reason)}</p>` : ""}${profileData}<section class="account-section"><div class="section-heading"><div><h2>Acciones de cuenta</h2><p>Solo una cuenta activa puede crear tickets. Toda decisión exige un motivo y genera un aviso al correo registrado.</p></div></div>${actionButtons ? `<div class="actions">${actionButtons}</div>` : '<p class="empty compact">No hay acciones disponibles para este estado.</p>'}</section><section class="account-section"><div class="section-heading"><div><h2>Historial de decisiones</h2><p>Estado del aviso enviado al usuario.</p></div><span>${(u.notices || []).length}</span></div><ol class="decision-history">${noticeHistory}</ol></section>`;
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Usuarios</button><div class="heading account-heading"><div><h1>${esc(u.full_name || u.email)}</h1><p>${esc(u.email)}</p></div><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></div>${u.reason ? `<p class="notice"><strong>Último motivo:</strong> ${esc(u.reason)}</p>` : ""}${profileData}<section class="account-section"><div class="section-heading"><div><h2>Acciones de cuenta</h2><p>Solo una cuenta activa puede crear tickets. Toda decisión exige un motivo y genera un aviso al correo registrado.</p></div></div>${actionButtons ? `<div class="actions">${actionButtons}</div>` : '<p class="empty compact">No hay acciones disponibles para este estado.</p>'}</section><section class="account-section"><div class="section-heading"><div><h2>Historial de decisiones</h2><p>Estado del aviso enviado al usuario.</p></div><span>${(u.notices || []).length}</span></div><ol class="decision-history">${noticeHistory}</ol></section>`;
     $("#back").onclick = render;
     document.querySelectorAll("[data-review]").forEach(
       (button) =>

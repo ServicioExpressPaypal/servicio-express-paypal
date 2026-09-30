@@ -40,6 +40,14 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
 
 ## Datos y retencion
 
+- Registro v5: nombre completo en profiles.full_name; telefono internacional y
+  declaracion de titularidad de PayPal en profiles.dossier. No se pide correo
+  PayPal separado, documentos ni datos bancarios de perfil. La declaracion no
+  es verificacion. Revision manual: hasta 2 dias habiles, lunes a viernes, tras
+  correo verificado y formulario completo; sin activacion automatica ni reloj
+  horario (no se ha configurado apertura/cierre). Se conservan mientras exista
+  la cuenta y se eliminan con ella, tambien si se rechaza o suspende.
+
 - El cliente activo ve certificados con montos base de USD 50, 100, 200, 300,
   400 y 500, junto con su neto y costos estimados por la calculadora compartida.
   Elegir uno precarga el mismo formulario que Ticket personalizado; no crea ni

@@ -1,6 +1,8 @@
 export default (function () {
   "use strict";
-  const version = "cuenta-minima-2026-09-28-v4";
+  const version = "cuenta-revision-2026-09-29-v5";
+  const reviewNotice =
+    "Revisaremos tu solicitud en un plazo de hasta 2 días hábiles, de lunes a viernes, después de verificar tu correo y completar el formulario. Te notificaremos por correo si fue aprobada, rechazada o necesita aclaraciones. Hasta su aprobación no podrás crear tickets.";
   const ticketConditionsVersion = "ticket-condiciones-2026-09-28-v4";
   const title = "Certificado de regalo en efectivo";
   const presetAmounts = Object.freeze([50, 100, 200, 300, 400, 500]);
@@ -24,7 +26,7 @@ export default (function () {
   const notice = [
     [
       "Cuenta y revisión",
-      "Correo verificado, contraseña mediante hash y aceptación de condiciones. La activación es manual.",
+      "Nombre completo, teléfono de contacto, correo verificado, contraseña mediante hash, declaración de titularidad de PayPal y aceptación de condiciones. La activación es manual; la declaración no verifica la cuenta de PayPal.",
     ],
     [
       "Ticket",
@@ -39,7 +41,7 @@ export default (function () {
       "Cloudflare aloja y protege el portal; Resend envía los correos. WhatsApp/Meta trata los mensajes que decidas enviar por ese canal. Responsable: SoftOhm Systems LLC. Contacto: info@softohmsystems.com.",
     ],
   ];
-  function validate(data, now = Date.now()) {
+  function contact(data) {
     if (
       [
         "name",
@@ -47,14 +49,52 @@ export default (function () {
         "bank",
         "bankAccount",
         "currency",
-        "phone",
+        "paypalEmail",
+        "paypal_email",
         "front",
         "back",
       ].some((key) => key in data)
     )
       throw new Error(
-        "El perfil no admite nombres, documentos ni datos bancarios.",
+        "El perfil no admite documentos, correo separado de PayPal ni datos bancarios.",
       );
+    const fullName =
+      typeof data.fullName === "string"
+        ? data.fullName.trim().replace(/\s+/g, " ")
+        : "";
+    if (
+      fullName.length < 5 ||
+      fullName.length > 120 ||
+      fullName.split(" ").length < 2 ||
+      !/^[\p{L}\p{M} .'-]+$/u.test(fullName)
+    )
+      throw new Error("Escribe tu nombre completo, con nombres y apellidos.");
+    const phone =
+      typeof data.phone === "string"
+        ? data.phone.trim().replace(/[ ()-]/g, "")
+        : "";
+    if (!/^\+[1-9]\d{7,14}$/.test(phone))
+      throw new Error(
+        "Escribe el teléfono con +, código de país y número completo.",
+      );
+    if (data.paypalOwnership !== true && data.paypalOwnership !== "on")
+      throw new Error(
+        "Confirma que usarás una cuenta de PayPal propia, a tu nombre.",
+      );
+    return { fullName, phone, paypalOwnership: true };
+  }
+  function registration(data, now = Date.now()) {
+    if (data.legalAccepted !== true || data.legalVersion !== version)
+      throw new Error("Acepta los términos y el aviso de privacidad vigentes.");
+    return {
+      ...contact(data),
+      kind: "review-account",
+      version,
+      acceptedAt: now,
+    };
+  }
+  function validate(data, now = Date.now()) {
+    const details = contact(data);
     if (data.version !== version)
       throw new Error("El aviso cambió. Recarga y revisa su nueva versión.");
     if (
@@ -64,7 +104,8 @@ export default (function () {
     )
       throw new Error("Acepta las condiciones y el aviso de privacidad.");
     return {
-      kind: "minimal-account",
+      ...details,
+      kind: "review-account",
       version,
       acceptedAt: now,
       declaration:
@@ -110,6 +151,8 @@ export default (function () {
   const api = {
     presetAmounts,
     version,
+    reviewNotice,
+    registration,
     title,
     description,
     banks,

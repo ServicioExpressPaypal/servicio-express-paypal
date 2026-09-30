@@ -506,11 +506,16 @@ async function handle(
       delete data.turnstileToken;
     }
     if (endpoint === "/sign-up/email") {
-      if (
-        data.legalAccepted !== true ||
-        data.legalVersion !== CertificateModel.version
-      )
-        fail(400, "Acepta los términos y el aviso de privacidad vigentes.");
+      try {
+        // Auth stores a generic display name; reviewed contact data lives in profiles.
+        const { name: _name, ...registration } = data;
+        const checked = CertificateModel.registration(registration);
+        data.fullName = checked.fullName;
+        data.phone = checked.phone;
+        data.paypalOwnership = checked.paypalOwnership;
+      } catch (error) {
+        fail(400, (error as Error).message);
+      }
       data.name = "Cliente";
       delete data.image;
     }
@@ -565,6 +570,10 @@ async function handle(
       profile: {
         status: profile.status,
         name: profile.full_name,
+        phone: profile.dossier ? JSON.parse(profile.dossier).phone : undefined,
+        paypalOwnership: profile.dossier
+          ? JSON.parse(profile.dossier).paypalOwnership === true
+          : false,
         reason: profile.reason,
         bank: profile.dossier ? JSON.parse(profile.dossier).bank : undefined,
         currency: profile.dossier
@@ -710,8 +719,9 @@ async function handle(
     }
     // Keep references to any legacy documents; changing this form is not a deletion request.
     const old = profile.dossier ? JSON.parse(profile.dossier) : {};
+    const { fullName, ...reviewData } = p;
     const dossier = JSON.stringify({
-      ...p,
+      ...reviewData,
       ...(old.front ? { front: old.front } : {}),
       ...(old.back ? { back: old.back } : {}),
     });
@@ -726,7 +736,7 @@ async function handle(
       ),
       env.DB.prepare(
         "UPDATE profiles SET full_name=?,dossier=?,status='pending',reason='',version=version+1,updated_at=? WHERE user_id=? AND version=? RETURNING user_id",
-      ).bind("", dossier, Date.now(), user.id, profile.version),
+      ).bind(fullName, dossier, Date.now(), user.id, profile.version),
     ]);
     if (!result[1].results.length)
       fail(409, "El expediente cambió. Recarga e intenta de nuevo.");
@@ -820,7 +830,7 @@ async function handle(
   const dossierMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
   if (dossierMatch) {
     const target = await env.DB.prepare(
-      "SELECT p.*,u.email FROM profiles p JOIN user u ON u.id=p.user_id WHERE p.user_id=?",
+      "SELECT p.*,u.email,u.emailVerified FROM profiles p JOIN user u ON u.id=p.user_id WHERE p.user_id=?",
     )
       .bind(dossierMatch[1])
       .first<Profile & { email: string }>();
