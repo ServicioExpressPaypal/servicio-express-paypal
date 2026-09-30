@@ -94,8 +94,11 @@ Restore only with access closed, preserving the matching encryption key, then
 run retention and encryption migration before reopening. Rollback after migration
 must retain the encryption-aware reader, not a pre-encryption Worker version.
 
-`REGISTRATION_OPEN=false` stays in production until the owner personally enrolls
-MFA, stores recovery codes privately and confirms access. Never generate an OTP
-for the owner, collect their codes, or silently disable MFA to bypass setup.
+Registration is now open after confirming that the existing owner has a verified
+email and enabled MFA in production. New customers still require email
+verification and manual account approval before creating tickets. For future
+rollouts or recovery, keep `REGISTRATION_OPEN=false` until the owner has enrolled
+MFA. Never generate an OTP for the owner, collect their recovery codes, or
+silently disable MFA to bypass setup.
 Public home remains in construction. Release readiness also requires review of
 business/legal obligations outside this technical audit.

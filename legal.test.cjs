@@ -52,7 +52,7 @@ test("production registration requires server-side bot protection and private ad
   assert.match(config, /"ADMIN_SETUP_OPEN":\s*"false"/);
   assert.match(config, /"MAINTENANCE_MODE":\s*"false"/);
   assert.match(config, /"TURNSTILE_ENABLED":\s*"true"/);
-  assert.match(config, /"REGISTRATION_OPEN":\s*"false"/);
+  assert.match(config, /"REGISTRATION_OPEN":\s*"true"/);
   assert.match(config, /"ADMIN_REQUIRE_MFA":\s*"true"/);
   assert.match(config, /"KYC_OPEN":\s*"true"/);
   assert.match(config, /"ratelimits"/);

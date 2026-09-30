@@ -16,6 +16,9 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
   El QR se genera localmente, sin enviar su secreto a otro proveedor.
 - REGISTRATION_OPEN y KYC_OPEN controlan registro y aceptacion del perfil.
   KYC_OPEN es un nombre heredado: este flujo no certifica identidad ni KYC legal.
+- El registro publico del portal esta habilitado tras verificar el doble factor
+  del administrador. Los clientes nuevos siguen pendientes de aprobacion manual.
+  La portada del dominio principal permanece en construccion.
 - El administrador puede activar, pedir correccion, suspender y cerrar con motivo
   y aviso por correo. Cerrar una cuenta no borra automaticamente el historial.
 
