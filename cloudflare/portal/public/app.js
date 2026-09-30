@@ -232,6 +232,7 @@ import {
     clearInterval(ticketRefreshTimer);
     clearInterval(processingTimer);
     clearTimeout(detailExpiry);
+    main.className = "";
     if (me && !me.admin && view === "dashboard") view = "tickets";
     nav();
     if (resetToken) return login();
@@ -296,12 +297,13 @@ import {
   }
   function login(mode = "login") {
     const reset = !!resetToken;
-    main.innerHTML = `<div class="onboarding">${!reset ? `<div class="auth-tabs" role="tablist"><button role="tab" data-auth="login" aria-selected="${mode === "login"}">Iniciar sesión</button><button role="tab" data-auth="signup" aria-selected="${mode === "signup"}">Crear cuenta</button></div>` : ""}<h1>${reset ? "Nueva contraseña" : mode === "signup" ? "Crea tu cuenta" : mode === "recover" ? "Recupera tu acceso" : "Bienvenido"}</h1>${mode === "signup" && !config.registrationOpen ? '<div class="notice">El registro de nuevas cuentas todavía no está abierto.</div>' : form("auth", `${!reset ? field("Correo electrónico", "email", "email", 'autocomplete="email" maxlength="254"') : ""}${mode !== "recover" ? field("Contraseña", "password", "password", `minlength="12" maxlength="128" autocomplete="${reset || mode === "signup" ? "new-password" : "current-password"}"`) : ""}`, reset ? "Guardar contraseña" : mode === "signup" ? "Crear cuenta" : mode === "recover" ? "Enviar enlace" : "Entrar")}${!reset ? '<button class="text-button" id="recover">Olvidé mi contraseña</button>' : ""}</div>`;
+    main.className = "auth-view";
+    main.innerHTML = `<div class="onboarding"><h1>${reset ? "Nueva contraseña" : mode === "signup" ? "Crea tu cuenta" : mode === "recover" ? "Recupera tu acceso" : "Ingresar"}</h1>${!reset ? `<div class="auth-tabs" role="tablist"><button role="tab" data-auth="login" aria-selected="${mode === "login"}">Ingresar</button><button role="tab" data-auth="signup" aria-selected="${mode === "signup"}">Crear cuenta</button></div>` : ""}${mode === "signup" && !config.registrationOpen ? '<div class="notice">El registro de nuevas cuentas todavía no está abierto.</div>' : form("auth", `${!reset ? field("Correo electrónico", "email", "email", 'autocomplete="email" maxlength="254"') : ""}${mode !== "recover" ? field("Contraseña", "password", "password", `minlength="12" maxlength="128" autocomplete="${reset || mode === "signup" ? "new-password" : "current-password"}"`) : ""}`, reset ? "Guardar contraseña" : mode === "signup" ? "Crear cuenta" : mode === "recover" ? "Enviar enlace" : "Entrar")}${!reset ? '<button class="text-button" id="recover">Olvidé mi contraseña</button>' : ""}</div>`;
     if (mode === "signup" && !reset) {
       const note = document.createElement("p");
       note.className = "notice";
       note.textContent = CertificateModel.reviewNotice;
-      $(".onboarding h1").after(note);
+      ($(".auth-tabs") || $(".onboarding h1")).after(note);
       if ($("#auth"))
         $("#auth").insertAdjacentHTML("afterbegin", contactFields());
     }
@@ -620,6 +622,7 @@ import {
       );
   }
   async function tickets() {
+    main.className = me.admin ? "admin-tickets" : "customer-tickets";
     const rows = me.admin
       ? await api("/api/admin/tickets")
       : (await api("/api/account/history?status=active")).items;
@@ -628,7 +631,7 @@ import {
       const cards = CertificateModel.presetAmounts
         .map((amount) => {
           const estimate = SaldoCalculator.estimate(amount * 100, "express");
-          return `<article class="gift-option"><div class="gift-face"><img class="gift-ribbon" src="/gift-ribbon.png" width="70" height="140" alt=""><div class="gift-title"><span>Certificado de regalo</span><h2>Efectivo</h2><small>Para alguien especial</small></div><div class="gift-stub"><span>Monto base</span><strong>$${amount}</strong><small>USD</small></div></div><div class="gift-summary"><span>Valor estimado<strong>${money(estimate.net)}</strong></span><span>Costos estimados<strong>${money(estimate.total)}</strong></span></div><button type="button" class="gift-select" data-preset="${amount}" aria-label="Elegir certificado de ${amount} dólares">Elegir $${amount} USD ${icon("arrow-right")}</button></article>`;
+          return `<article class="gift-option"><div class="gift-face"><div class="gift-stub"><span>Monto base</span><strong>$${amount}</strong><small>USD</small></div></div><div class="gift-summary"><span>Valor estimado<strong>${money(estimate.net)}</strong></span><span>Costos estimados<strong>${money(estimate.total)}</strong></span></div><button type="button" class="gift-select" data-preset="${amount}" aria-label="Elegir certificado de ${amount} dólares">Elegir $${amount} USD ${icon("arrow-right")}</button></article>`;
         })
         .join("");
       $(".heading").outerHTML =
@@ -660,6 +663,7 @@ import {
       );
   }
   function newTicket(presetAmount) {
+    main.className = "ticket-create-view";
     const requestKey = crypto.randomUUID();
     const conditions = CertificateModel.ticketConditions
       .map((condition) => `<li>${esc(condition)}</li>`)
@@ -706,6 +710,7 @@ import {
     clearInterval(processingTimer);
     const base = me.admin ? "/api/admin/tickets/" : "/api/tickets/";
     const t = await api(base + id);
+    main.className = `ticket-detail ${me.admin ? "admin-detail" : "customer-detail"}`;
     const messages = t.messages || [];
     const messageList = messages.length
       ? messages
@@ -741,7 +746,7 @@ import {
         (me.admin && t.status === "quoted"))
         ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>'
         : "";
-    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>${t.amount > 50000 && t.terms_version === CertificateModel.ticketConditionsVersion ? (t.processing_started_at ? "Vigencia: 6 días hábiles desde la confirmación del pago." : "Vigencia: 6 días hábiles desde la creación; se recalcula al confirmar el pago.") : "La vigencia es de 24 horas desde su creación."}</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "Eliminado o no disponible")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "Eliminado o no disponible")}</p></div></div>${t.quote ? `<div class="notice"><strong>Importe acordado anteriormente: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}<section class="ticket-chat"><div class="section-heading"><div><h2>Conversación del ticket</h2><p>Los comentarios se eliminan al vencer o cerrar el ticket. No escribas nombres, cuentas, contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section>`;
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading ticket-heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-detail-layout"><div class="ticket-detail-primary"><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>${t.amount > 50000 && t.terms_version === CertificateModel.ticketConditionsVersion ? (t.processing_started_at ? "Vigencia: 6 días hábiles desde la confirmación del pago." : "Vigencia: 6 días hábiles desde la creación; se recalcula al confirmar el pago.") : "La vigencia es de 24 horas desde su creación."}</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "Eliminado o no disponible")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "Eliminado o no disponible")}</p></div></div>${t.quote ? `<div class="notice"><strong>Importe acordado anteriormente: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}</div><div class="ticket-detail-secondary"><section class="ticket-chat"><div class="section-heading"><div><h2 aria-label="Conversación del ticket">Comentarios</h2><p>Los comentarios se eliminan al vencer o cerrar el ticket. No escribas nombres, cuentas, contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section></div></div>`;
     $("#back").onclick = render;
     if (t.quote) {
       $(".ticket-value-label").textContent = "Valor acordado anteriormente";
@@ -929,6 +934,7 @@ import {
     }
   }
   async function dashboard() {
+    main.className = "admin-dashboard";
     const [users, tickets] = await Promise.all([
       api("/api/admin/users"),
       api("/api/admin/tickets"),
@@ -989,6 +995,7 @@ import {
       );
   }
   async function users() {
+    main.className = "admin-users";
     const rows = await api("/api/admin/users");
     const filters = [
       ["all", "Todos"],
@@ -1082,7 +1089,8 @@ import {
     const profileData = p
       ? `<section class="account-section"><h2>Datos para revisión</h2><dl class="account-data"><div><dt>Nombre completo</dt><dd>${esc(u.full_name || "No registrado")}</dd></div><div><dt>Teléfono de contacto</dt><dd>${esc(p.phone || "No registrado")}</dd></div><div><dt>Correo</dt><dd>${u.emailVerified ? "Verificado" : "Pendiente de verificar"}</dd></div><div><dt>Titularidad de PayPal</dt><dd>${p.paypalOwnership ? "El usuario declara que la cuenta está a su nombre" : "No declarada"}</dd></div></dl><p>La declaración no acredita titularidad. Contrasta los datos del pagador por el canal oficial antes del envío; no solicites claves ni códigos.</p><p>Plazo de revisión: hasta 2 días hábiles, de lunes a viernes, después del correo verificado y el formulario completo.</p><p class="consent-record">Condiciones: ${esc(p.version)} · ${dateTime(p.acceptedAt)}</p></section>`
       : '<p class="notice">El usuario todavía no ha aceptado las condiciones.</p>';
-    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Usuarios</button><div class="heading account-heading"><div><h1>${esc(u.full_name || u.email)}</h1><p>${esc(u.email)}</p></div><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></div>${u.reason ? `<p class="notice"><strong>Último motivo:</strong> ${esc(u.reason)}</p>` : ""}${profileData}<section class="account-section"><div class="section-heading"><div><h2>Acciones de cuenta</h2><p>Solo una cuenta activa puede crear tickets. Toda decisión exige un motivo y genera un aviso al correo registrado.</p></div></div>${actionButtons ? `<div class="actions">${actionButtons}</div>` : '<p class="empty compact">No hay acciones disponibles para este estado.</p>'}</section><section class="account-section"><div class="section-heading"><div><h2>Historial de decisiones</h2><p>Estado del aviso enviado al usuario.</p></div><span>${(u.notices || []).length}</span></div><ol class="decision-history">${noticeHistory}</ol></section>`;
+    main.className = "admin-account";
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Usuarios</button><div class="heading account-heading"><div><h1>${esc(u.full_name || u.email)}</h1><p>${esc(u.email)}</p></div><span class="badge account-${esc(u.status)}">${esc(AccountModel.labels[u.status])}</span></div>${u.reason ? `<p class="notice"><strong>Último motivo:</strong> ${esc(u.reason)}</p>` : ""}<div class="account-detail-grid">${profileData}<section class="account-section account-actions"><div class="section-heading"><div><h2>Acciones de cuenta</h2><p>Solo una cuenta activa puede crear tickets. Toda decisión exige un motivo y genera un aviso al correo registrado.</p></div></div>${actionButtons ? `<div class="actions">${actionButtons}</div>` : '<p class="empty compact">No hay acciones disponibles para este estado.</p>'}</section></div><section class="account-section account-history"><div class="section-heading"><div><h2>Historial de decisiones</h2><p>Estado del aviso enviado al usuario.</p></div><span>${(u.notices || []).length}</span></div><ol class="decision-history">${noticeHistory}</ol></section>`;
     $("#back").onclick = render;
     document.querySelectorAll("[data-review]").forEach(
       (button) =>

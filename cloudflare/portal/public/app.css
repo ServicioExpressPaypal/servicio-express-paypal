@@ -854,101 +854,780 @@ textarea {
   }
 }
 
-/* Rediseño: paleta Saldo Express (naranja + carbón), interfaz simple.
-   Solo estilos: no cambia funciones, textos ni datos. */
+/* Complete portal redesign based on the approved Saldo Express screens. */
 :root {
-  --ink: #15181c;
-  --muted: #5b6675;
-  --line: #e4e7ec;
-  --paper: #f7f8fa;
-  --orange: #b84a0c;
-  --blue: #b84a0c;
+  --ink: #17191d;
+  --muted: #626b78;
+  --line: #dfe3e8;
+  --paper: #f5f6f8;
+  --orange: #c64b0d;
+  --blue: #a43e0d;
   --brand: #f26c1f;
+  --brand-soft: #fff3eb;
+  --white: #fff;
   font:
-    15px/1.5 system-ui,
+    15px/1.5 Inter,
+    ui-sans-serif,
     -apple-system,
+    BlinkMacSystemFont,
     "Segoe UI",
-    Roboto,
-    Arial,
     sans-serif;
 }
+
 body {
+  min-width: 320px;
   background: var(--paper);
-}
-.badge[class][class] {
-  background: none;
   color: var(--ink);
-  padding: 0;
-  font-size: 13px;
-  font-weight: 600;
 }
+
+h1,
+h2,
+h3 {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: clamp(26px, 3vw, 34px);
+  line-height: 1.15;
+}
+
+h2 {
+  font-size: 18px;
+}
+
+.workspace {
+  min-height: 100vh;
+}
+
+.app-header {
+  min-height: 72px;
+  padding: 0 max(24px, calc((100% - 1040px) / 2));
+  gap: 36px;
+  border-bottom: 1px solid var(--line);
+  background: var(--white);
+}
+
+.brand-wordmark {
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.brand-wordmark span {
+  color: var(--brand);
+}
+
+#navigation {
+  gap: 22px;
+}
+
+.nav {
+  min-height: 72px;
+  padding: 0 2px;
+  border-bottom-width: 3px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.nav.active {
+  border-bottom-color: var(--brand);
+  color: var(--ink);
+}
+
+.icon-button {
+  border-radius: 6px;
+}
+
+main {
+  max-width: 1088px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.feedback-bar {
+  max-width: 1088px;
+  min-height: 36px;
+  padding: 8px 24px 0;
+}
+
+footer {
+  padding: 20px max(24px, calc((100% - 1040px) / 2));
+  background: var(--white);
+}
+
 .button {
   min-height: 44px;
-  border-radius: 10px;
-  font-size: 15px;
+  border-radius: 7px;
+  border-color: #c7cdd5;
+  font-size: 14px;
 }
+
 .button.primary,
 .gift-select {
-  background: var(--brand);
   border-color: var(--brand);
+  background: var(--brand);
   color: var(--ink);
 }
+
+.button.primary:hover:not(:disabled),
+.gift-select:hover:not(:disabled) {
+  background: #e75d15;
+  filter: none;
+}
+
+.button.danger {
+  border-color: #d8a7aa;
+  background: var(--white);
+  color: #a52226;
+}
+
+.button.warning {
+  border-color: #e1b67c;
+  background: #fffaf3;
+  color: #7b4806;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline-color: #963600;
+}
+
 input:not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
   min-height: 44px;
-  border-radius: 10px;
-  border-color: #8b94a1;
+  border-radius: 7px;
+  border-color: #939ca8;
   font-size: 16px;
 }
+
+.heading {
+  margin-bottom: 24px;
+}
+
+.heading p {
+  margin-top: 6px;
+}
+
+.badge[class][class] {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.badge.submitted,
+.badge.account-pending,
+.badge.account-correction {
+  color: #8b5000;
+}
+
+.badge.reviewing,
+.badge.paid,
+.badge.account-unverified,
+.badge.account-incomplete {
+  color: #315c91;
+}
+
+.badge.quoted,
+.badge.delivered,
+.badge.account-active {
+  color: #236245;
+}
+
+.badge.cancelled,
+.badge.expired,
+.badge.account-suspended {
+  color: #9f252b;
+}
+
+.auth-view {
+  width: min(100%, 508px);
+  margin: 0 auto;
+  padding-top: 48px;
+}
+
+.auth-view .onboarding {
+  max-width: 460px;
+  padding-top: 0;
+}
+
+.auth-view .onboarding h1 {
+  margin: 0 0 24px;
+  font-size: 34px;
+}
+
+.auth-tabs {
+  gap: 26px;
+  margin: 0 0 28px;
+}
+
+.auth-tabs button {
+  min-height: 44px;
+  padding: 8px 0;
+  font-weight: 650;
+}
+
+.auth-tabs [aria-selected="true"] {
+  border-color: var(--brand);
+  color: var(--ink);
+}
+
+.auth-view .stack > .button.primary {
+  width: 100%;
+}
+
+.customer-tickets,
+.customer-detail,
+.ticket-create-view {
+  max-width: 680px;
+}
+
+.gift-heading {
+  align-items: flex-end;
+}
+
+.gift-heading p {
+  max-width: 48ch;
+}
+
+.gift-heading > .button {
+  flex-shrink: 0;
+}
+
+.gift-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.gift-option {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--ink);
+}
+
+.gift-face {
+  display: block;
+  min-height: 0;
+  border: 0;
+}
+
+.gift-stub {
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 8px;
+  border: 0;
+  padding: 18px;
+}
+
+.gift-stub span,
+.gift-stub small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.gift-stub strong {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.gift-summary {
+  padding: 14px 18px;
+  border-top: 1px solid var(--line);
+  background: #fafbfc;
+  font-size: 12px;
+}
+
+.gift-summary strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.gift-select {
+  min-height: 46px;
+  border-top: 1px solid #e05a15;
+  padding: 11px 18px;
+  font-size: 14px;
+}
+
+.gift-select:focus-visible {
+  outline-color: #963600;
+}
+
+.ticket-list-title {
+  margin: 38px 0 12px;
+}
+
 .ticket-list,
 .admin-list {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 12px;
   overflow: hidden;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
 }
+
 .ticket-row,
 .admin-list-row {
+  min-height: 74px;
+  padding: 15px 18px;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
-  background: #fff;
+  background: var(--white);
 }
+
 .ticket-row:last-child,
 .admin-list-row:last-child {
   border-bottom: 0;
 }
-.metric-card,
-.dashboard-section,
-.gift-option,
+
+.ticket-row:hover,
+.admin-list-row:hover {
+  background: #fafbfc;
+}
+
+.ticket-row small {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.ticket-expiry {
+  color: #994000 !important;
+}
+
+.ticket-detail .back,
+.admin-account .back {
+  margin-bottom: 20px;
+}
+
+.ticket-heading {
+  padding-bottom: 2px;
+}
+
+.ticket-heading h1 {
+  margin-top: 3px;
+  font-size: 34px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ticket-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(340px, 0.94fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.customer-detail .ticket-detail-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ticket-detail-primary,
+.ticket-detail-secondary {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.ticket-deadline,
 .order-progress,
-.ticket-deadline {
-  background: #fff;
+.processing-window,
+.ticket-data,
+.external-purchase,
+.ticket-chat,
+.ticket-history {
+  margin: 0;
+  padding: 20px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 8px;
+  background: var(--white);
 }
-.nav.active {
+
+.ticket-deadline {
+  border-left: 4px solid var(--brand);
+}
+
+.ticket-deadline span,
+.ticket-deadline small {
+  color: var(--muted);
+}
+
+.ticket-deadline strong {
+  font-size: 17px;
+}
+
+.order-progress {
+  border-bottom: 1px solid var(--line);
+}
+
+.order-progress h2,
+.processing-window h2 {
+  margin-bottom: 18px;
+}
+
+.order-progress ol {
+  gap: 14px;
+  margin: 0;
+}
+
+.order-progress li.done {
   color: var(--ink);
-  border-bottom-color: var(--brand);
-  border-bottom-width: 3px;
 }
+
+.order-progress li.done svg {
+  color: var(--brand);
+}
+
+.processing-window {
+  border-bottom: 1px solid var(--line);
+}
+
+.processing-window progress {
+  accent-color: var(--brand);
+}
+
+.ticket-data {
+  gap: 20px;
+}
+
+.ticket-data > div {
+  min-width: 0;
+}
+
+.ticket-data small {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+}
+
+.ticket-data p {
+  line-height: 1.4;
+}
+
+.ticket-detail-primary > .notice {
+  margin: 0;
+}
+
+.ticket-detail-primary > .actions {
+  margin: 0;
+}
+
+.external-purchase {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.external-purchase .button {
+  width: 100%;
+}
+
+.ticket-chat,
+.ticket-history {
+  padding-top: 20px;
+}
+
+.ticket-chat .section-heading {
+  margin-bottom: 18px;
+}
+
+.ticket-chat h2,
+.ticket-history h2 {
+  margin-bottom: 6px;
+}
+
+.chat-messages {
+  max-height: 390px;
+  padding-right: 2px;
+}
+
+.chat-message {
+  width: min(92%, 560px);
+  border-radius: 7px;
+  background: #f6f7f8;
+}
+
+.chat-message.own {
+  border-color: #f0c6ad;
+  background: var(--brand-soft);
+}
+
+.chat-form .button {
+  min-width: 112px;
+}
+
+.ticket-history .timeline {
+  margin-bottom: 0;
+}
+
+.admin-heading {
+  align-items: flex-end;
+}
+
+.admin-heading h1 {
+  font-size: 30px;
+}
+
+.admin-metrics {
+  gap: 12px;
+  margin: 8px 0 24px;
+}
+
+.metric-card {
+  min-height: 104px;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.metric-card:hover {
+  border-color: #aeb6c0;
+  background: #fafbfc;
+}
+
+.metric-card strong {
+  font-size: 28px;
+}
+
+.dashboard-grid {
+  gap: 20px;
+}
+
 .dashboard-section {
   overflow: hidden;
   padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
 }
+
 .dashboard-section .section-heading {
-  padding: 16px;
   margin: 0;
+  padding: 18px;
 }
+
 .dashboard-section .admin-list {
   border: 0;
   border-top: 1px solid var(--line);
   border-radius: 0;
 }
+
 .admin-list-row {
-  padding: 14px 16px;
+  padding: 14px 18px;
 }
-.order-progress li.done {
-  color: var(--ink);
+
+.user-toolbar {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.status-filters button {
+  border-radius: 6px;
+}
+
+.status-filters button[aria-pressed="true"] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.account-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.account-section {
+  margin: 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+}
+
+.account-section > h2 {
+  margin-bottom: 20px;
+}
+
+.account-actions .actions {
+  display: grid;
+  margin-top: 18px;
+}
+
+.account-actions .button {
+  width: 100%;
+}
+
+.account-history {
+  margin-top: 20px;
+}
+
+.account-data > div {
+  grid-template-columns: 150px minmax(0, 1fr);
+}
+
+.decision-history li:last-child {
+  border-bottom: 0;
+}
+
+dialog {
+  border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .ticket-detail-layout,
+  .account-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    min-height: auto;
+    padding: 15px 18px 0;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+  }
+
+  .brand-wordmark {
+    font-size: 20px;
+  }
+
+  #navigation {
+    order: 2;
+    width: 100%;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    gap: 18px;
+  }
+
+  #navigation .icon-button {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+  }
+
+  .nav {
+    min-height: 48px;
+    font-size: 13px;
+  }
+
+  main {
+    padding: 24px 16px 44px;
+  }
+
+  .feedback-bar {
+    min-height: 32px;
+    padding: 8px 16px 0;
+  }
+
+  footer {
+    padding: 18px;
+  }
+
+  .auth-view {
+    padding-top: 26px;
+  }
+
+  .auth-view .onboarding h1 {
+    font-size: 30px;
+  }
+
+  .gift-heading,
+  .admin-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .gift-heading .button,
+  .admin-heading .button {
+    width: 100%;
+  }
+
+  .gift-stub {
+    padding: 16px;
+  }
+
+  .gift-summary {
+    padding: 13px 16px;
+  }
+
+  .ticket-heading {
+    align-items: flex-start;
+  }
+
+  .ticket-heading h1 {
+    font-size: 30px;
+  }
+
+  .ticket-deadline,
+  .order-progress,
+  .processing-window,
+  .ticket-data,
+  .external-purchase,
+  .ticket-chat,
+  .ticket-history,
+  .account-section {
+    padding: 17px;
+  }
+
+  .order-progress ol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ticket-data,
+  .account-data > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-card {
+    min-height: 100px;
+  }
+
+  .user-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .status-filters {
+    overflow: visible;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 390px) {
+  .admin-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ticket-row,
+  .admin-list-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
