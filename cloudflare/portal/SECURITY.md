@@ -74,18 +74,21 @@ node scripts/security-data.mjs prepare
 npx wrangler secret bulk .wrangler/security/data-encryption.json
 npx wrangler d1 migrations apply DB --remote
 npm run deploy
-node scripts/security-data.mjs encrypt-production saldo-express-portal
+node scripts/security-data.mjs verify-production saldo-express-portal
 ```
 
-The script generates a protected ignored file (0700 directory, 0600 file), never
-prints the key or row contents, and preserves an existing local key. Place an
+The prepare command generates a protected ignored file (0700 directory, 0600
+file), never prints the key, and preserves an existing local key. Place an
 encrypted backup in the operator's approved secret store. Do not replace an
 existing Worker key with a newly generated value: encrypted records become
 unreadable. Normal releases do not run `prepare` or change this secret.
 
 Legacy plaintext rows remain readable while the idempotent bounded migration
-encrypts them. Compare-and-update conditions prevent overwriting concurrent
-changes. A cron also picks up remaining legacy rows; erasure rules run first.
+encrypts them inside the Worker cron, every 15 minutes, without downloading
+customer records to an operator's computer. Compare-and-update conditions
+prevent overwriting concurrent changes; erasure rules run first. Verification
+queries only aggregate counts. If any count is nonzero, keep registration closed,
+wait for a cron cycle and verify again; inspect cron failures if counts persist.
 Older provider backups can still contain plaintext until backup retention ends.
 Restore only with access closed, preserving the matching encryption key, then
 run retention and encryption migration before reopening. Rollback after migration
