@@ -5,6 +5,13 @@ import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { createOTP } from "@better-auth/utils/otp";
 import CertificateModel from "../public/certificate.js";
 import {
+  accountDecisionMail,
+  passwordChangedMail,
+  passwordResetDoneMail,
+  resetPasswordMail,
+  verificationMail,
+} from "../src/email-templates.ts";
+import {
   encryptField,
   decryptField,
   encryptLegacyData,
@@ -22,6 +29,37 @@ const origin = "https://portal.example.test";
 const encryptionEnv = {
   DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
 };
+
+test("customer emails are escaped, link-safe and keep a plain-text alternative", () => {
+  const link =
+    "https://portal.example.test/api/auth/verify-email?token=a.b&x=<1>";
+  const v = verificationMail(link);
+  assert.ok(
+    v.html.includes(
+      'href="https://portal.example.test/api/auth/verify-email?token=a.b&amp;x=&lt;1&gt;"',
+    ),
+  );
+  assert.equal(v.text.match(/https:\/\/\S+/)[0], link);
+  for (const m of [
+    v,
+    resetPasswordMail(link),
+    passwordResetDoneMail(),
+    passwordChangedMail(),
+    accountDecisionMail("active", "ok", "https://a.test/"),
+  ])
+    assert.ok(!/<script|<img|src=/i.test(m.html));
+  assert.match(resetPasswordMail(link).text, /1 hora/);
+  const d = accountDecisionMail(
+    "suspended",
+    '<b>x</b> & "y"',
+    "https://a.test/",
+  );
+  assert.ok(d.html.includes("&lt;b&gt;x&lt;/b&gt; &amp; &quot;y&quot;"));
+  assert.ok(!d.html.includes("<b>x</b>"));
+  assert.ok(d.text.includes('Motivo: <b>x</b> & "y"'));
+  assert.ok(!d.html.includes("<a "));
+  assert.throws(() => verificationMail("javascript:alert(1)"));
+});
 
 test("scheduled security alerts aggregate counts, rate-limit mail and expire old events", async () => {
   const s = await setup();
@@ -1133,6 +1171,7 @@ async function setup(open = true, overrides = {}) {
       (e) => e.to.includes(email) && e.text.includes("/api/auth/verify-email"),
     );
     assert.ok(message, "verification email dispatched");
+    assert.match(message.html, /Confirmar mi correo/);
     const url = new URL(message.text.match(/https:\/\/\S+/)[0]);
     r = await req(url.pathname + url.search);
     assert.ok([200, 302].includes(r.status), JSON.stringify(r.data));
@@ -1637,6 +1676,7 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     );
     assert.ok(activationNotice, "account activation notice dispatched");
     assert.match(activationNotice.text, /Expediente ficticio verificado/);
+    assert.match(activationNotice.html, /Abrir mi cuenta/);
     assert.ok(!activationNotice.text.includes(ticket().bankAccount));
     const activationRow = await s.db
       .prepare(

@@ -1,4 +1,5 @@
-import { createAuth, sendMail } from "./auth";
+import { createAuth, sendMail, sendMailContent } from "./auth";
+import { accountDecisionMail, passwordChangedMail } from "./email-templates";
 import { setupEnabled, inviteAdmin, completeAdminSetup } from "./admin-setup";
 import "../../../calculator-core.js";
 import "../../../_pilot/tickets/domain.js";
@@ -396,19 +397,11 @@ async function notifyAccountDecision(env: Env, noticeId: string) {
     .bind(noticeId)
     .first<{ status: string; reason: string; email: string }>();
   if (!notice) return;
-  const label =
-    {
-      correction: "requiere una corrección",
-      active: "fue activada",
-      suspended: "fue suspendida",
-      closed: "fue cerrada",
-    }[notice.status] || "fue actualizada";
   try {
-    await sendMail(
+    await sendMailContent(
       env,
       notice.email,
-      "Actualización de tu cuenta de Saldo Express",
-      `Tu cuenta ${label}.\n\nMotivo: ${notice.reason}\n\nSi necesitas solicitar una revisión, escribe a info@softohmsystems.com.`,
+      accountDecisionMail(notice.status, notice.reason, env.APP_URL),
     );
     await env.DB.prepare("UPDATE account_notices SET delivered=1 WHERE id=?")
       .bind(noticeId)
@@ -598,11 +591,10 @@ async function handle(
       );
     if (endpoint === "/change-password" && response.ok && passwordOwner) {
       ctx.waitUntil(
-        sendMail(
+        sendMailContent(
           env,
           passwordOwner.user.email,
-          "Tu contraseña fue cambiada",
-          "Se cambió tu contraseña de Saldo Express y se cerraron las otras sesiones. Si no fuiste tú, contacta a info@softohmsystems.com.",
+          passwordChangedMail(),
         ).catch(() =>
           console.error(JSON.stringify({ event: "security_mail_failed" })),
         ),

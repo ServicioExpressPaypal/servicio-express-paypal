@@ -3,6 +3,12 @@ import type { BetterAuthOptions } from "better-auth";
 import { twoFactor } from "better-auth/plugins";
 import CertificateModel from "../public/certificate.js";
 import { profileFields } from "./encryption";
+import {
+  passwordResetDoneMail,
+  resetPasswordMail,
+  verificationMail,
+  type Mail,
+} from "./email-templates";
 
 type MailEnv = Pick<Env, "EMAIL_PROVIDER" | "EMAIL_FROM" | "RESEND_API_KEY"> & {
   EMAIL?: SendEmail;
@@ -15,9 +21,9 @@ export function authOptions(
   env: AuthEnv,
   ctx: Pick<ExecutionContext, "waitUntil">,
 ) {
-  const queueEmail = (to: string, subject: string, text: string) => {
+  const queueEmail = (to: string, mail: Mail) => {
     ctx.waitUntil(
-      sendMail(env, to, subject, text).catch(() => {
+      sendMailContent(env, to, mail).catch(() => {
         // Do not log recipient addresses, verification links, or tokens.
         console.error(JSON.stringify({ event: "email_delivery_failed" }));
       }),
@@ -38,28 +44,16 @@ export function authOptions(
       autoSignIn: false,
       revokeSessionsOnPasswordReset: true,
       onPasswordReset: async ({ user }) =>
-        queueEmail(
-          user.email,
-          "Tu contraseña fue restablecida",
-          "Se restableció la contraseña de Saldo Express y se cerraron las sesiones anteriores. Si no fuiste tú, contacta a info@softohmsystems.com.",
-        ),
+        queueEmail(user.email, passwordResetDoneMail()),
       sendResetPassword: async ({ user, url }) =>
-        queueEmail(
-          user.email,
-          "Restablece tu contraseña",
-          `Abre este enlace para restablecer tu contraseña: ${url}`,
-        ),
+        queueEmail(user.email, resetPasswordMail(url)),
     },
     emailVerification: {
       sendOnSignUp: true,
       sendOnSignIn: true,
       expiresIn: 3600,
       sendVerificationEmail: async ({ user, url }) =>
-        queueEmail(
-          user.email,
-          "Verifica tu correo",
-          `Confirma tu correo de Saldo Express: ${url}`,
-        ),
+        queueEmail(user.email, verificationMail(url)),
     },
     session: {
       expiresIn: 60 * 60 * 12,
@@ -128,9 +122,16 @@ export async function sendMail(
   to: string,
   subject: string,
   text: string,
+  html?: string,
 ) {
   if (env.EMAIL_PROVIDER === "cloudflare" && env.EMAIL) {
-    await env.EMAIL.send({ from: env.EMAIL_FROM, to, subject, text });
+    await env.EMAIL.send({
+      from: env.EMAIL_FROM,
+      to,
+      subject,
+      text,
+      ...(html ? { html } : {}),
+    });
     return;
   }
   if (env.EMAIL_PROVIDER === "resend" && env.RESEND_API_KEY) {
@@ -140,10 +141,18 @@ export async function sendMail(
         authorization: `Bearer ${env.RESEND_API_KEY}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to], subject, text }),
+      body: JSON.stringify({
+        from: env.EMAIL_FROM,
+        to: [to],
+        subject,
+        text,
+        ...(html ? { html } : {}),
+      }),
     });
     if (!response.ok) throw new Error("Email delivery failed");
     return;
   }
   throw new Error("Email sending unavailable");
 }
+export const sendMailContent = (env: MailEnv, to: string, mail: Mail) =>
+  sendMail(env, to, mail.subject, mail.text, mail.html);
