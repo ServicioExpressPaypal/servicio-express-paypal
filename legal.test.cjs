@@ -173,11 +173,12 @@ test("legal versions and visible date are consistent across certificate.js and b
   const visible = `${Number(date[3])} de ${months[Number(date[2]) - 1]} de ${date[1]}`;
   const terms = flat("terminos.html");
   const privacy = flat("privacidad.html");
-  assert.ok(terms.includes(`Cuenta: ${version}`));
-  assert.ok(terms.includes(`Ticket: ${ticket}`));
-  assert.ok(terms.includes(`Vigente desde el ${visible}`));
-  assert.ok(privacy.includes(`Versión ${version} · ${visible}`));
-  assert.ok(terms.includes(`ticket-condiciones-${ticket.split("ticket-condiciones-")[1]}`));
+  // Internal identifiers stay in the code; the notices show only the date.
+  for (const text of [terms, privacy]) {
+    assert.ok(text.includes(`Vigente desde el ${visible}`));
+    assert.doesNotMatch(text, /cuenta-revision-|ticket-condiciones-/);
+  }
+  assert.ok(ticket.includes(`${date[1]}-${date[2]}-${date[3]}`));
   assert.match(terms, /versión vigente y su fecha se publican en esta página/);
 });
 
