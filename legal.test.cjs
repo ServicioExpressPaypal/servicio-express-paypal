@@ -65,12 +65,13 @@ test("privacy matches temporary destination data and minimal registration", () =
   for (const phrase of [
     /hash/,
     /24 horas/,
+    /6 días hábiles/,
     /15 minutos/,
     /30 días/,
     /Cloudflare/,
     /Resend/,
-    /HMAC/,
-    /no constituyen certificación de identidad/,
+    /nombre completo, teléfono de contacto/,
+    /no guarda números de tarjeta/,
   ])
     assert.match(privacy, phrase);
   const build = read("cloudflare/portal/scripts/build.mjs");
@@ -79,35 +80,22 @@ test("privacy matches temporary destination data and minimal registration", () =
   const app = read("cloudflare/portal/public/app.js");
   assert.match(app, /legalAccepted/);
   assert.match(app, /legalVersion/);
-  assert.match(privacy, /nombre completo, teléfono de contacto/);
-  assert.match(privacy, /No pedimos ni guardamos un correo de PayPal separado/);
-  assert.match(privacy, /declaración de titularidad no verifica/);
-  assert.match(privacy, /2 días hábiles, de lunes a viernes/);
-  assert.doesNotMatch(privacy, /No solicitamos nombre legal/);
 });
 
-test("terms describe automatic ticket modes without a commission table", () => {
+test("terms describe the digital gift certificate, payment methods and ticket modes", () => {
   const terms = read("terminos.html").replace(/\s+/g, " ");
+  assert.match(terms, /certificado electrónico de regalo/);
+  assert.match(terms, /producto digital/);
+  assert.match(terms, /PayPal o con tarjeta/);
   assert.match(terms, /\$25 a \$500/);
   assert.match(terms, /supera \$500/);
   assert.match(terms, /Método internacional/);
-  assert.match(terms, /cuenta de PayPal verificada/);
-  assert.match(terms, /valor estimado del certificado/);
-  assert.match(terms, /producto de regalo de valor monetario/);
-  assert.match(terms, /solicitud se gestiona de forma digital/);
   assert.match(terms, /no completa la compra ni emite el certificado/);
-  assert.match(terms, /un solo familiar o beneficiario.*una sola cuenta/s);
-  assert.match(terms, /Express: 24 horas de vigencia/);
-  assert.match(terms, /6 días hábiles desde la creación/);
-  assert.match(terms, /No ofrecemos reembolsos voluntarios/);
-  assert.match(terms, /servicio no prestado/);
-  assert.match(terms, /derechos irrenunciables/);
-  assert.doesNotMatch(terms, /cotización definitiva requiere/);
-  assert.match(terms, /canal\s+oficial de WhatsApp/s);
-  const description = terms
-    .split("<h2>Certificado de regalo en efectivo</h2>")[1]
-    .split("<h2>Condiciones del ticket</h2>")[0];
-  assert.doesNotMatch(description, /Nicaragua|banco|autoridades|depósito/i);
+  assert.match(terms, /un solo beneficiario.*una sola cuenta/s);
+  assert.match(terms, /24 horas de\s+vigencia/);
+  assert.match(terms, /6 días hábiles/);
+  assert.match(terms, /Una vez entregado el certificado no hay reembolso/);
+  assert.match(terms, /canal oficial de WhatsApp/);
   assert.doesNotMatch(terms, /<table/i);
 });
 
@@ -157,16 +145,13 @@ test("admin dashboard keeps account decisions manual and notifies the user", () 
 
 const flat = (path) => read(path).replace(/\s+/g, " ");
 
-test("privacy notice states the Ley 787 deadlines separately and without open extensions", () => {
-  const text = flat("privacidad.html");
-  assert.match(text, /informe de acceso en un plazo máximo de 10 días hábiles/);
-  assert.match(
-    text,
-    /rectificación, modificación, supresión, actualización o cancelación de datos en un plazo máximo de 5 días hábiles/,
-  );
-  assert.match(text, /artículos 17 y 19 de la Ley 787/);
-  assert.doesNotMatch(text, /15 días hábiles/);
-  assert.doesNotMatch(text, /si necesitamos más tiempo/i);
+test("legal texts are plain: digital gift certificate, PayPal or card, no statute or country references", () => {
+  for (const path of ["terminos.html", "privacidad.html"]) {
+    const text = flat(path).replace(/href="[^"]*"/g, "");
+    assert.doesNotMatch(text, /Nicaragua|Ley \d|artículo \d|días hábiles desde esa verificación|si necesitamos más tiempo/i);
+    assert.match(text, /PayPal o con tarjeta/);
+  }
+  assert.match(flat("terminos.html"), /certificado electrónico de regalo/);
 });
 
 test("legal versions and visible date are consistent across certificate.js and both notices", () => {
