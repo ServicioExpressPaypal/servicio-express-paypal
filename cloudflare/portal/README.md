@@ -1,7 +1,8 @@
 # Portal Saldo Express
 
 Produccion: https://portal.saldoexpressnicaragua.com. La home de GitHub Pages
-permanece en construccion; el Worker y su base D1 se despliegan por separado.
+presenta el producto y enlaza a este portal. El Worker y su base D1 se despliegan
+por separado.
 
 ## Registro y permisos
 
@@ -18,7 +19,7 @@ permanece en construccion; el Worker y su base D1 se despliegan por separado.
   KYC_OPEN es un nombre heredado: este flujo no certifica identidad ni KYC legal.
 - El registro publico del portal esta habilitado tras verificar el doble factor
   del administrador. Los clientes nuevos siguen pendientes de aprobacion manual.
-  La portada del dominio principal permanece en construccion.
+  La portada del dominio principal dirige al registro y acceso del portal.
 - El administrador puede activar, pedir correccion, suspender y cerrar con motivo
   y aviso por correo. Cerrar una cuenta no borra automaticamente el historial.
 

@@ -4,7 +4,7 @@ const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const read = (path) => readFileSync(join(__dirname, path), "utf8");
 
-test("legal notices are published while the home stays in construction", () => {
+test("legal notices are linked from the live public site", () => {
   const workflow = read(".github/workflows/pages.yml");
   const home = read("index.html");
   const portal = read("cloudflare/portal/public/index.html");
@@ -14,7 +14,7 @@ test("legal notices are published while the home stays in construction", () => {
     assert.match(html, /mailto:soporte@saldoexpressnicaragua.com/);
     assert.match(html, /registro/i);
     assert.doesNotMatch(html, /<form|<script/i);
-    assert.doesNotMatch(home, new RegExp(`href="${path}"`));
+    assert.match(home, new RegExp(`href="${path}"`));
     assert.match(workflow, new RegExp(path));
     assert.doesNotMatch(portal, new RegExp(path));
   }
@@ -28,23 +28,21 @@ test("public calculator does not load advertising or analytics scripts", () => {
   );
 });
 
-test("maintenance pages hide the unreleased product and application", () => {
+test("public site launches the product and links to the protected portal", () => {
   const home = read("index.html");
   const portal = read("cloudflare/portal/public/index.html");
   const certificate = read("cloudflare/portal/public/certificate.js");
 
-  for (const page of [home, portal]) {
-    assert.match(page, /Sitio en construcción/);
-    assert.doesNotMatch(
-      page,
-      /Certificado de regalo|PayPal|Payoneer|<form|<script/i,
-    );
-    assert.doesNotMatch(page, /SoftOhm|mailto:|Saldo Express|<footer|<img/i);
-  }
+  assert.match(home, /Certificado de regalo en efectivo/);
+  assert.match(home, /portal\.saldoexpressnicaragua\.com/);
+  assert.match(home, /Crear cuenta o ingresar/i);
+  assert.match(home, /Registro abierto/);
+  assert.doesNotMatch(home, /Sitio en construcción|Registro cerrado/);
+  assert.match(portal, /Sitio en construcción/);
   assert.match(certificate, /Certificado de regalo en efectivo/);
   assert.match(certificate, /compartir con tu familia/);
   assert.doesNotMatch(certificate, /Tarjeta de regalo electrónica/);
-  assert.match(read("robots.txt"), /Disallow: \/$/m);
+  assert.match(read("robots.txt"), /Allow: \/$/m);
 });
 
 test("production registration requires server-side bot protection and private admin setup", () => {
@@ -106,7 +104,9 @@ test("terms describe automatic ticket modes without a commission table", () => {
   assert.match(terms, /derechos irrenunciables/);
   assert.doesNotMatch(terms, /cotización definitiva requiere/);
   assert.match(terms, /canal\s+oficial de WhatsApp/s);
-  const description = terms.split("<h2>Certificado de regalo en efectivo</h2>")[1].split("<h2>Condiciones del ticket</h2>")[0];
+  const description = terms
+    .split("<h2>Certificado de regalo en efectivo</h2>")[1]
+    .split("<h2>Condiciones del ticket</h2>")[0];
   assert.doesNotMatch(description, /Nicaragua|banco|autoridades|depósito/i);
   assert.doesNotMatch(terms, /<table/i);
 });

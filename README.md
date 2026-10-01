@@ -1,10 +1,10 @@
-# Calculadoras para Saldo Express Nicaragua
+# Saldo Express Nicaragua
 
-Sitio estatico listo para abrir en navegador o subir a un hosting.
+Sitio publico de Saldo Express Nicaragua, alojado en GitHub Pages.
 
 La landing comercial anterior esta guardada en `_archive/` para mantenerla fuera
-del sitio publico de GitHub Pages mientras se usa una version solo con
-calculadoras.
+del sitio publico. La portada activa presenta el Certificado de regalo en
+efectivo, enlaza al portal privado e incluye calculadoras informativas.
 
 ## Cambios rapidos
 
@@ -14,7 +14,7 @@ calculadoras.
 
 ## Archivos
 
-- `index.html`: pagina publica de calculadoras.
+- `index.html`: pagina publica del producto y acceso al portal.
 - `styles.css`: diseno visual y version movil.
 - `script.js`: logica de calculo.
 - `_archive/`: respaldo no publicado de la version comercial anterior.
@@ -25,7 +25,5 @@ GitHub Actions publica los archivos enumerados en `.github/workflows/pages.yml`
 desde `main`, despues de ejecutar las pruebas de cuentas, tickets y calculadora.
 El artefacto no incluye `_archive/`, `supabase/`, `docs/` ni archivos de pruebas.
 
-El prototipo esta en `https://saldoexpressnicaragua.com/_pilot/tickets/`.
-Es una demostracion publica, no un portal privado: usa exclusivamente datos
-ficticios y se reinicia al recargar. No hay autenticacion, correo ni pagos reales.
-La pagina principal conserva las calculadoras; no dirige clientes al prototipo.
+El portal de clientes esta en `https://portal.saldoexpressnicaragua.com/` y se
+despliega por separado como un Worker de Cloudflare.

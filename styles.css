@@ -159,6 +159,10 @@ a {
   border-color: var(--ink);
 }
 
+.portal-link-short {
+  display: none;
+}
+
 .portal-link:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 3px;
@@ -1158,6 +1162,14 @@ textarea:focus {
 
   .portal-link {
     padding: 0 10px;
+  }
+
+  .portal-link-full {
+    display: none;
+  }
+
+  .portal-link-short {
+    display: inline;
   }
 
   .calculator-page .header-right {

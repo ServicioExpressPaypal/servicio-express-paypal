@@ -29,7 +29,7 @@ function updateCalculatorWhatsapp() {
   if (!whatsappLink) return;
 
   let message =
-    "Hola, vi la calculadora de Saldo Express Nicaragua. Quiero entender una estimación del Certificado de regalo en efectivo para un familiar o beneficiario en Nicaragua.";
+    "Hola, vi la calculadora de Saldo Express Nicaragua. Quiero consultar una estimación del Certificado de regalo en efectivo.";
 
   if (latestCalculation) {
     const isReverse = latestCalculation.direction === "reverse";
@@ -37,7 +37,7 @@ function updateCalculatorWhatsapp() {
       ? `Quiero recibir aproximadamente ${money(latestCalculation.net)} y la calculadora estima que tendría que enviar ${money(latestCalculation.gross)}.`
       : `Estoy revisando un monto PayPal de ${money(latestCalculation.gross)} y la calculadora estima un neto aproximado de ${money(latestCalculation.net)}.`;
 
-    message = `Hola, vi la calculadora de Saldo Express Nicaragua. ${summary} Escenario: ${latestCalculation.serviceLabel}. Quiero entender esta estimación y el estado del producto.`;
+    message = `Hola, vi la calculadora de Saldo Express Nicaragua. ${summary} Escenario: ${latestCalculation.serviceLabel}. Quiero consultar esta estimación.`;
   }
 
   whatsappLink.href = whatsappUrl(message);
