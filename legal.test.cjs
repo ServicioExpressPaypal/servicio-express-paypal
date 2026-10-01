@@ -154,3 +154,49 @@ test("admin dashboard keeps account decisions manual and notifies the user", () 
   assert.match(migration, /CREATE TABLE account_notices/);
   assert.match(migration, /delivered/);
 });
+
+const flat = (path) => read(path).replace(/\s+/g, " ");
+
+test("privacy notice states the Ley 787 deadlines separately and without open extensions", () => {
+  const text = flat("privacidad.html");
+  assert.match(text, /informe de acceso en un plazo máximo de 10 días hábiles/);
+  assert.match(
+    text,
+    /rectificación, modificación, supresión, actualización o cancelación de datos en un plazo máximo de 5 días hábiles/,
+  );
+  assert.match(text, /artículos 17 y 19 de la Ley 787/);
+  assert.doesNotMatch(text, /15 días hábiles/);
+  assert.doesNotMatch(text, /si necesitamos más tiempo/i);
+});
+
+test("legal versions and visible date are consistent across certificate.js and both notices", () => {
+  const certificate = read("cloudflare/portal/public/certificate.js");
+  const version = certificate.match(/const version = "([^"]+)"/)[1];
+  const ticket = certificate.match(
+    /const ticketConditionsVersion = "([^"]+)"/,
+  )[1];
+  const date = version.match(/(\d{4})-(\d{2})-(\d{2})-v\d+$/);
+  assert.ok(date, "version must end with YYYY-MM-DD-vN");
+  const months = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+    "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+  ];
+  const visible = `${Number(date[3])} de ${months[Number(date[2]) - 1]} de ${date[1]}`;
+  const terms = flat("terminos.html");
+  const privacy = flat("privacidad.html");
+  assert.ok(terms.includes(`Cuenta: ${version}`));
+  assert.ok(terms.includes(`Ticket: ${ticket}`));
+  assert.ok(terms.includes(`Vigente desde el ${visible}`));
+  assert.ok(privacy.includes(`Versión ${version} · ${visible}`));
+  assert.ok(terms.includes(`ticket-condiciones-${ticket.split("ticket-condiciones-")[1]}`));
+  assert.match(terms, /versión vigente y su fecha se publican en esta página/);
+});
+
+test("version bump keeps existing consents and documents why", () => {
+  const certificate = read("cloudflare/portal/public/certificate.js");
+  assert.match(certificate, /not a material change/);
+  assert.match(certificate, /existing accounts keep the version they accepted/);
+  const text = flat("privacidad.html");
+  assert.match(text, /las cuentas existentes conservan la que aceptaron/);
+  assert.match(text, /pediremos nueva aceptación antes de aplicarlo/);
+});

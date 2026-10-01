@@ -1,5 +1,10 @@
 export default (function () {
   "use strict";
+  // v7 only clarifies the legal texts (response deadlines, external payment
+  // records, changes clause). It adds no data, purposes or recipients, so it is
+  // not a material change: existing accounts keep the version they accepted
+  // (e.g. v6) in registration_consents. A material change needs a renewed
+  // acceptance flow before the version is bumped.
   const version = "cuenta-revision-2026-09-30-v7";
   const reviewNotice =
     "Revisaremos tu solicitud en un plazo de hasta 2 días hábiles, de lunes a viernes, después de verificar tu correo y completar el formulario. Te notificaremos por correo si fue aprobada, rechazada o necesita aclaraciones. Hasta su aprobación no podrás crear tickets.";
