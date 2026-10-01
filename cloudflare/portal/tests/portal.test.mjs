@@ -2331,7 +2331,59 @@ test("six preset amounts use the same validated ticket contract as a custom amou
         CertificateModel.ticketConditionsVersion,
       );
       assert.equal(detail.data.expires_at - detail.data.created_at, 86400000);
+      await s.db
+        .prepare("UPDATE tickets SET status='cancelled' WHERE id=?")
+        .bind(created.data.id)
+        .run();
     }
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("only one Express ticket per user is open at a time", async () => {
+  const s = await setup();
+  try {
+    const a = await s.registered("one-express-a@example.test");
+    const b = await s.registered("one-express-b@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id IN (?,?)")
+      .bind(a.id, b.id)
+      .run();
+    const first = await a.req("/api/tickets", ticket({ amount: "100" }));
+    assert.equal(first.status, 201);
+    const blocked = await a.req("/api/tickets", ticket({ amount: "50" }));
+    assert.equal(blocked.status, 409);
+    assert.match(blocked.data.error, /ticket Express en proceso/);
+    // The same request replayed is idempotent, not blocked.
+    const key = crypto.randomUUID();
+    await s.db
+      .prepare("UPDATE tickets SET status='cancelled' WHERE id=?")
+      .bind(first.data.id)
+      .run();
+    const second = await a.req("/api/tickets", ticket({ requestKey: key }));
+    assert.equal(second.status, 201);
+    assert.equal(
+      (await a.req("/api/tickets", ticket({ requestKey: key }))).data.id,
+      second.data.id,
+    );
+    // Another user is independent; international tickets are not limited.
+    assert.equal((await b.req("/api/tickets", ticket())).status, 201);
+    assert.equal(
+      (await a.req("/api/tickets", ticket({ amount: "600" }))).status,
+      201,
+    );
+    assert.equal(
+      (await a.req("/api/tickets", ticket({ amount: "700" }))).status,
+      201,
+    );
+    // Expired tickets free the slot.
+    await s.db
+      .prepare(
+        "UPDATE tickets SET expires_at=1 WHERE user_id=? AND mode='express'",
+      )
+      .bind(a.id)
+      .run();
+    assert.equal((await a.req("/api/tickets", ticket())).status, 201);
   } finally {
     await s.mf.dispose();
   }

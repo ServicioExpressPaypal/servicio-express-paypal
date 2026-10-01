@@ -882,6 +882,18 @@ async function handle(
     const id = `SE-${crypto.randomUUID().toUpperCase()}`,
       now = Date.now(),
       expiresAt = ticketExpiry(estimate.amount, now);
+    if (estimate.mode === "express") {
+      const open = await env.DB.prepare(
+        "SELECT 1 AS found FROM tickets WHERE user_id=? AND mode='express' AND status NOT IN ('closed','cancelled') AND expires_at>? AND processing_completed_at IS NULL LIMIT 1",
+      )
+        .bind(user.id, now)
+        .first();
+      if (open)
+        fail(
+          409,
+          "Ya tienes un ticket Express en proceso. Podrás crear otro cuando se complete o venza.",
+        );
+    }
     const secured = await ticketFields(
       env,
       {
