@@ -32,7 +32,7 @@ export default (function () {
   const notice = [
     [
       "Cuenta y revisión",
-      "Nombre completo, teléfono de contacto, correo verificado, contraseña mediante hash, declaración de titularidad de PayPal y aceptación de condiciones. La activación es manual; la declaración no verifica la cuenta de PayPal.",
+      "Nombre completo, teléfono de contacto, correo verificado, contraseña mediante hash y aceptación de condiciones. La activación es manual.",
     ],
     [
       "Ticket",
@@ -83,11 +83,7 @@ export default (function () {
       throw new Error(
         "Escribe el teléfono con +, código de país y número completo.",
       );
-    if (data.paypalOwnership !== true && data.paypalOwnership !== "on")
-      throw new Error(
-        "Confirma que usarás una cuenta de PayPal propia, a tu nombre.",
-      );
-    return { fullName, phone, paypalOwnership: true };
+    return { fullName, phone };
   }
   function registration(data, now = Date.now()) {
     if (data.legalAccepted !== true || data.legalVersion !== version)
@@ -140,6 +136,10 @@ export default (function () {
     if (data.conditionsVersion !== ticketConditionsVersion)
       throw new Error(
         "Las condiciones del ticket cambiaron. Recarga y revísalas nuevamente.",
+      );
+    if (data.paypalOwnership !== true)
+      throw new Error(
+        "Confirma que usarás una cuenta de PayPal propia, a tu nombre.",
       );
     if (data.consent !== true || data.conditionsAccepted !== true)
       throw new Error(

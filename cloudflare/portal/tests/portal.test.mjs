@@ -1162,7 +1162,6 @@ async function setup(open = true, overrides = {}) {
       legalVersion: CertificateModel.version,
       fullName: "Cliente de Prueba",
       phone: "+12025550123",
-      paypalOwnership: true,
     });
     assert.equal(r.status, 200, JSON.stringify(r.data));
     for (
@@ -1219,7 +1218,6 @@ function dossier() {
   return {
     fullName: "Cliente de Prueba",
     phone: "+12025550123",
-    paypalOwnership: "on",
     declaration: "on",
     terms: "on",
     privacy: "on",
@@ -1236,6 +1234,7 @@ function ticket(overrides = {}) {
     consent: true,
     conditionsAccepted: true,
     conditionsVersion: CertificateModel.ticketConditionsVersion,
+    paypalOwnership: true,
     requestKey: crypto.randomUUID(),
     ...overrides,
   };
@@ -1244,7 +1243,6 @@ test("registration contact data is validated, private and never auto-approves", 
   const valid = {
     fullName: "  Ana   María López  ",
     phone: "+1 (202) 555-0123",
-    paypalOwnership: true,
     legalAccepted: true,
     legalVersion: CertificateModel.version,
   };
@@ -1264,8 +1262,6 @@ test("registration contact data is validated, private and never auto-approves", 
     { phone: "2025550123" },
     { phone: "+000123456" },
     { phone: 12025550123 },
-    { paypalOwnership: false },
-    { paypalOwnership: "false" },
     { paypalEmail: "private@example.test" },
     { legalVersion: "old" },
   ];
@@ -1291,7 +1287,7 @@ test("registration contact data is validated, private and never auto-approves", 
     const me = (await customer.req("/api/me")).data;
     assert.equal(me.profile.name, "Cliente de Prueba");
     assert.equal(me.profile.phone, "+12025550123");
-    assert.equal(me.profile.paypalOwnership, true);
+    assert.equal(me.profile.paypalOwnership, undefined);
     assert.equal(me.profile.status, "pending");
     assert.equal((await customer.req("/api/tickets", ticket())).status, 403);
     assert.equal(
@@ -1301,7 +1297,7 @@ test("registration contact data is validated, private and never auto-approves", 
     const reviewed = await admin.req(`/api/admin/users/${customer.id}`);
     assert.equal(reviewed.data.full_name, me.profile.name);
     assert.equal(reviewed.data.dossier.phone, me.profile.phone);
-    assert.equal(reviewed.data.dossier.paypalOwnership, true);
+    assert.equal(reviewed.data.dossier.paypalOwnership, undefined);
     assert.equal(reviewed.data.dossier.paypalEmail, undefined);
     assert.ok(reviewed.data.emailVerified);
     assert.ok(!JSON.stringify(s.emails).includes(me.profile.phone));
@@ -1333,7 +1329,7 @@ test("certificate profile validates minimum data without accepting client-contro
   );
   assert.equal(p.bankAccount, undefined);
   assert.equal(p.phone, "+12025550123");
-  assert.equal(p.paypalOwnership, true);
+  assert.equal(p.paypalOwnership, undefined);
   assert.equal(p.acceptedAt, 123);
   assert.equal(p.status, undefined);
   assert.equal(p.front, undefined);
@@ -1344,7 +1340,6 @@ test("certificate profile validates minimum data without accepting client-contro
     "privacy",
     "fullName",
     "phone",
-    "paypalOwnership",
   ])
     assert.throws(
       () => CertificateModel.validate({ ...dossier(), [key]: "" }),
@@ -2083,7 +2078,6 @@ test("unverified accounts cannot log in; passwords hashed; auth input and rate l
       legalVersion: CertificateModel.version,
       fullName: "Cliente de Prueba",
       phone: "+12025550123",
-      paypalOwnership: true,
     };
     assert.equal((await req("/api/auth/sign-up/email", body)).status, 200);
     assert.equal((await req("/api/me")).status, 401);
@@ -2132,7 +2126,6 @@ test("Turnstile rejects absent, invalid, wrong-host, wrong-action and reused tok
       legalVersion: CertificateModel.version,
       fullName: "Cliente de Prueba",
       phone: "+12025550123",
-      paypalOwnership: true,
     };
     for (const token of [
       undefined,
@@ -2343,6 +2336,34 @@ test("six preset amounts use the same validated ticket contract as a custom amou
         .bind(created.data.id)
         .run();
     }
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("ticket requires the PayPal ownership declaration instead of registration", async () => {
+  assert.throws(
+    () => CertificateModel.validateTicket(ticket({ paypalOwnership: false })),
+    /cuenta de PayPal propia/,
+  );
+  assert.throws(
+    () =>
+      CertificateModel.validateTicket(ticket({ paypalOwnership: undefined })),
+    /cuenta de PayPal propia/,
+  );
+  assert.ok(CertificateModel.validateTicket(ticket()));
+  const s = await setup();
+  try {
+    const u = await s.registered("paypal-declaration@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(u.id)
+      .run();
+    const missing = await u.req(
+      "/api/tickets",
+      ticket({ paypalOwnership: false }),
+    );
+    assert.equal(missing.status, 400);
+    assert.equal((await u.req("/api/tickets", ticket())).status, 201);
   } finally {
     await s.mf.dispose();
   }

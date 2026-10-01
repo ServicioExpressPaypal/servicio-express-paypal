@@ -189,3 +189,16 @@ test("version bump keeps existing consents and documents why", () => {
   assert.match(text, /las cuentas existentes conservan la que aceptaron/);
   assert.match(text, /pediremos nueva aceptación antes de aplicarlo/);
 });
+
+test("legal texts do not say payments happen outside the platform and the PayPal declaration lives in the ticket", () => {
+  for (const path of ["terminos.html", "privacidad.html"])
+    assert.doesNotMatch(flat(path), /fuera de (este|la) (portal|plataforma)/i);
+  assert.match(
+    flat("terminos.html"),
+    /Al crear el ticket declaras que utilizarás una cuenta de PayPal propia, a tu nombre/,
+  );
+  const app = read("cloudflare/portal/public/app.js");
+  const registration = app.slice(app.indexOf("function contactFields"), app.indexOf("function login"));
+  assert.doesNotMatch(registration, /paypalOwnership/);
+  assert.match(app, /name="paypalOwnership" type="checkbox" required>Declaro que utilizaré una cuenta de PayPal propia/);
+});

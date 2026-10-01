@@ -563,7 +563,6 @@ async function handle(
         const checked = CertificateModel.registration(registration);
         data.fullName = checked.fullName;
         data.phone = checked.phone;
-        data.paypalOwnership = checked.paypalOwnership;
       } catch (error) {
         fail(400, (error as Error).message);
       }
@@ -647,9 +646,6 @@ async function handle(
         status: profile.status,
         name: profile.full_name,
         phone: profile.dossier ? JSON.parse(profile.dossier).phone : undefined,
-        paypalOwnership: profile.dossier
-          ? JSON.parse(profile.dossier).paypalOwnership === true
-          : false,
         reason: profile.reason,
         bank: profile.dossier ? JSON.parse(profile.dossier).bank : undefined,
         currency: profile.dossier
