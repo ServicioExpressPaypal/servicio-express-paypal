@@ -8,7 +8,7 @@ export default (function () {
   const version = "cuenta-revision-2026-09-30-v7";
   const reviewNotice =
     "Revisaremos tu solicitud en un plazo de hasta 2 días hábiles, de lunes a viernes, después de verificar tu correo y completar el formulario. Te notificaremos por correo si fue aprobada, rechazada o necesita aclaraciones. Hasta su aprobación no podrás crear tickets.";
-  const ticketConditionsVersion = "ticket-condiciones-2026-09-28-v4";
+  const ticketConditionsVersion = "ticket-condiciones-2026-09-30-v5";
   const title = "Certificado de regalo en efectivo";
   const supportEmail = "soportesaldoexpress@gmail.com";
   const presetAmounts = Object.freeze([50, 100, 200, 300, 400, 500]);

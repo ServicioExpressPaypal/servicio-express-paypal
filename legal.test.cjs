@@ -191,7 +191,11 @@ test("version bump keeps existing consents and documents why", () => {
 });
 
 test("legal texts do not say payments happen outside the platform and the PayPal declaration lives in the ticket", () => {
-  for (const path of ["terminos.html", "privacidad.html"])
+  for (const path of [
+    "terminos.html",
+    "privacidad.html",
+    "cloudflare/portal/public/app.js",
+  ])
     assert.doesNotMatch(flat(path), /fuera de (este|la) (portal|plataforma)/i);
   assert.match(
     flat("terminos.html"),
