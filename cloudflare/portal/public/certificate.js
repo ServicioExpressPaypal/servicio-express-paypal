@@ -1,6 +1,6 @@
 export default (function () {
   "use strict";
-  const version = "cuenta-revision-2026-09-29-v6";
+  const version = "cuenta-revision-2026-09-30-v7";
   const reviewNotice =
     "Revisaremos tu solicitud en un plazo de hasta 2 días hábiles, de lunes a viernes, después de verificar tu correo y completar el formulario. Te notificaremos por correo si fue aprobada, rechazada o necesita aclaraciones. Hasta su aprobación no podrás crear tickets.";
   const ticketConditionsVersion = "ticket-condiciones-2026-09-28-v4";
