@@ -520,6 +520,13 @@ test("Express purchases require payment then delivery confirmation and finish in
       .bind(customer.id)
       .run();
     for (const amount of ["50", "500"]) {
+      // Earlier Express purchases fall outside the rolling 24-hour limit.
+      await s.db
+        .prepare(
+          "UPDATE tickets SET created_at=created_at-90000000 WHERE user_id=?",
+        )
+        .bind(customer.id)
+        .run();
       const r = await customer.req(
         "/api/tickets",
         ticket({ amount, currency: "NIO" }),
@@ -2384,6 +2391,53 @@ test("only one Express ticket per user is open at a time", async () => {
       .bind(a.id)
       .run();
     assert.equal((await a.req("/api/tickets", ticket())).status, 201);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("Express volume is capped at USD 500 per rolling 24 hours", async () => {
+  const s = await setup();
+  try {
+    const u = await s.registered("express-cap@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(u.id)
+      .run();
+    const first = await u.req("/api/tickets", ticket({ amount: "300" }));
+    assert.equal(first.status, 201);
+    await s.db
+      .prepare("UPDATE tickets SET expires_at=1 WHERE id=?")
+      .bind(first.data.id)
+      .run();
+    const over = await u.req("/api/tickets", ticket({ amount: "300" }));
+    assert.equal(over.status, 409);
+    assert.match(over.data.error, /límite Express de USD 500 por 24 horas/);
+    const exact = await u.req("/api/tickets", ticket({ amount: "200" }));
+    assert.equal(exact.status, 201);
+    await s.db
+      .prepare("UPDATE tickets SET expires_at=1 WHERE user_id=?")
+      .bind(u.id)
+      .run();
+    assert.equal(
+      (await u.req("/api/tickets", ticket({ amount: "50" }))).status,
+      409,
+    );
+    // International tickets do not count toward the Express limit.
+    assert.equal(
+      (await u.req("/api/tickets", ticket({ amount: "800" }))).status,
+      201,
+    );
+    // After 24 hours the window frees up.
+    await s.db
+      .prepare(
+        "UPDATE tickets SET created_at=created_at-90000000 WHERE user_id=?",
+      )
+      .bind(u.id)
+      .run();
+    assert.equal(
+      (await u.req("/api/tickets", ticket({ amount: "500" }))).status,
+      201,
+    );
   } finally {
     await s.mf.dispose();
   }

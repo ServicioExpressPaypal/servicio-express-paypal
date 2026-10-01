@@ -230,6 +230,8 @@ async function profileFor(env: Env, id: string) {
     ...(await profileFields(env, row.user_id, row.full_name, row.dossier)),
   };
 }
+const EXPRESS_WINDOW_MS = 24 * 60 * 60 * 1000;
+const EXPRESS_DAILY_LIMIT_CENTS = 50000;
 function isTicketExpired(t: Ticket, now = Date.now()) {
   return t.expires_at <= now;
 }
@@ -893,6 +895,26 @@ async function handle(
           409,
           "Ya tienes un ticket Express en proceso. Podrás crear otro cuando se complete o venza.",
         );
+      const recent = await env.DB.prepare(
+        "SELECT amount,created_at FROM tickets WHERE user_id=? AND mode='express' AND status!='cancelled' AND created_at>? ORDER BY created_at",
+      )
+        .bind(user.id, now - EXPRESS_WINDOW_MS)
+        .all<{ amount: number; created_at: number }>();
+      let total = recent.results.reduce((sum, r) => sum + r.amount, 0);
+      if (total + estimate.amount > EXPRESS_DAILY_LIMIT_CENTS) {
+        let availableAt = now + EXPRESS_WINDOW_MS;
+        for (const r of recent.results) {
+          total -= r.amount;
+          if (total + estimate.amount <= EXPRESS_DAILY_LIMIT_CENTS) {
+            availableAt = r.created_at + EXPRESS_WINDOW_MS;
+            break;
+          }
+        }
+        fail(
+          409,
+          `Alcanzaste el límite Express de USD 500 por 24 horas. Podrás crear otro ticket Express a partir del ${new Date(availableAt).toLocaleString("es", { timeZone: "America/Managua", dateStyle: "medium", timeStyle: "short" })}.`,
+        );
+      }
     }
     const secured = await ticketFields(
       env,

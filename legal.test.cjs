@@ -91,7 +91,8 @@ test("terms describe the digital gift certificate, payment methods and ticket mo
   assert.match(terms, /supera \$500/);
   assert.match(terms, /Método internacional/);
   assert.match(terms, /Se procesa un ticket Express a la vez por usuario/);
-  assert.match(terms, /se complete o venza.*no supere \$500/);
+  assert.match(terms, /se complete o venza/);
+  assert.match(terms, /límite Express es de \$500 por usuario cada 24 horas/);
   assert.doesNotMatch(terms, /Los tickets anteriores mantienen/);
   assert.match(terms, /no completa la compra ni emite el certificado/);
   assert.match(terms, /un solo beneficiario.*una sola cuenta/s);
