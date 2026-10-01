@@ -54,6 +54,7 @@ const mf = new Miniflare(
       ADMIN_SETUP_OPEN: "false",
       EMAIL_PROVIDER: "resend",
       EMAIL_FROM: "preview@example.test",
+      SUPPORT_EMAIL: "support@example.test",
       RESEND_API_KEY: "local-only",
       WHATSAPP_PROVIDER: "disabled",
     },

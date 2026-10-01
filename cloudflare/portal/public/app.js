@@ -196,7 +196,7 @@ import {
       `<p>La cuenta requiere verificar el correo y aprobación manual. Los datos de destino se usan temporalmente en cada ticket.</p>
        <p><a href="/terminos.html" target="_blank" rel="noopener">Términos y condiciones</a></p>
        <p><a href="/privacidad.html" target="_blank" rel="noopener">Aviso de privacidad</a></p>
-       <p>SoftOhm Systems LLC · <a href="mailto:soporte@saldoexpressnicaragua.com">soporte@saldoexpressnicaragua.com</a></p>`,
+       <p>SoftOhm Systems LLC · <a href="mailto:${CertificateModel.supportEmail}">${CertificateModel.supportEmail}</a></p>`,
     );
   }
   $("#privacy-notice").onclick = legalNotice;
@@ -472,7 +472,7 @@ import {
       <section class="settings-section"><div><h2>Mi cuenta</h2><p class="muted">Tu acceso a Saldo Express.</p></div><div>
         <dl class="account-data"><div><dt>Nombre completo</dt><dd>${esc(p.name || "No registrado")}</dd></div><div><dt>Teléfono de contacto</dt><dd>${esc(p.phone || "No registrado")}</dd></div><div><dt>Titularidad de PayPal</dt><dd>${p.paypalOwnership ? "Declarada por el usuario; pendiente de contrastar al pagar" : "No declarada"}</dd></div><div><dt>Correo electrónico</dt><dd>${esc(me.user.email)}</dd></div><div><dt>Verificación</dt><dd>${me.user.emailVerified ? "Correo verificado" : "Pendiente"}</dd></div><div><dt>Cuenta creada</dt><dd>${dateTime(me.user.createdAt)}</dd></div><div><dt>Estado</dt><dd>${esc(AccountModel.labels[p.status])}</dd></div>${me.consent ? `<div><dt>Aceptación de condiciones</dt><dd>${dateTime(me.consent.accepted_at)}<small>${esc(me.consent.version)}</small></dd></div>` : ""}</dl>
         ${p.reason ? `<p class="notice">${esc(p.reason)}</p>` : ""}${p.status === "pending" ? `<p class="notice">${esc(CertificateModel.reviewNotice)}</p>` : ""}
-        <a class="text-button" href="mailto:soporte@saldoexpressnicaragua.com">Solicitar corrección de mis datos</a>
+        <a class="text-button" href="mailto:${CertificateModel.supportEmail}">Solicitar corrección de mis datos</a>
       </div></section>
       <section class="settings-section"><div><h2>Contraseña</h2><p class="muted">Al cambiarla, se cerrarán las otras sesiones.</p></div><div class="settings-actions"><button class="button" id="change-password">${icon("key-round")}Cambiar contraseña</button><button class="text-button" id="reset-password">Recibir enlace de recuperación</button></div></section>
       <section class="settings-section"><div><h2>Privacidad</h2></div><div><p>Los datos de destino y los comentarios del ticket se eliminan al vencer o cerrarse. El historial conserva montos, estados y condiciones aceptadas.</p><a href="/privacidad.html" target="_blank" rel="noopener">Ver aviso de privacidad</a></div></section>

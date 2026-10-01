@@ -89,7 +89,7 @@ por separado.
   consola, correos o WhatsApp automatico. No registrar cuerpos ni tokens.
 - /privacidad.html y /terminos.html se copian desde la raiz al build. Conservar
   versiones aceptadas en Git, identificadas por certificate.js. Responsable:
-  SoftOhm Systems LLC, soporte@saldoexpressnicaragua.com. Los textos no certifican
+  SoftOhm Systems LLC, soportesaldoexpress@gmail.com. Los textos no certifican
   cumplimiento ni autorizacion de actividad financiera.
 
 ## Comunicaciones

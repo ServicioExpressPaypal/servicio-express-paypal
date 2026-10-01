@@ -5,6 +5,7 @@ export default (function () {
     "Revisaremos tu solicitud en un plazo de hasta 2 días hábiles, de lunes a viernes, después de verificar tu correo y completar el formulario. Te notificaremos por correo si fue aprobada, rechazada o necesita aclaraciones. Hasta su aprobación no podrás crear tickets.";
   const ticketConditionsVersion = "ticket-condiciones-2026-09-28-v4";
   const title = "Certificado de regalo en efectivo";
+  const supportEmail = "soportesaldoexpress@gmail.com";
   const presetAmounts = Object.freeze([50, 100, 200, 300, 400, 500]);
   const description =
     "Un regalo de valor monetario para compartir con tu familia o con un beneficiario que elijas. Su solicitud se gestiona de forma digital mediante un ticket. Crear el ticket no completa la compra ni emite el certificado; el pago y la entrega se coordinan por separado.";
@@ -38,7 +39,7 @@ export default (function () {
     ],
     [
       "Proveedores y derechos",
-      "Cloudflare aloja y protege el portal; Resend envía los correos. WhatsApp/Meta trata los mensajes que decidas enviar por ese canal. Responsable: SoftOhm Systems LLC. Contacto: soporte@saldoexpressnicaragua.com.",
+      `Cloudflare aloja y protege el portal; Resend envía los correos. WhatsApp/Meta trata los mensajes que decidas enviar por ese canal. Responsable: SoftOhm Systems LLC. Contacto: ${supportEmail}.`,
     ],
   ];
   function contact(data) {
@@ -154,6 +155,7 @@ export default (function () {
     reviewNotice,
     registration,
     title,
+    supportEmail,
     description,
     banks,
     ticketConditions,

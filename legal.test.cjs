@@ -11,7 +11,7 @@ test("legal notices are linked from the live public site", () => {
   for (const path of ["terminos.html", "privacidad.html"]) {
     const html = read(path);
     assert.match(html, /SoftOhm Systems LLC/);
-    assert.match(html, /mailto:soporte@saldoexpressnicaragua.com/);
+    assert.match(html, /mailto:soportesaldoexpress@gmail.com/);
     assert.match(html, /registro/i);
     assert.doesNotMatch(html, /<form|<script/i);
     assert.match(home, new RegExp(`href="${path}"`));

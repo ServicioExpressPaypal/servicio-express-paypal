@@ -15,7 +15,7 @@ type Spec = {
   small?: string[];
 };
 
-const CONTACT = "soporte@saldoexpressnicaragua.com";
+const CONTACT = CertificateModel.supportEmail;
 const escapes: Record<string, string> = {
   "&": "&amp;",
   "<": "&lt;",

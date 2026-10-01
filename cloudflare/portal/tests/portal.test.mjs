@@ -1030,6 +1030,7 @@ async function setup(open = true, overrides = {}) {
         KYC_OPEN: String(open),
         EMAIL_PROVIDER: open ? "resend" : "disabled",
         EMAIL_FROM: "cuentas@example.test",
+        SUPPORT_EMAIL: "support@example.test",
         RESEND_API_KEY: "test-only",
         WHATSAPP_PROVIDER: "meta",
         WHATSAPP_GRAPH_VERSION: "v23.0",
@@ -1172,6 +1173,7 @@ async function setup(open = true, overrides = {}) {
     );
     assert.ok(message, "verification email dispatched");
     assert.match(message.html, /Confirmar mi correo/);
+    assert.equal(message.reply_to, "support@example.test");
     const url = new URL(message.text.match(/https:\/\/\S+/)[0]);
     r = await req(url.pathname + url.search);
     assert.ok([200, 302].includes(r.status), JSON.stringify(r.data));

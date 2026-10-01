@@ -10,7 +10,10 @@ import {
   type Mail,
 } from "./email-templates";
 
-type MailEnv = Pick<Env, "EMAIL_PROVIDER" | "EMAIL_FROM" | "RESEND_API_KEY"> & {
+type MailEnv = Pick<
+  Env,
+  "EMAIL_PROVIDER" | "EMAIL_FROM" | "SUPPORT_EMAIL" | "RESEND_API_KEY"
+> & {
   EMAIL?: SendEmail;
 };
 type AuthEnv = MailEnv &
@@ -143,6 +146,7 @@ export async function sendMail(
       },
       body: JSON.stringify({
         from: env.EMAIL_FROM,
+        reply_to: env.SUPPORT_EMAIL,
         to: [to],
         subject,
         text,
