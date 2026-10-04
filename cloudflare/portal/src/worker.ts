@@ -942,7 +942,7 @@ async function handle(
     try {
       await env.DB.batch([
         env.DB.prepare(
-          "INSERT INTO tickets(id,user_id,request_key,amount,mode,beneficiary_name,bank,bank_account,currency,terms_version,terms_accepted_at,estimate,created_at,updated_at,expires_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM profiles WHERE user_id=? AND status='active' AND version=?)",
+          "INSERT INTO tickets(id,user_id,request_key,amount,mode,beneficiary_name,bank,bank_account,currency,terms_version,terms_accepted_at,estimate,created_at,updated_at,expires_at,queue_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM profiles WHERE user_id=? AND status='active' AND version=?)",
         ).bind(
           id,
           user.id,
@@ -959,6 +959,7 @@ async function handle(
           now,
           now,
           expiresAt,
+          now,
           user.id,
           profile.version,
         ),
@@ -1253,7 +1254,7 @@ async function handle(
     const expiresAt =
       starting &&
       target!.amount > 50000 &&
-      target!.terms_version === CertificateModel.ticketConditionsVersion
+      CertificateModel.hasExtendedInternationalValidity(target!.terms_version)
         ? ticketExpiry(target!.amount, now)
         : target!.expires_at;
     let delivery = target!.delivery_amount;

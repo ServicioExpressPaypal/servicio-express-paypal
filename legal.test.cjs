@@ -94,7 +94,11 @@ test("terms describe the digital gift certificate, payment methods and ticket mo
   assert.match(terms, /se complete o venza/);
   assert.match(terms, /límite Express es de \$500 por usuario cada 24 horas/);
   assert.doesNotMatch(terms, /Los tickets anteriores mantienen/);
-  assert.match(terms, /Turnos: los tickets sin pago se atienden por orden de creación/);
+  assert.match(terms, /Turnos: los tickets creados con estas condiciones/);
+  assert.match(
+    read("cloudflare/portal/public/certificate.js"),
+    /Turnos: los tickets creados con estas condiciones/,
+  );
   assert.match(terms, /tienes 2 minutos para pagar/);
   assert.match(terms, /no completa la compra ni emite el certificado/);
   assert.match(terms, /un solo beneficiario.*una sola cuenta/s);
@@ -154,33 +158,47 @@ const flat = (path) => read(path).replace(/\s+/g, " ");
 test("legal texts are plain: digital gift certificate, PayPal or card, no statute or country references", () => {
   for (const path of ["terminos.html", "privacidad.html"]) {
     const text = flat(path).replace(/href="[^"]*"/g, "");
-    assert.doesNotMatch(text, /Nicaragua|Ley \d|artículo \d|días hábiles desde esa verificación|si necesitamos más tiempo/i);
+    assert.doesNotMatch(
+      text,
+      /Nicaragua|Ley \d|artículo \d|días hábiles desde esa verificación|si necesitamos más tiempo/i,
+    );
     assert.match(text, /PayPal o con tarjeta/);
   }
   assert.match(flat("terminos.html"), /certificado electrónico de regalo/);
 });
 
-test("legal versions and visible date are consistent across certificate.js and both notices", () => {
+test("legal versions and visible dates are consistent with each notice", () => {
   const certificate = read("cloudflare/portal/public/certificate.js");
   const version = certificate.match(/const version = "([^"]+)"/)[1];
   const ticket = certificate.match(
     /const ticketConditionsVersion = "([^"]+)"/,
   )[1];
-  const date = version.match(/(\d{4})-(\d{2})-(\d{2})-v\d+$/);
-  assert.ok(date, "version must end with YYYY-MM-DD-vN");
   const months = [
-    "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
-    "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
   ];
-  const visible = `${Number(date[3])} de ${months[Number(date[2]) - 1]} de ${date[1]}`;
+  const visibleDate = (value) => {
+    const date = value.match(/(\d{4})-(\d{2})-(\d{2})-v\d+$/);
+    assert.ok(date, "version must end with YYYY-MM-DD-vN");
+    return `${Number(date[3])} de ${months[Number(date[2]) - 1]} de ${date[1]}`;
+  };
   const terms = flat("terminos.html");
   const privacy = flat("privacidad.html");
-  // Internal identifiers stay in the code; the notices show only the date.
+  assert.ok(terms.includes(`Vigente desde el ${visibleDate(ticket)}`));
+  assert.ok(privacy.includes(`Vigente desde el ${visibleDate(version)}`));
   for (const text of [terms, privacy]) {
-    assert.ok(text.includes(`Vigente desde el ${visible}`));
     assert.doesNotMatch(text, /cuenta-revision-|ticket-condiciones-/);
   }
-  assert.ok(ticket.includes(`${date[1]}-${date[2]}-${date[3]}`));
   assert.match(terms, /versión vigente y su fecha se publican en esta página/);
 });
 
@@ -205,7 +223,13 @@ test("legal texts do not say payments happen outside the platform and the PayPal
     /Al crear el ticket declaras que utilizarás una cuenta de PayPal propia, a tu nombre/,
   );
   const app = read("cloudflare/portal/public/app.js");
-  const registration = app.slice(app.indexOf("function contactFields"), app.indexOf("function login"));
+  const registration = app.slice(
+    app.indexOf("function contactFields"),
+    app.indexOf("function login"),
+  );
   assert.doesNotMatch(registration, /paypalOwnership/);
-  assert.match(app, /name="paypalOwnership" type="checkbox" required>Declaro que utilizaré una cuenta de PayPal propia/);
+  assert.match(
+    app,
+    /name="paypalOwnership" type="checkbox" required>Declaro que utilizaré una cuenta de PayPal propia/,
+  );
 });

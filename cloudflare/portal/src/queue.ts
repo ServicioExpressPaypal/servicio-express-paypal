@@ -36,7 +36,7 @@ export async function activeQueue(
 ): Promise<QueueEntry[]> {
   const rows = await db
     .prepare(
-      "SELECT id,user_id,expires_at,COALESCE(queue_at,created_at) AS queue_at,turn_started_at FROM tickets WHERE status NOT IN ('closed','cancelled') AND expires_at>? AND processing_started_at IS NULL AND processing_completed_at IS NULL ORDER BY COALESCE(queue_at,created_at),id",
+      "SELECT id,user_id,expires_at,queue_at,turn_started_at FROM tickets WHERE queue_at IS NOT NULL AND status NOT IN ('closed','cancelled') AND expires_at>? AND processing_started_at IS NULL AND processing_completed_at IS NULL ORDER BY queue_at,id",
     )
     .bind(now)
     .all<QueueEntry>();

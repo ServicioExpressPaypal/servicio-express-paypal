@@ -59,7 +59,9 @@ por separado.
 - Turnos: los tickets sin pago (no cancelados, cerrados ni vencidos) forman una cola
   por orden de creacion. El primero tiene una ventana de `TURN_WINDOW_SECONDS`
   (120) para que se confirme su pago; si vence y hay otros esperando, pasa al
-  final. Pagar, cancelar o vencer saca el ticket de la cola. La logica es
+  final. Pagar, cancelar o vencer saca el ticket de la cola. Solo entran los
+  tickets creados despues de aceptar esta version de las condiciones; la
+  migracion deja los tickets existentes fuera de la cola. La logica es
   idempotente (`src/queue.ts`): corre en cada cambio, al leer un ticket, en la
   alarma del Durable Object del ticket en turno y en el cron. El administrador
   nunca queda restringido por los turnos. Requiere la migracion 0014.

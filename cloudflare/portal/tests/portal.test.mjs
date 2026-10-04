@@ -2548,6 +2548,15 @@ test("customers get automatic turns by ticket creation order and admins are neve
     const adminView = (await admin.req("/api/admin/tickets/" + second.data.id))
       .data;
     assert.equal(adminView.queue.position, 1);
+    // Tickets predating this condition version have no queue_at and are not
+    // enrolled retroactively.
+    await s.db
+      .prepare(
+        "UPDATE tickets SET queue_at=NULL,turn_started_at=NULL WHERE id=?",
+      )
+      .bind(second.data.id)
+      .run();
+    assert.equal(await queueOf(b, second.data.id), null);
   } finally {
     await s.mf.dispose();
   }
@@ -2840,6 +2849,39 @@ test("legacy international tickets keep their accepted retention when payment is
     assert.equal(detail.expires_at, oldExpiry);
     assert.equal(detail.status, "paid");
     assert.equal(detail.terms_version, "ticket-condiciones-2026-09-27-v3");
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("the previous international condition version keeps its six-day extension", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("previous-retention@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(customer.id)
+      .run();
+    const created = await customer.req(
+      "/api/tickets",
+      ticket({ amount: "600" }),
+    );
+    const before = Date.now();
+    await s.db
+      .prepare("UPDATE tickets SET terms_version=? WHERE id=?")
+      .bind("ticket-condiciones-2026-09-30-v5", created.data.id)
+      .run();
+    assert.equal(
+      (
+        await admin.req(`/api/admin/tickets/${created.data.id}/processing`, {
+          action: "start",
+          version: 0,
+        })
+      ).status,
+      200,
+    );
+    const detail = (await customer.req(`/api/tickets/${created.data.id}`)).data;
+    assert.ok(detail.expires_at > before + 5 * 24 * 60 * 60 * 1000);
   } finally {
     await s.mf.dispose();
   }
