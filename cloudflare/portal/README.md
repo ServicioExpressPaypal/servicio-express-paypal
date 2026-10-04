@@ -57,6 +57,11 @@ por separado.
   horario (no se ha configurado apertura/cierre). Se conservan mientras exista
   la cuenta y se eliminan con ella, tambien si se rechaza o suspende.
 - AES-256-GCM cifra nombre, telefono, beneficiario, cuenta bancaria y mensajes.
+- El chat del ticket es en tiempo real: `GET /api/(admin/)tickets/:id/live` abre un
+  WebSocket (mismo origen, sesion y dueno del ticket o admin) hacia un Durable
+  Object `TicketRoom` por ticket. El Worker guarda el mensaje cifrado y luego lo
+  retransmite; el Durable Object no guarda nada. Cada conexion vence a los 10
+  minutos y el navegador se reconecta (reautenticando).
   Cada valor tiene IV aleatorio y AAD ligado a fila/campo. DATA_ENCRYPTION_KEY
   esta en Worker Secrets, no en D1. El correo de autenticacion no se cifra a
   nivel de campo. Ver SECURITY.md para migracion, respaldo y recuperacion.

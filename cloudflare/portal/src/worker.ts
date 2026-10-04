@@ -232,6 +232,17 @@ async function profileFor(env: Env, id: string) {
 }
 const EXPRESS_WINDOW_MS = 24 * 60 * 60 * 1000;
 const EXPRESS_DAILY_LIMIT_CENTS = 50000;
+function ticketRoom(env: Env, ticketId: string) {
+  return env.TICKET_ROOM.get(env.TICKET_ROOM.idFromName(ticketId));
+}
+function broadcastTicket(env: Env, ticketId: string, event: unknown) {
+  return ticketRoom(env, ticketId)
+    .fetch("https://room/broadcast", {
+      method: "POST",
+      body: JSON.stringify(event),
+    })
+    .catch(() => undefined);
+}
 function isTicketExpired(t: Ticket, now = Date.now()) {
   return t.expires_at <= now;
 }
@@ -1120,6 +1131,26 @@ async function handle(
       ),
     );
   }
+  const liveMatch = path.match(
+    /^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)\/live$/,
+  );
+  if (liveMatch) {
+    if (request.method !== "GET") fail(405, "Método no permitido.");
+    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
+      fail(426, "Se requiere una conexión WebSocket.");
+    if (request.headers.get("origin") !== env.APP_URL)
+      fail(403, "Origen no permitido.");
+    const target = await env.DB.prepare("SELECT * FROM tickets WHERE id=?")
+      .bind(liveMatch[2])
+      .first<Ticket>();
+    if (!target || (!liveMatch[1] && target.user_id !== user.id))
+      fail(404, "Solicitud no encontrada.");
+    if (isTicketExpired(target!) || finalTicketStatuses.has(target!.status))
+      fail(409, "La conversación de este ticket ya está cerrada.");
+    return ticketRoom(env, target!.id).fetch("https://room/connect", {
+      headers: { upgrade: "websocket" },
+    });
+  }
   const messageMatch = path.match(
     /^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)\/messages$/,
   );
@@ -1169,7 +1200,11 @@ async function handle(
     ]);
     if (!result[0].results.length)
       fail(409, "La conversación de este ticket ya está cerrada.");
-    return json({ id, author_role: role, body: message, created_at: now }, 201);
+    const sent = { id, author_role: role, body: message, created_at: now };
+    ctx.waitUntil(
+      broadcastTicket(env, target!.id, { type: "message", message: sent }),
+    );
+    return json(sent, 201);
   }
   const processingMatch = path.match(
     /^\/api\/admin\/tickets\/(SE-[A-F0-9-]+)\/processing$/,
@@ -1374,6 +1409,7 @@ async function handle(
   }
   return fail(404, "No encontrado.");
 }
+export { TicketRoom } from "./ticket-room";
 export default {
   async fetch(request, env, ctx) {
     let response: Response;
@@ -1400,6 +1436,7 @@ export default {
       if (e instanceof ProtectionError && e.retryAfter)
         response.headers.set("retry-after", String(e.retryAfter));
     }
+    if (response.status === 101) return response;
     const headers = new Headers(response.headers);
     const path = new URL(request.url).pathname;
     const route = path.startsWith("/api/auth/")
@@ -1451,7 +1488,7 @@ export default {
     if (!headers.has("content-security-policy"))
       headers.set(
         "content-security-policy",
-        "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' https://challenges.cloudflare.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+        `default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self'; img-src 'self' blob: data:; connect-src 'self' wss://${new URL(env.APP_URL).host} https://challenges.cloudflare.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`,
       );
     return new Response(response.body, { status: response.status, headers });
   },

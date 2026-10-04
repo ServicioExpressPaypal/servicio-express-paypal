@@ -40,6 +40,7 @@ const mf = new Miniflare(
     compatibilityDate: "2026-09-24",
     compatibilityFlags: ["nodejs_compat"],
     d1Databases: ["DB"],
+    durableObjects: { TICKET_ROOM: "TicketRoom" },
     r2Buckets: ["DOCUMENTS"],
     bindings: {
       APP_URL: origin,

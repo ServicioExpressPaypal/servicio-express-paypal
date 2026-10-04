@@ -23,6 +23,12 @@
     "binding": "ASSETS",
     "run_worker_first": true,
   },
+  "durable_objects": {
+    "bindings": [{ "name": "TICKET_ROOM", "class_name": "TicketRoom" }],
+  },
+  "migrations": [
+    { "tag": "v1-ticket-room", "new_sqlite_classes": ["TicketRoom"] },
+  ],
   "d1_databases": [
     {
       "binding": "DB",

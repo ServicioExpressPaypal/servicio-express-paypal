@@ -1022,6 +1022,7 @@ async function setup(open = true, overrides = {}) {
       compatibilityFlags: ["nodejs_compat"],
       d1Databases: ["DB"],
       r2Buckets: ["DOCUMENTS"],
+      durableObjects: { TICKET_ROOM: "TicketRoom" },
       serviceBindings: {
         ASSETS: (request) => {
           assetRequests.push(new URL(request.url).pathname);
@@ -1110,7 +1111,7 @@ async function setup(open = true, overrides = {}) {
   function client() {
     const jar = new Map(),
       address = `192.0.2.${++ip}`;
-    return async (path, body, custom = {}) => {
+    const send = async (path, body, custom = {}) => {
       const request = new Request(origin + path, {
         method: body === undefined ? "GET" : "POST",
         headers: {
@@ -1149,6 +1150,42 @@ async function setup(open = true, overrides = {}) {
       }
       return { status: response.status, data, headers: response.headers };
     };
+    send.socket = async (path, custom = {}) => {
+      const response = await mf.dispatchFetch(origin + path, {
+        headers: {
+          upgrade: "websocket",
+          origin,
+          "cf-connecting-ip": address,
+          cookie: [...jar].map(([k, v]) => k + "=" + v).join("; "),
+          ...custom,
+        },
+      });
+      const socket = response.webSocket;
+      const received = [];
+      let wake;
+      if (socket) {
+        socket.accept();
+        socket.addEventListener("message", (event) => {
+          received.push(JSON.parse(event.data));
+          wake?.();
+        });
+      }
+      return {
+        status: response.status,
+        socket,
+        received,
+        async next(timeout = 3000) {
+          const end = Date.now() + timeout;
+          while (!received.length && Date.now() < end)
+            await new Promise((resolve) => {
+              wake = resolve;
+              setTimeout(resolve, 50);
+            });
+          return received.shift();
+        },
+      };
+    };
+    return send;
   }
   async function registered(email) {
     const req = client(),
@@ -2364,6 +2401,84 @@ test("ticket requires the PayPal ownership declaration instead of registration",
     );
     assert.equal(missing.status, 400);
     assert.equal((await u.req("/api/tickets", ticket())).status, 201);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("ticket chat is delivered in real time over WebSockets to both participants", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("live-chat@example.test");
+    const other = await s.registered("live-other@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id IN (?,?)")
+      .bind(customer.id, other.id)
+      .run();
+    const created = await customer.req("/api/tickets", ticket());
+    assert.equal(created.status, 201);
+    const id = created.data.id;
+    const live = `/api/tickets/${id}/live`;
+    // Plain HTTP, wrong origin, strangers and anonymous visitors are refused.
+    assert.equal((await customer.req(live)).status, 426);
+    assert.equal(
+      (await customer.req.socket(live, { origin: "https://evil.example" }))
+        .status,
+      403,
+    );
+    assert.equal((await other.req.socket(live)).status, 404);
+    assert.equal((await s.client().socket(live)).status, 401);
+    assert.equal(
+      (await customer.req.socket(`/api/admin/tickets/${id}/live`)).status,
+      403,
+    );
+    const customerSocket = await customer.req.socket(live);
+    const adminSocket = await admin.req.socket(`/api/admin/tickets/${id}/live`);
+    assert.equal(customerSocket.status, 101);
+    assert.equal(adminSocket.status, 101);
+    const sent = await customer.req(`/api/tickets/${id}/messages`, {
+      message: "Hola, ¿ya recibieron mi solicitud?",
+    });
+    assert.equal(sent.status, 201);
+    for (const socket of [adminSocket, customerSocket]) {
+      const event = await socket.next();
+      assert.equal(event.type, "message");
+      assert.equal(event.message.id, sent.data.id);
+      assert.equal(event.message.author_role, "customer");
+      assert.equal(event.message.body, "Hola, ¿ya recibieron mi solicitud?");
+    }
+    const reply = await admin.req(`/api/admin/tickets/${id}/messages`, {
+      message: "Sí, ya lo estamos revisando.",
+    });
+    assert.equal(reply.status, 201);
+    const heard = await customerSocket.next();
+    assert.equal(heard.message.author_role, "admin");
+    assert.equal(heard.message.body, "Sí, ya lo estamos revisando.");
+    // The message is stored encrypted, never in the socket relay.
+    const raw = await s.db
+      .prepare("SELECT body FROM ticket_messages WHERE id=?")
+      .bind(sent.data.id)
+      .first();
+    assert.match(raw.body, /^enc:v1:/);
+    // A stranger's messages and other tickets are not relayed to this room.
+    const second = await other.req("/api/tickets", ticket());
+    assert.equal(
+      (
+        await other.req(`/api/tickets/${second.data.id}/messages`, {
+          message: "Mensaje de otro cliente",
+        })
+      ).status,
+      201,
+    );
+    assert.equal(await customerSocket.next(300), undefined);
+    // Closed tickets cannot open a chat connection.
+    await s.db
+      .prepare("UPDATE tickets SET status='cancelled' WHERE id=?")
+      .bind(id)
+      .run();
+    assert.equal((await customer.req.socket(live)).status, 409);
+    customerSocket.socket.close();
+    adminSocket.socket.close();
   } finally {
     await s.mf.dispose();
   }

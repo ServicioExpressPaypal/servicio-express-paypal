@@ -59,7 +59,13 @@ import {
     historyQuery = "",
     historyStatus = "all",
     timer;
-  let botId, botLoading, detailExpiry, processingTimer, ticketRefreshTimer;
+  let botId,
+    botLoading,
+    detailExpiry,
+    processingTimer,
+    ticketRefreshTimer,
+    liveChatSocket,
+    liveChatRetry;
   const botActions = {
     "/api/auth/sign-up/email": "signup",
     "/api/auth/sign-in/email": "login",
@@ -229,6 +235,7 @@ import {
     });
   }
   async function render() {
+    closeLiveChat();
     clearInterval(ticketRefreshTimer);
     clearInterval(processingTimer);
     clearTimeout(detailExpiry);
@@ -704,7 +711,66 @@ import {
       await detail(result.id);
     });
   }
+  function chatMessageHtml(message) {
+    const own = me.admin
+      ? message.author_role === "admin"
+      : message.author_role === "customer";
+    const author = own
+      ? "Tú"
+      : message.author_role === "admin"
+        ? "Saldo Express"
+        : "Cliente";
+    return `<article class="chat-message ${own ? "own" : ""}" data-message-id="${esc(message.id)}"><div><strong>${author}</strong><time datetime="${new Date(message.created_at).toISOString()}">${dateTime(message.created_at)}</time></div><p>${esc(message.body)}</p></article>`;
+  }
+  function addChatMessage(message) {
+    const list = $(".chat-messages");
+    if (!list || !message?.id) return;
+    if (list.querySelector(`[data-message-id="${CSS.escape(message.id)}"]`))
+      return;
+    list.querySelector(".chat-empty")?.remove();
+    list.insertAdjacentHTML("beforeend", chatMessageHtml(message));
+    const count = list.closest("section")?.querySelector(":scope > div > span");
+    if (count) count.textContent = String(list.children.length);
+    list.lastElementChild.scrollIntoView({ block: "nearest" });
+  }
+  function closeLiveChat() {
+    clearTimeout(liveChatRetry);
+    if (liveChatSocket) {
+      liveChatSocket.onclose = null;
+      liveChatSocket.close();
+      liveChatSocket = null;
+    }
+  }
+  function openLiveChat(path, marker, delay = 1000) {
+    closeLiveChat();
+    if (main.firstElementChild !== marker || !("WebSocket" in window)) return;
+    const socket = new WebSocket(
+      `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`,
+    );
+    liveChatSocket = socket;
+    socket.onopen = () => {
+      delay = 1000;
+    };
+    socket.onmessage = (event) => {
+      if (main.firstElementChild !== marker) return closeLiveChat();
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "message") addChatMessage(data.message);
+      } catch {
+        /* Ignore malformed events. */
+      }
+    };
+    socket.onclose = () => {
+      if (main.firstElementChild !== marker) return;
+      liveChatRetry = setTimeout(() => {
+        if (document.visibilityState === "visible")
+          openLiveChat(path, marker, Math.min(delay * 2, 30000));
+        else openLiveChat(path, marker, delay);
+      }, delay);
+    };
+  }
   async function detail(id) {
+    closeLiveChat();
     clearInterval(ticketRefreshTimer);
     clearTimeout(detailExpiry);
     clearInterval(processingTimer);
@@ -713,19 +779,7 @@ import {
     main.className = `ticket-detail ${me.admin ? "admin-detail" : "customer-detail"}`;
     const messages = t.messages || [];
     const messageList = messages.length
-      ? messages
-          .map((message) => {
-            const own = me.admin
-              ? message.author_role === "admin"
-              : message.author_role === "customer";
-            const author = own
-              ? "Tú"
-              : message.author_role === "admin"
-                ? "Saldo Express"
-                : "Cliente";
-            return `<article class="chat-message ${own ? "own" : ""}"><div><strong>${author}</strong><time datetime="${new Date(message.created_at).toISOString()}">${dateTime(message.created_at)}</time></div><p>${esc(message.body)}</p></article>`;
-          })
-          .join("")
+      ? messages.map(chatMessageHtml).join("")
       : '<p class="chat-empty">Todavía no hay comentarios en este ticket.</p>';
     const messageForm = t.canMessage
       ? `<form id="message-form" class="chat-form"><label for="ticket-message">Nuevo comentario</label><textarea id="ticket-message" name="message" required maxlength="1000" rows="3" placeholder="Escribe un comentario sobre este ticket"></textarea><div><small>Máximo 1,000 caracteres.</small><button class="button primary" type="submit">${icon("send")}Enviar</button></div><p class="form-error" role="alert"></p></form>`
@@ -898,9 +952,13 @@ import {
     );
     if ($("#message-form"))
       bind("message-form", async (f) => {
-        await api(base + id + "/messages", { message: f.get("message") });
-        await detail(id);
+        const sent = await api(base + id + "/messages", {
+          message: f.get("message"),
+        });
+        $("#ticket-message").value = "";
+        addChatMessage(sent);
       });
+    if (t.canMessage) openLiveChat(base + id + "/live", main.firstElementChild);
     icons();
     if (
       !me.admin &&
