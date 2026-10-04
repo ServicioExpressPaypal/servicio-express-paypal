@@ -1097,6 +1097,7 @@ async function setup(open = true, overrides = {}) {
     "0011_ticket_delivery_amount.sql",
     "0012_security_events.sql",
     "0013_chat_encrypted_length.sql",
+    "0014_ticket_turns.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -1182,6 +1183,13 @@ async function setup(open = true, overrides = {}) {
               setTimeout(resolve, 50);
             });
           return received.shift();
+        },
+        async nextMessage(timeout = 3000) {
+          const end = Date.now() + timeout;
+          for (;;) {
+            const event = await this.next(Math.max(0, end - Date.now()));
+            if (!event || event.type === "message") return event;
+          }
         },
       };
     };
@@ -2441,7 +2449,7 @@ test("ticket chat is delivered in real time over WebSockets to both participants
     });
     assert.equal(sent.status, 201);
     for (const socket of [adminSocket, customerSocket]) {
-      const event = await socket.next();
+      const event = await socket.nextMessage();
       assert.equal(event.type, "message");
       assert.equal(event.message.id, sent.data.id);
       assert.equal(event.message.author_role, "customer");
@@ -2451,7 +2459,7 @@ test("ticket chat is delivered in real time over WebSockets to both participants
       message: "Sí, ya lo estamos revisando.",
     });
     assert.equal(reply.status, 201);
-    const heard = await customerSocket.next();
+    const heard = await customerSocket.nextMessage();
     assert.equal(heard.message.author_role, "admin");
     assert.equal(heard.message.body, "Sí, ya lo estamos revisando.");
     // The message is stored encrypted, never in the socket relay.
@@ -2470,7 +2478,7 @@ test("ticket chat is delivered in real time over WebSockets to both participants
       ).status,
       201,
     );
-    assert.equal(await customerSocket.next(300), undefined);
+    assert.equal(await customerSocket.nextMessage(300), undefined);
     // Closed tickets cannot open a chat connection.
     await s.db
       .prepare("UPDATE tickets SET status='cancelled' WHERE id=?")
@@ -2479,6 +2487,155 @@ test("ticket chat is delivered in real time over WebSockets to both participants
     assert.equal((await customer.req.socket(live)).status, 409);
     customerSocket.socket.close();
     adminSocket.socket.close();
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("customers get automatic turns by ticket creation order and admins are never restricted", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const a = await s.registered("turn-a@example.test");
+    const b = await s.registered("turn-b@example.test");
+    const c = await s.registered("turn-c@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id IN (?,?,?)")
+      .bind(a.id, b.id, c.id)
+      .run();
+    const first = await a.req("/api/tickets", ticket({ amount: "600" }));
+    const second = await b.req("/api/tickets", ticket({ amount: "100" }));
+    const third = await c.req("/api/tickets", ticket({ amount: "700" }));
+    const queueOf = async (user, id) =>
+      (await user.req("/api/tickets/" + id)).data.queue;
+    let q = await queueOf(a, first.data.id);
+    assert.equal(q.position, 1);
+    assert.equal(q.total, 3);
+    assert.equal(q.isTurn, true);
+    assert.ok(q.turnExpiresAt > q.serverNow);
+    assert.ok(q.turnExpiresAt - q.serverNow <= 120000);
+    q = await queueOf(b, second.data.id);
+    assert.deepEqual(
+      [q.position, q.ahead, q.isTurn, q.turnExpiresAt],
+      [2, 1, false, null],
+    );
+    assert.equal((await queueOf(c, third.data.id)).position, 3);
+    // Customers only see their own queue data; the admin sees only the position.
+    assert.equal((await a.req("/api/tickets/" + second.data.id)).status, 404);
+    // The admin can confirm the payment of any ticket, even if it is not its turn.
+    let version = 0;
+    const paidOutOfTurn = await admin.req(
+      `/api/admin/tickets/${third.data.id}/processing`,
+      { action: "start", version },
+    );
+    assert.equal(paidOutOfTurn.status, 200);
+    assert.equal(await queueOf(c, third.data.id), null);
+    q = await queueOf(b, second.data.id);
+    assert.equal(q.position, 2);
+    assert.equal(q.total, 2);
+    // Cancelling the head ticket hands the turn to the next one.
+    assert.equal(
+      (
+        await a.req("/api/tickets/" + first.data.id, {
+          action: "cancelled",
+          version: 0,
+        })
+      ).status,
+      200,
+    );
+    q = await queueOf(b, second.data.id);
+    assert.deepEqual([q.position, q.total, q.isTurn], [1, 1, true]);
+    assert.equal(q.turnExpiresAt, null, "nobody waiting, so no countdown");
+    const adminView = (await admin.req("/api/admin/tickets/" + second.data.id))
+      .data;
+    assert.equal(adminView.queue.position, 1);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("an unpaid turn lapses after the window and the ticket waits again, in real time", async () => {
+  const s = await setup(true, {
+    ADMIN_REQUIRE_MFA: "false",
+    TURN_WINDOW_SECONDS: "2",
+  });
+  try {
+    const a = await s.registered("window-a@example.test");
+    const b = await s.registered("window-b@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id IN (?,?)")
+      .bind(a.id, b.id)
+      .run();
+    const first = await a.req("/api/tickets", ticket({ amount: "600" }));
+    const second = await b.req("/api/tickets", ticket({ amount: "100" }));
+    const secondSocket = await b.req.socket(
+      `/api/tickets/${second.data.id}/live`,
+    );
+    const firstSocket = await a.req.socket(
+      `/api/tickets/${first.data.id}/live`,
+    );
+    assert.equal(secondSocket.status, 101);
+    let q = (await a.req("/api/tickets/" + first.data.id)).data.queue;
+    assert.equal(q.isTurn, true);
+    assert.ok(q.turnExpiresAt - q.serverNow <= 2000);
+    // No HTTP request is needed: the alarm rotates the queue and pushes a refresh.
+    const pushed = await secondSocket.next(6000);
+    assert.deepEqual(pushed, { type: "refresh" });
+    assert.deepEqual(await firstSocket.next(3000), { type: "refresh" });
+    q = (await b.req("/api/tickets/" + second.data.id)).data.queue;
+    assert.deepEqual([q.position, q.isTurn], [1, true]);
+    assert.ok(q.turnExpiresAt > q.serverNow);
+    q = (await a.req("/api/tickets/" + first.data.id)).data.queue;
+    assert.deepEqual([q.position, q.total, q.isTurn], [2, 2, false]);
+    assert.equal(q.turnExpiresAt, null);
+    firstSocket.socket.close();
+    secondSocket.socket.close();
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("ticket status changes are pushed to the customer in real time", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("status-push@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(customer.id)
+      .run();
+    const created = await customer.req("/api/tickets", ticket());
+    const id = created.data.id;
+    const socket = await customer.req.socket(`/api/tickets/${id}/live`);
+    assert.equal(socket.status, 101);
+    while (await socket.next(300)) {
+      /* drain the refresh sent when the ticket was created */
+    }
+    assert.equal(
+      (
+        await admin.req(`/api/admin/tickets/${id}`, {
+          action: "reviewing",
+          version: 0,
+        })
+      ).status,
+      200,
+    );
+    assert.deepEqual(await socket.next(), { type: "refresh" });
+    assert.equal(
+      (await customer.req("/api/tickets/" + id)).data.status,
+      "reviewing",
+    );
+    assert.equal(
+      (
+        await admin.req(`/api/admin/tickets/${id}/processing`, {
+          action: "start",
+          version: 1,
+        })
+      ).status,
+      200,
+    );
+    assert.deepEqual(await socket.next(), { type: "refresh" });
+    const paid = (await customer.req("/api/tickets/" + id)).data;
+    assert.ok(paid.processing_started_at);
+    assert.equal(paid.queue, null);
+    socket.socket.close();
   } finally {
     await s.mf.dispose();
   }

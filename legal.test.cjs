@@ -94,6 +94,8 @@ test("terms describe the digital gift certificate, payment methods and ticket mo
   assert.match(terms, /se complete o venza/);
   assert.match(terms, /límite Express es de \$500 por usuario cada 24 horas/);
   assert.doesNotMatch(terms, /Los tickets anteriores mantienen/);
+  assert.match(terms, /Turnos: los tickets sin pago se atienden por orden de creación/);
+  assert.match(terms, /tienes 2 minutos para pagar/);
   assert.match(terms, /no completa la compra ni emite el certificado/);
   assert.match(terms, /un solo beneficiario.*una sola cuenta/s);
   assert.match(terms, /24 horas de\s+vigencia/);

@@ -52,6 +52,7 @@
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFFO60wl440m0CeE",
     "EMAIL_FROM": "Saldo Express <cuentas@saldoexpressnicaragua.com>",
     "SUPPORT_EMAIL": "soportesaldoexpress@gmail.com",
+    "TURN_WINDOW_SECONDS": "120",
     "WHATSAPP_PROVIDER": "disabled",
     "WHATSAPP_GRAPH_VERSION": "v23.0",
     "WHATSAPP_TEMPLATE_NAME": "nuevo_ticket_saldo_express",

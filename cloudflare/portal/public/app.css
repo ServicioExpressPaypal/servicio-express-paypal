@@ -1631,3 +1631,19 @@ dialog {
     flex-direction: column;
   }
 }
+
+/* Customer turn in the queue */
+.turn-info,
+.turn-now {
+  margin: 0 0 16px;
+}
+.turn-now {
+  border-left: 4px solid #f26c1f;
+  background: #fff6ef;
+  color: #15181c;
+}
+.turn-now time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: #b84a0b;
+}

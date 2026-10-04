@@ -65,7 +65,10 @@ import {
     processingTimer,
     ticketRefreshTimer,
     liveChatSocket,
-    liveChatRetry;
+    liveChatRetry,
+    liveChatPath,
+    liveChatMarker,
+    turnTimer;
   const botActions = {
     "/api/auth/sign-up/email": "signup",
     "/api/auth/sign-in/email": "login",
@@ -236,6 +239,7 @@ import {
   }
   async function render() {
     closeLiveChat();
+    clearInterval(turnTimer);
     clearInterval(ticketRefreshTimer);
     clearInterval(processingTimer);
     clearTimeout(detailExpiry);
@@ -735,15 +739,33 @@ import {
   }
   function closeLiveChat() {
     clearTimeout(liveChatRetry);
+    liveChatPath = null;
     if (liveChatSocket) {
       liveChatSocket.onclose = null;
       liveChatSocket.close();
       liveChatSocket = null;
     }
   }
-  function openLiveChat(path, marker, delay = 1000) {
+  // Re-renders the open ticket without losing a comment being typed.
+  async function refreshOpenTicket(id) {
+    const draft = $("#ticket-message")?.value || "";
+    const scroll = window.scrollY;
+    await detail(id);
+    const box = $("#ticket-message");
+    if (box && draft) box.value = draft;
+    window.scrollTo(0, scroll);
+  }
+  function openLiveChat(path, marker, id, delay = 1000) {
+    liveChatMarker = marker;
+    if (
+      liveChatSocket &&
+      liveChatPath === path &&
+      liveChatSocket.readyState <= 1
+    )
+      return;
     closeLiveChat();
-    if (main.firstElementChild !== marker || !("WebSocket" in window)) return;
+    if (!("WebSocket" in window)) return;
+    liveChatPath = path;
     const socket = new WebSocket(
       `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`,
     );
@@ -752,25 +774,39 @@ import {
       delay = 1000;
     };
     socket.onmessage = (event) => {
-      if (main.firstElementChild !== marker) return closeLiveChat();
+      if (main.firstElementChild !== liveChatMarker) return closeLiveChat();
       try {
         const data = JSON.parse(event.data);
         if (data.type === "message") addChatMessage(data.message);
+        else if (data.type === "refresh")
+          refreshOpenTicket(id).catch(() => undefined);
       } catch {
         /* Ignore malformed events. */
       }
     };
     socket.onclose = () => {
-      if (main.firstElementChild !== marker) return;
-      liveChatRetry = setTimeout(() => {
-        if (document.visibilityState === "visible")
-          openLiveChat(path, marker, Math.min(delay * 2, 30000));
-        else openLiveChat(path, marker, delay);
-      }, delay);
+      if (liveChatSocket !== socket) return;
+      liveChatSocket = null;
+      if (main.firstElementChild !== liveChatMarker) return;
+      liveChatRetry = setTimeout(
+        () =>
+          openLiveChat(path, liveChatMarker, id, Math.min(delay * 2, 30000)),
+        delay,
+      );
     };
   }
+  function turnNotice(queue) {
+    if (!queue) return "";
+    if (me.admin)
+      return `<p class="notice turn-info">Cola: posición ${queue.position} de ${queue.total}.</p>`;
+    if (!queue.isTurn)
+      return `<p class="notice turn-info"><strong>Turno ${queue.position} de ${queue.total}.</strong> ${queue.ahead === 1 ? "Hay 1 ticket antes que el tuyo." : `Hay ${queue.ahead} tickets antes que el tuyo.`} Te avisaremos aquí cuando sea tu turno.</p>`;
+    if (!queue.turnExpiresAt)
+      return '<p class="notice turn-now"><strong>Es tu turno.</strong> Puedes pagar ahora; no hay otros tickets esperando.</p>';
+    return '<p class="notice turn-now"><strong>Es tu turno.</strong> Tienes <time id="turn-timer"></time> para pagar. Si no, tu ticket pasa al final de la fila.</p>';
+  }
   async function detail(id) {
-    closeLiveChat();
+    clearInterval(turnTimer);
     clearInterval(ticketRefreshTimer);
     clearTimeout(detailExpiry);
     clearInterval(processingTimer);
@@ -800,7 +836,7 @@ import {
         (me.admin && t.status === "quoted"))
         ? '<button class="button" data-action="cancelled">Cancelar solicitud</button>'
         : "";
-    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading ticket-heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-detail-layout"><div class="ticket-detail-primary"><div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>${t.amount > 50000 && t.terms_version === CertificateModel.ticketConditionsVersion ? (t.processing_started_at ? "Vigencia: 6 días hábiles desde la confirmación del pago." : "Vigencia: 6 días hábiles desde la creación; se recalcula al confirmar el pago.") : "La vigencia es de 24 horas desde su creación."}</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "Eliminado o no disponible")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "Eliminado o no disponible")}</p></div></div>${t.quote ? `<div class="notice"><strong>Importe acordado anteriormente: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}</div><div class="ticket-detail-secondary"><section class="ticket-chat"><div class="section-heading"><div><h2 aria-label="Conversación del ticket">Comentarios</h2><p>Los comentarios se eliminan al vencer o cerrar el ticket. No escribas nombres, cuentas, contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section></div></div>`;
+    main.innerHTML = `<button class="back" id="back">${icon("arrow-left")}Solicitudes</button><div class="heading ticket-heading"><div><p class="ticket-value-label">Valor estimado del certificado</p><h1>${money(t.estimate.net)}</h1><p>${methodLabel(t.mode)}</p><p class="ticket-id">${esc(t.id)}</p></div><span class="badge ${t.status}">${labels[t.status]}</span></div><div class="ticket-detail-layout"><div class="ticket-detail-primary">${turnNotice(t.queue)}<div class="ticket-deadline ${t.expired ? "expired" : ""}"><span>Vigencia del ticket</span><strong>${esc(expiryText(t))}</strong><small>${t.amount > 50000 && t.terms_version === CertificateModel.ticketConditionsVersion ? (t.processing_started_at ? "Vigencia: 6 días hábiles desde la confirmación del pago." : "Vigencia: 6 días hábiles desde la creación; se recalcula al confirmar el pago.") : "La vigencia es de 24 horas desde su creación."}</small></div>${notification}<div class="data-grid ticket-data"><div><small>Monto base</small><p>${money(t.amount)}</p></div><div><small>Costos estimados</small><p>${money(t.estimate.total)}</p></div><div><small>Beneficiario</small><p>${esc(t.beneficiary_name || "Eliminado o no disponible")}</p></div><div><small>Banco y moneda</small><p>${esc(t.bank)} · ${esc(t.currency)}</p></div><div><small>Número de cuenta</small><p class="account-number">${esc(t.bank_account || "Eliminado o no disponible")}</p></div></div>${t.quote ? `<div class="notice"><strong>Importe acordado anteriormente: ${money(t.quote.received, t.currency)}</strong><p>Comisión total: ${money(t.quote.fee)}. Vigencia: ${dateTime(t.quote.expiresAt)}.</p></div>` : ""}<div class="actions">${adminActions}${cancelAction}</div>${whatsapp}</div><div class="ticket-detail-secondary"><section class="ticket-chat"><div class="section-heading"><div><h2 aria-label="Conversación del ticket">Comentarios</h2><p>Los comentarios se eliminan al vencer o cerrar el ticket. No escribas nombres, cuentas, contraseñas ni códigos.</p></div><span>${messages.length}</span></div><div class="chat-messages" aria-live="polite">${messageList}</div>${messageForm}</section><section class="ticket-history"><h2>Historial</h2><ol class="timeline">${t.events.map((e) => `<li>${esc(labels[e.action] || e.action)}<small>${dateTime(e.created_at)}</small></li>`).join("")}</ol></section></div></div>`;
     $("#back").onclick = render;
     if (t.quote) {
       $(".ticket-value-label").textContent = "Valor acordado anteriormente";
@@ -958,7 +994,27 @@ import {
         $("#ticket-message").value = "";
         addChatMessage(sent);
       });
-    if (t.canMessage) openLiveChat(base + id + "/live", main.firstElementChild);
+    const timer = $("#turn-timer");
+    if (timer && t.queue?.turnExpiresAt) {
+      const offset = t.queue.serverNow - Date.now();
+      let expired = false;
+      const tick = () => {
+        const left = Math.max(
+          0,
+          Math.ceil((t.queue.turnExpiresAt - (Date.now() + offset)) / 1000),
+        );
+        timer.textContent = `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")}`;
+        if (!left && !expired) {
+          expired = true;
+          setTimeout(() => refreshOpenTicket(id).catch(() => undefined), 1500);
+        }
+      };
+      tick();
+      turnTimer = setInterval(tick, 1000);
+    }
+    if (t.canMessage)
+      openLiveChat(base + id + "/live", main.firstElementChild, id);
+    else closeLiveChat();
     icons();
     if (
       !me.admin &&
@@ -980,7 +1036,10 @@ import {
           if (
             main.firstElementChild === marker &&
             !$("#ticket-message")?.value.trim() &&
-            (latest.version !== t.version || latest.status !== t.status)
+            (latest.version !== t.version ||
+              latest.status !== t.status ||
+              latest.queue?.position !== t.queue?.position ||
+              latest.queue?.turnExpiresAt !== t.queue?.turnExpiresAt)
           )
             await detail(id);
         } catch {

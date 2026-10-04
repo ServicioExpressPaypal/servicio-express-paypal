@@ -27,6 +27,7 @@ import {
   instrumentDatabase,
 } from "./security-events";
 import { purgeExpiredTicketData } from "./retention";
+import { advanceQueue, queueInfo, settleQueue } from "./queue";
 import { eraseAccount, purgeDeletedDocuments } from "./customer-account";
 import {
   ticketStage,
@@ -242,6 +243,10 @@ function broadcastTicket(env: Env, ticketId: string, event: unknown) {
       body: JSON.stringify(event),
     })
     .catch(() => undefined);
+}
+async function ticketChanged(env: Env, ticketId: string) {
+  const result = await advanceQueue(env);
+  await settleQueue(env, result, { force: true, extraIds: [ticketId] });
 }
 function isTicketExpired(t: Ticket, now = Date.now()) {
   return t.expires_at <= now;
@@ -923,6 +928,8 @@ async function handle(
         );
       }
     }
+    // Settle due rotations first so the new ticket joins the back of the line.
+    await advanceQueue(env, now, { restartAlone: true });
     const secured = await ticketFields(
       env,
       {
@@ -971,6 +978,7 @@ async function handle(
     }
     ctx.waitUntil(notify(env, id));
     ctx.waitUntil(notifyWhatsApp(env, id));
+    ctx.waitUntil(ticketChanged(env, id));
     return json({ id }, 201);
   }
   if (path === "/api/admin/users" && request.method === "GET") {
@@ -1282,6 +1290,7 @@ async function handle(
     if (!result[0].results.length)
       fail(409, "La solicitud cambió. Recarga antes de continuar.");
     await purgeExpiredTicketData(env);
+    ctx.waitUntil(ticketChanged(env, target!.id));
     return json({ ok: true });
   }
   const ticketMatch = path.match(/^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)$/);
@@ -1312,8 +1321,11 @@ async function handle(
               .first()
           : Promise.resolve(null),
       ]);
+      const turns = await advanceQueue(env);
+      ctx.waitUntil(settleQueue(env, turns));
       return json({
         ...(await publicTicket(env, target!, Date.now(), true)),
+        queue: queueInfo(env, turns.queue, target!.id),
         events: events.results,
         messages:
           isTicketExpired(target!) ||
@@ -1405,6 +1417,7 @@ async function handle(
       fail(409, "La solicitud cambió. Recarga antes de continuar.");
     if (finalTicketStatuses.has(ticket.status))
       await purgeExpiredTicketData(env);
+    ctx.waitUntil(ticketChanged(env, target!.id));
     return json({ ok: true });
   }
   return fail(404, "No encontrado.");
@@ -1497,6 +1510,7 @@ export default {
     await purgeExpiredTicketData(env);
     await encryptLegacyData(env);
     ctx.waitUntil(securityMaintenance(env));
+    ctx.waitUntil(advanceQueue(env).then((result) => settleQueue(env, result)));
     await env.DB.prepare("DELETE FROM request_limits WHERE expires_at<?")
       .bind(Date.now())
       .run();

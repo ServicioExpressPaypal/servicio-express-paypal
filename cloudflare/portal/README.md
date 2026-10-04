@@ -56,6 +56,13 @@ por separado.
   correo verificado y formulario completo; sin activacion automatica ni reloj
   horario (no se ha configurado apertura/cierre). Se conservan mientras exista
   la cuenta y se eliminan con ella, tambien si se rechaza o suspende.
+- Turnos: los tickets sin pago (no cancelados, cerrados ni vencidos) forman una cola
+  por orden de creacion. El primero tiene una ventana de `TURN_WINDOW_SECONDS`
+  (120) para que se confirme su pago; si vence y hay otros esperando, pasa al
+  final. Pagar, cancelar o vencer saca el ticket de la cola. La logica es
+  idempotente (`src/queue.ts`): corre en cada cambio, al leer un ticket, en la
+  alarma del Durable Object del ticket en turno y en el cron. El administrador
+  nunca queda restringido por los turnos. Requiere la migracion 0014.
 - AES-256-GCM cifra nombre, telefono, beneficiario, cuenta bancaria y mensajes.
 - El chat del ticket es en tiempo real: `GET /api/(admin/)tickets/:id/live` abre un
   WebSocket (mismo origen, sesion y dueno del ticket o admin) hacia un Durable

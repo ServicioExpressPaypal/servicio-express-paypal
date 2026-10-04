@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { advanceQueue, settleQueue } from "./queue";
 
 const MAX_SOCKETS = 6;
 const SOCKET_TTL_MS = 10 * 60 * 1000;
@@ -32,6 +33,12 @@ export class TicketRoom extends DurableObject<Env> {
       }
       return new Response(null, { status: 204 });
     }
+    if (url.pathname === "/arm" && request.method === "POST") {
+      const { id, at } = (await request.json()) as { id: string; at: number };
+      await this.ctx.storage.put("ticket", id);
+      await this.ctx.storage.setAlarm(at);
+      return new Response(null, { status: 204 });
+    }
     if (
       url.pathname === "/connect" &&
       request.headers.get("upgrade")?.toLowerCase() === "websocket"
@@ -44,6 +51,29 @@ export class TicketRoom extends DurableObject<Env> {
       return new Response(null, { status: 101, webSocket: pair[0] });
     }
     return new Response(null, { status: 404 });
+  }
+  // Rotates the head ticket when its payment window ends, in real time.
+  async alarm() {
+    const id = await this.ctx.storage.get<string>("ticket");
+    const result = await advanceQueue(this.env);
+    await settleQueue(this.env, result, {
+      force: true,
+      local: id
+        ? {
+            id,
+            send: (text) => {
+              for (const ws of this.live()) {
+                try {
+                  ws.send(text);
+                } catch {
+                  /* closed while sending */
+                }
+              }
+            },
+            setAlarm: (at) => this.ctx.storage.setAlarm(at),
+          }
+        : undefined,
+    });
   }
   webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
     // Browsers only listen; chat messages are sent through the authenticated API.

@@ -57,6 +57,7 @@ const mf = new Miniflare(
       EMAIL_FROM: "preview@example.test",
       SUPPORT_EMAIL: "support@example.test",
       RESEND_API_KEY: "local-only",
+      TURN_WINDOW_SECONDS: process.env.PREVIEW_TURN_WINDOW || "120",
       WHATSAPP_PROVIDER: "disabled",
     },
     serviceBindings: {
@@ -94,6 +95,7 @@ for (const file of [
   "0011_ticket_delivery_amount.sql",
   "0012_security_events.sql",
   "0013_chat_encrypted_length.sql",
+  "0014_ticket_turns.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),
