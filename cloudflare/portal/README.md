@@ -78,6 +78,11 @@ por separado.
   maximo 5 por ticket; el navegador las reduce antes de subirlas) y `GET
   .../images/:imageId`. Se guardan cifradas en `ticket_images` (migracion 0015) y
   se borran en cascada con el mensaje al vencer, cerrar o eliminar la cuenta.
+- Panel del cliente: "Solicitudes vigentes o en proceso" (`/api/account/history?status=active`,
+  incluye pagos confirmados pendientes de envio) y "Certificados recientes"
+  (`status=recent`: enviados y cancelados, los 6 mas recientes). Ambas listas y el
+  Historial se recargan solas por WebSocket cuando cambia un ticket. La prueba de
+  navegador es opcional: `npm run test:ui` (requiere Playwright).
   Cada valor tiene IV aleatorio y AAD ligado a fila/campo. DATA_ENCRYPTION_KEY
   esta en Worker Secrets, no en D1. El correo de autenticacion no se cifra a
   nivel de campo. Ver SECURITY.md para migracion, respaldo y recuperacion.

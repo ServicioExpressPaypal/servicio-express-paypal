@@ -8,6 +8,7 @@
     "preview": "npm run build && wrangler deploy --dry-run --outdir .test-build && node scripts/preview.mjs",
     "check": "wrangler types --strict-vars false && tsc --noEmit",
     "test": "npm run build && wrangler deploy --dry-run --outdir .test-build && node --test tests/portal.test.mjs",
+    "test:ui": "npm run build && wrangler deploy --dry-run --outdir .test-build && node --test tests/ui.test.mjs",
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {

@@ -2782,6 +2782,116 @@ test("ticket status changes are pushed to the customer in real time", async () =
     await s.mf.dispose();
   }
 });
+test("paid, delivered and cancelled certificates stay visible as recent, apart from active ones, and update live", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("recent-owner@example.test");
+    const stranger = await s.registered("recent-other@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id IN (?,?)")
+      .bind(customer.id, stranger.id)
+      .run();
+    const recent = async (who = customer) =>
+      (await who.req("/api/account/history?status=recent")).data;
+    const active = async () =>
+      (await customer.req("/api/account/history?status=active")).data;
+    // Empty states.
+    assert.deepEqual(
+      { total: (await recent()).total, items: (await recent()).items },
+      { total: 0, items: [] },
+    );
+    assert.equal((await active()).total, 0);
+    const first = (await customer.req("/api/tickets", ticket())).data.id;
+    assert.equal((await recent()).total, 0);
+    assert.equal((await active()).total, 1);
+    // Payment confirmed: still active (delivery pending), not recent yet.
+    const socket = await customer.req.socket(`/api/tickets/${first}/live`);
+    assert.equal(socket.status, 101);
+    while (await socket.next(300)) {
+      /* drain the refresh sent when the ticket was created */
+    }
+    let version = (await admin.req(`/api/admin/tickets/${first}`)).data.version;
+    assert.equal(
+      (
+        await admin.req(`/api/admin/tickets/${first}/processing`, {
+          action: "start",
+          version,
+        })
+      ).status,
+      200,
+    );
+    assert.deepEqual(await socket.next(), { type: "refresh" });
+    assert.equal((await recent()).total, 0);
+    let list = await active();
+    assert.equal(list.total, 1);
+    assert.equal(list.items[0].status, "paid");
+    // Delivery confirmed: pushed live and moves to recent immediately.
+    version = (await admin.req(`/api/admin/tickets/${first}`)).data.version;
+    assert.equal(
+      (
+        await admin.req(`/api/admin/tickets/${first}/processing`, {
+          action: "complete",
+          version,
+        })
+      ).status,
+      200,
+    );
+    assert.deepEqual(await socket.next(), { type: "refresh" });
+    socket.socket.close();
+    assert.equal((await active()).total, 0);
+    let done = await recent();
+    assert.equal(done.total, 1);
+    assert.equal(done.items[0].id, first);
+    assert.equal(done.items[0].status, "delivered");
+    // The erased destination is never returned again.
+    assert.equal(done.items[0].beneficiary_name, "");
+    assert.equal(done.items[0].bank, "");
+    assert.equal(done.items[0].bank_account, undefined);
+    assert.equal(done.items[0].destinationErased, true);
+    // A second ticket, cancelled by its owner, is recent too.
+    await s.db
+      .prepare(
+        "UPDATE tickets SET created_at=created_at-90000000 WHERE user_id=?",
+      )
+      .bind(customer.id)
+      .run();
+    const second = (await customer.req("/api/tickets", ticket())).data.id;
+    assert.equal((await active()).total, 1);
+    version = (await customer.req("/api/tickets/" + second)).data.version;
+    assert.equal(
+      (
+        await customer.req("/api/tickets/" + second, {
+          action: "cancelled",
+          version,
+        })
+      ).status,
+      200,
+    );
+    done = await recent();
+    assert.equal(done.total, 2);
+    assert.deepEqual(
+      done.items.map((t) => [t.id, t.status]),
+      [
+        [second, "cancelled"],
+        [first, "delivered"],
+      ],
+    );
+    assert.equal((await active()).total, 0);
+    // The full history keeps everything, and other users see none of it.
+    assert.equal(
+      (await customer.req("/api/account/history?status=all")).data.total,
+      2,
+    );
+    assert.equal((await recent(stranger)).total, 0);
+    assert.equal(
+      (await customer.req("/api/account/history?status=nope")).status,
+      400,
+    );
+  } finally {
+    await s.mf.dispose();
+  }
+});
 test("only one Express ticket per user is open at a time", async () => {
   const s = await setup();
   try {

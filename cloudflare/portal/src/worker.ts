@@ -749,8 +749,12 @@ async function handle(
       paid: "processing_started_at IS NOT NULL AND processing_completed_at IS NULL AND status!='cancelled'",
       delivered: "processing_completed_at IS NOT NULL AND status!='cancelled'",
       cancelled: "status='cancelled'",
+      // Certificates already finished or cancelled: the customer panel shows
+      // them apart from the active ones (paid but undelivered stay active).
+      recent: "processing_completed_at IS NOT NULL OR status='cancelled'",
     };
     if (!Object.hasOwn(predicates, filter)) fail(400, "Filtro inválido.");
+    const pageSize = filter === "recent" ? 6 : 20;
     const where = `user_id=? AND instr(lower(id),lower(?))>0 AND (${predicates[filter]})`;
     const args: (string | number)[] = [user.id, query];
     if (filter === "active" || filter === "expired") args.push(now);
@@ -760,9 +764,9 @@ async function handle(
       .bind(...args)
       .first<{ total: number }>();
     const rows = await env.DB.prepare(
-      `SELECT * FROM tickets WHERE ${where} ORDER BY created_at DESC,id DESC LIMIT 20 OFFSET ?`,
+      `SELECT * FROM tickets WHERE ${where} ORDER BY ${filter === "recent" ? "updated_at" : "created_at"} DESC,id DESC LIMIT ${pageSize} OFFSET ?`,
     )
-      .bind(...args, (page - 1) * 20)
+      .bind(...args, (page - 1) * pageSize)
       .all<Ticket>();
     return json({
       items: await Promise.all(
@@ -770,7 +774,7 @@ async function handle(
       ),
       total: count!.total,
       page,
-      pageSize: 20,
+      pageSize,
     });
   }
   if (path === "/api/admin/unlock" && request.method === "POST") {

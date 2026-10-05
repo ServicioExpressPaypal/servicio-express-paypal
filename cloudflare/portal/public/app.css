@@ -1679,3 +1679,24 @@ div.turn-now span {
 .chat-proof-upload small {
   color: var(--muted);
 }
+
+/* Customer panel: finished certificates apart from active requests */
+.recent-certificates {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.recent-heading h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+.recent-heading p {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+.recent-certificates .ticket-list {
+  margin-bottom: 8px;
+}
+.recent-certificates .empty {
+  margin: 0;
+}

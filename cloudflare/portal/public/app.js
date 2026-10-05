@@ -245,6 +245,7 @@ import {
     clearInterval(ticketRefreshTimer);
     clearInterval(processingTimer);
     clearTimeout(detailExpiry);
+    stopWatchingTickets();
     main.className = "";
     if (me && !me.admin && view === "dashboard") view = "tickets";
     nav();
@@ -632,13 +633,26 @@ import {
           (b.onclick = () =>
             detail(b.dataset.ticket).catch((e) => toast(e.message))),
       );
+    watchTickets(
+      result.items
+        .filter((t) => !t.processing_completed_at && !t.expired)
+        .map((t) => t.id),
+    );
   }
   async function tickets() {
     main.className = me.admin ? "admin-tickets" : "customer-tickets";
-    const rows = me.admin
-      ? await api("/api/admin/tickets")
-      : (await api("/api/account/history?status=active")).items;
-    main.innerHTML = `<div class="heading"><h1>${me.admin ? "Solicitudes" : "Mis solicitudes"}</h1>${!me.admin ? `<button class="button primary" id="new-ticket">${icon("plus")}Nueva solicitud</button>` : ""}</div><div class="ticket-list">${rows.length ? rows.map((t) => `<button class="ticket-row" data-ticket="${t.id}"><span><strong>${money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>Valor estimado · Monto base ${money(t.amount)}</small><small>${esc(t.beneficiary_name || t.full_name || t.bank)} · ${new Date(t.created_at).toLocaleDateString("es-NI")}</small><small class="ticket-expiry">${esc(expiryText(t))}</small><small class="ticket-id">${esc(t.id)}</small></span><span class="badge ${t.status}">${labels[t.status]}</span></button>`).join("") : '<p class="empty">Todavía no hay solicitudes.</p>'}</div>`;
+    let recent = { items: [], total: 0 };
+    let rows;
+    if (me.admin) rows = await api("/api/admin/tickets");
+    else {
+      const [active, finished] = await Promise.all([
+        api("/api/account/history?status=active"),
+        api("/api/account/history?status=recent"),
+      ]);
+      rows = active.items;
+      recent = finished;
+    }
+    main.innerHTML = `<div class="heading"><h1>${me.admin ? "Solicitudes" : "Mis solicitudes"}</h1>${!me.admin ? `<button class="button primary" id="new-ticket">${icon("plus")}Nueva solicitud</button>` : ""}</div><div class="ticket-list">${rows.length ? rows.map((t) => `<button class="ticket-row" data-ticket="${t.id}"><span><strong>${money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>Valor estimado · Monto base ${money(t.amount)}</small><small>${esc(t.beneficiary_name || t.full_name || t.bank)} · ${new Date(t.created_at).toLocaleDateString("es-NI")}</small><small class="ticket-expiry">${esc(expiryText(t))}</small><small class="ticket-id">${esc(t.id)}</small></span><span class="badge ${t.status}">${labels[t.status]}</span></button>`).join("") : `<p class="empty">${me.admin ? "Todavía no hay solicitudes." : "No tienes solicitudes vigentes. Elige un certificado arriba para crear una."}</p>`}</div>`;
     if (!me.admin) {
       const cards = CertificateModel.presetAmounts
         .map((amount) => {
@@ -647,7 +661,7 @@ import {
         })
         .join("");
       $(".heading").outerHTML =
-        `<div class="heading gift-heading"><div><h1>Certificados de regalo</h1><p>Un detalle para tu familia.</p></div><button type="button" class="button" id="new-ticket">${icon("plus")}Ticket personalizado</button></div><section class="gift-catalog" aria-label="Montos disponibles"><div class="gift-grid">${cards}</div></section><h2 class="ticket-list-title">Mis solicitudes</h2>`;
+        `<div class="heading gift-heading"><div><h1>Certificados de regalo</h1><p>Un detalle para tu familia.</p></div><button type="button" class="button" id="new-ticket">${icon("plus")}Ticket personalizado</button></div><section class="gift-catalog" aria-label="Montos disponibles"><div class="gift-grid">${cards}</div></section><h2 class="ticket-list-title">Solicitudes vigentes o en proceso</h2>`;
       document.querySelectorAll("[data-preset]").forEach((button) => {
         button.onclick = () => newTicket(Number(button.dataset.preset));
       });
@@ -656,7 +670,7 @@ import {
     if (!me.admin) {
       $(".ticket-list").insertAdjacentHTML(
         "afterend",
-        '<button class="text-button" id="all-history">Ver todo el historial</button>',
+        `<section class="recent-certificates" aria-labelledby="recent-title"><div class="recent-heading"><h2 id="recent-title">Certificados recientes</h2><p>Pagados, enviados y cancelados. Aquí no cuentan como solicitudes vigentes.</p></div><div class="ticket-list" id="recent-list">${recent.items.length ? recent.items.map(historyRow).join("") : '<p class="empty">Todavía no tienes certificados pagados, enviados o cancelados. Cuando el pago se confirme, aparecerán aquí.</p>'}</div><button class="text-button" id="all-history">${recent.total > recent.items.length ? `Ver todo el historial (${recent.total})` : "Ver todo el historial"}</button></section>`,
       );
       $("#all-history").onclick = () => {
         view = "history";
@@ -673,6 +687,7 @@ import {
           (b.onclick = () =>
             detail(b.dataset.ticket).catch((e) => toast(e.message))),
       );
+    if (!me.admin) watchTickets(rows.map((t) => t.id));
   }
   function newTicket(presetAmount) {
     main.className = "ticket-create-view";
@@ -825,6 +840,60 @@ import {
       );
     };
   }
+  // Keeps the ticket lists current: while a list is open it listens to the
+  // live room of each unfinished ticket and reloads when the status changes
+  // (payment confirmed, delivery confirmed, cancelled, turn change).
+  let listSockets = [];
+  let listWatchMarker = null;
+  let listReloadTimer;
+  function stopWatchingTickets() {
+    clearTimeout(listReloadTimer);
+    listSockets.forEach((socket) => {
+      socket.onclose = null;
+      socket.close();
+    });
+    listSockets = [];
+    listWatchMarker = null;
+  }
+  function watchTickets(ids) {
+    stopWatchingTickets();
+    if (!("WebSocket" in window) || !ids.length) return;
+    const marker = (listWatchMarker = main.firstElementChild);
+    const reload = () => {
+      clearTimeout(listReloadTimer);
+      listReloadTimer = setTimeout(() => {
+        if (main.firstElementChild !== marker) return;
+        if (document.activeElement?.closest("form")) return reload();
+        const scroll = window.scrollY;
+        render().then(() => window.scrollTo(0, scroll));
+      }, 250);
+    };
+    ids.slice(0, 6).forEach((id) => {
+      const open = (delay = 1000) => {
+        if (listWatchMarker !== marker) return;
+        const socket = new WebSocket(
+          `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/tickets/${id}/live`,
+        );
+        listSockets.push(socket);
+        socket.onopen = () => {
+          delay = 1000;
+        };
+        socket.onmessage = (event) => {
+          try {
+            if (JSON.parse(event.data).type === "refresh") reload();
+          } catch {
+            /* Ignore malformed events. */
+          }
+        };
+        socket.onclose = () => {
+          listSockets = listSockets.filter((item) => item !== socket);
+          if (listWatchMarker !== marker) return;
+          setTimeout(() => open(Math.min(delay * 2, 30000)), delay);
+        };
+      };
+      open();
+    });
+  }
   function turnWindowText(queue) {
     const seconds = queue.windowSeconds || 120;
     return seconds % 60 === 0
@@ -842,6 +911,7 @@ import {
     return `<div class="notice turn-now" role="timer"><strong>Es tu turno. Paga ahora.</strong><time id="turn-timer"></time><span>Tienes ${turnWindowText(queue)} para pagar. Si no, tu ticket pasa al final de la fila.</span></div>`;
   }
   async function detail(id) {
+    stopWatchingTickets();
     clearInterval(turnTimer);
     clearInterval(ticketRefreshTimer);
     clearTimeout(detailExpiry);
