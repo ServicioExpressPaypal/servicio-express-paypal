@@ -29,6 +29,7 @@ import {
   instrumentDatabase,
 } from "./security-events";
 import { purgeExpiredTicketData } from "./retention";
+import { AccountingError, accountingReport } from "./accounting";
 import { advanceQueue, queueInfo, settleQueue } from "./queue";
 import { eraseAccount, purgeDeletedDocuments } from "./customer-account";
 import {
@@ -1141,6 +1142,19 @@ async function handle(
           "sandbox; default-src 'none'; frame-ancestors 'none'",
       },
     });
+  }
+  if (path === "/api/admin/accounting" && request.method === "GET") {
+    try {
+      return json(
+        await accountingReport(
+          env,
+          new URL(request.url).searchParams.get("date"),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof AccountingError) fail(400, error.message);
+      throw error;
+    }
   }
   if (path === "/api/admin/tickets" && request.method === "GET") {
     await purgeExpiredTicketData(env);

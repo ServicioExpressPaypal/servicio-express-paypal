@@ -13,8 +13,8 @@ try {
 } catch {
   /* Playwright is optional. */
 }
-const port = 8780 + (process.pid % 20);
-const origin = `http://127.0.0.1:${port}`;
+let port = 8780 + (process.pid % 20);
+let origin = `http://127.0.0.1:${port}`;
 const password = "SoloPruebas-2026!";
 const expressId = "SE-11111111-1111-4111-8111-111111111111";
 const internationalId = "SE-22222222-2222-4222-8222-222222222222";
@@ -174,6 +174,107 @@ test(
       assert.match(history, /Enviado al beneficiario/);
       assert.match(history, /Cancelada/);
       assert.match(history, /2 solicitudes/);
+    } finally {
+      await browser?.close();
+      server.kill();
+    }
+  },
+);
+
+test(
+  "admin accounting panel shows profit per ticket and the day summary",
+  { skip: !playwright && "Playwright is not installed", timeout: 120000 },
+  async () => {
+    port += 20;
+    origin = `http://127.0.0.1:${port}`;
+    const server = spawn(process.execPath, ["scripts/preview.mjs"], {
+      env: { ...process.env, PORT: String(port) },
+      stdio: ["ignore", "pipe", "inherit"],
+    });
+    let browser;
+    try {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("preview did not start")),
+          60000,
+        );
+        server.on("exit", () => reject(new Error("preview exited")));
+        server.stdout.on("data", (chunk) => {
+          if (String(chunk).includes("Vista local")) {
+            clearTimeout(timer);
+            resolve();
+          }
+        });
+      });
+      browser = await playwright.chromium.launch({
+        executablePath:
+          process.env.PLAYWRIGHT_CHROMIUM || "/opt/pw-browsers/chromium",
+      });
+      const context = await browser.newContext({
+        viewport: { width: 1000, height: 900 },
+        acceptDownloads: true,
+      });
+      const page = await context.newPage();
+      await page.goto(origin + "/");
+      await page.fill("input[type=email]", "admin@example.test");
+      await page.fill("input[type=password]", password);
+      await page.click("button[type=submit]");
+      await page.getByRole("button", { name: "Contabilidad" }).click();
+      await page.waitForSelector(".accounting-summary");
+      // Empty state before any payment is confirmed.
+      assert.match(
+        await page.locator("main").innerText(),
+        /No hay pagos confirmados este día/,
+      );
+      assert.match(
+        await page.locator(".accounting-profit").innerText(),
+        /USD\s0\.00/,
+      );
+      // Confirming payment adds the ticket to today's accounting.
+      const admin = await adminClient();
+      const version = (await admin("/api/admin/tickets/" + expressId)).data
+        .version;
+      assert.equal(
+        (
+          await admin(`/api/admin/tickets/${expressId}/processing`, {
+            action: "start",
+            version,
+          })
+        ).status,
+        200,
+      );
+      await page.click("#accounting-today");
+      await page.waitForSelector("#accounting-csv", { timeout: 10000 });
+      // USD 164.00 Express: service commission 3% = USD 4.92.
+      assert.match(
+        await page.locator(".accounting-profit").innerText(),
+        /USD\s4\.92/,
+      );
+      const row = page.locator(".accounting-table tbody tr").first(); // first table: today's tickets
+      assert.match(await row.innerText(), /Express/);
+      assert.match(await row.innerText(), /USD\s164\.00/);
+      assert.match(await row.innerText(), /USD\s4\.92/);
+      assert.match(await row.innerText(), /Pago confirmado/);
+      // No beneficiary or bank data in the accounting view.
+      assert.doesNotMatch(
+        await page.locator("main").innerText(),
+        /Familiar de Prueba|000123456789|LAFISE/,
+      );
+      // CSV download for the accountant.
+      const [download] = await Promise.all([
+        page.waitForEvent("download"),
+        page.click("#accounting-csv"),
+      ]);
+      const { readFile } = await import("node:fs/promises");
+      const csv = await readFile(await download.path(), "utf8");
+      assert.match(csv, new RegExp(expressId));
+      assert.match(csv, /,4\.92,/);
+      // Mobile: summary stacks and nothing overflows the page.
+      await page.setViewportSize({ width: 375, height: 800 });
+      assert.ok(
+        (await page.evaluate(() => document.documentElement.scrollWidth)) <=
+          375,
+      );
     } finally {
       await browser?.close();
       server.kill();

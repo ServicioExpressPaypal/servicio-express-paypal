@@ -223,7 +223,7 @@ import {
   function nav() {
     $("#navigation").innerHTML = !me
       ? ""
-      : `${me.admin ? '<button class="nav" data-view="dashboard">Resumen</button><button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="users">Usuarios</button>' : '<button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="history">Historial</button><button class="nav" data-view="settings">Ajustes</button>'}<button class="icon-button" id="logout" title="Cerrar sesión" aria-label="Cerrar sesión">${icon("log-out")}</button>`;
+      : `${me.admin ? '<button class="nav" data-view="dashboard">Resumen</button><button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="accounting">Contabilidad</button><button class="nav" data-view="users">Usuarios</button>' : '<button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="history">Historial</button><button class="nav" data-view="settings">Ajustes</button>'}<button class="icon-button" id="logout" title="Cerrar sesión" aria-label="Cerrar sesión">${icon("log-out")}</button>`;
     if ($("#logout"))
       $("#logout").onclick = async () => {
         await api("/api/auth/sign-out", {});
@@ -262,6 +262,7 @@ import {
       }
       if (me.admin && view === "users") await users();
       else if (me.admin && view === "dashboard") await dashboard();
+      else if (me.admin && view === "accounting") await accounting();
       else if (!me.admin && view === "settings") settings();
       else if (!me.admin && view === "history") await ticketHistory();
       else if (
@@ -1234,6 +1235,110 @@ import {
         }
       }, 30000);
     }
+  }
+  let accountingDate = "";
+  function csvDownload(report) {
+    const usd = (cents) => (cents / 100).toFixed(2);
+    const rows = [
+      "fecha_pago,hora_pago,ticket,metodo,cobrado_usd,paypal_estimado_usd,entrega_estimada_usd,ganancia_usd,entregado_usd,estado",
+      ...report.day.tickets.map((t) =>
+        [
+          report.date,
+          new Intl.DateTimeFormat("es-NI", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZone: "America/Managua",
+          }).format(t.paidAt),
+          t.id,
+          t.mode,
+          usd(t.gross),
+          usd(t.paypal),
+          usd(t.delivery),
+          usd(t.profit),
+          usd(t.net),
+          t.deliveredAt ? "enviado" : "pago_confirmado",
+        ].join(","),
+      ),
+    ];
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(
+      new Blob([rows.join("\n") + "\n"], { type: "text/csv" }),
+    );
+    link.download = `contabilidad-${report.date}.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+  async function accounting() {
+    main.className = "admin-accounting";
+    const r = await api(
+      "/api/admin/accounting" +
+        (accountingDate ? "?date=" + encodeURIComponent(accountingDate) : ""),
+    );
+    accountingDate = r.date;
+    const clock = (value) =>
+      new Intl.DateTimeFormat("es-NI", {
+        timeStyle: "short",
+        timeZone: "America/Managua",
+      }).format(value);
+    const dayLabel = (date) =>
+      new Intl.DateTimeFormat("es-NI", {
+        dateStyle: "full",
+        timeZone: "UTC",
+      }).format(new Date(date + "T12:00:00Z"));
+    const day = r.day;
+    const ticketRows = day.tickets.length
+      ? day.tickets
+          .map(
+            (t) =>
+              `<tr><td data-label="Hora">${clock(t.paidAt)}</td><td data-label="Ticket"><button class="text-button" data-ticket="${esc(t.id)}">${esc(t.id)}</button></td><td data-label="Método">${t.mode === "express" ? "Express" : "Internacional"}</td><td class="num" data-label="Cobrado">${money(t.gross)}</td><td class="num" data-label="PayPal">${money(t.paypal)}</td><td class="num" data-label="Entrega">${money(t.delivery)}</td><td class="num profit" data-label="Ganancia">${money(t.profit)}</td><td data-label="Estado">${t.deliveredAt ? "Enviado" : "Pago confirmado"}</td></tr>`,
+          )
+          .join("")
+      : "";
+    main.innerHTML = `<div class="heading admin-heading"><div><h1>Contabilidad</h1><p>Ganancia por ticket y resumen del día, en hora de Nicaragua.</p></div></div>
+      <form id="accounting-date" class="accounting-date"><label class="field">Día<input type="date" name="date" value="${esc(r.date)}" required></label><button class="button" type="submit">Ver día</button><button class="button" type="button" id="accounting-today">Hoy</button></form>
+      <section class="accounting-summary" aria-label="Resumen del día ${esc(r.date)}">
+        <article class="accounting-profit"><span>Ganancia del día</span><strong>${money(day.profit)}</strong><small>${day.count} ${day.count === 1 ? "ticket pagado" : "tickets pagados"} · ${day.delivered} ${day.delivered === 1 ? "enviado" : "enviados"}</small></article>
+        <article><span>Cobrado</span><strong>${money(day.gross)}</strong><small>Total pagado por los clientes</small></article>
+        <article><span>Costos estimados</span><strong>${money(day.paypal + day.delivery)}</strong><small>PayPal ${money(day.paypal)} · Entrega ${money(day.delivery)}</small></article>
+        <article><span>Entregado al beneficiario</span><strong>${money(day.net)}</strong><small>Valor de los certificados</small></article>
+      </section>
+      <section class="accounting-section"><div class="accounting-title"><h2>Tickets del ${esc(dayLabel(r.date))}</h2>${day.tickets.length ? `<button class="button" type="button" id="accounting-csv">${icon("download")}Descargar CSV</button>` : ""}</div>
+        ${day.tickets.length ? `<div class="table-scroll"><table class="accounting-table stack"><thead><tr><th>Hora</th><th>Ticket</th><th>Método</th><th class="num">Cobrado</th><th class="num">PayPal</th><th class="num">Entrega</th><th class="num">Ganancia</th><th>Estado</th></tr></thead><tbody>${ticketRows}</tbody><tfoot><tr><th colspan="3">Total del día</th><th class="num" data-label="Cobrado">${money(day.gross)}</th><th class="num" data-label="PayPal">${money(day.paypal)}</th><th class="num" data-label="Entrega">${money(day.delivery)}</th><th class="num profit" data-label="Ganancia">${money(day.profit)}</th><th></th></tr></tfoot></table></div>` : '<p class="empty">No hay pagos confirmados este día.</p>'}</section>
+      <section class="accounting-section"><h2>Últimos 14 días</h2><div class="table-scroll"><table class="accounting-table days"><thead><tr><th>Día</th><th class="num">Tickets</th><th class="num">Cobrado</th><th class="num">Ganancia</th></tr></thead><tbody>${[
+        ...r.days,
+      ]
+        .reverse()
+        .map(
+          (d) =>
+            `<tr class="${d.date === r.date ? "current" : ""}"><td><button class="text-button" data-accounting-day="${esc(d.date)}">${esc(d.date)}</button></td><td class="num">${d.count}</td><td class="num">${money(d.gross)}</td><td class="num profit">${money(d.profit)}</td></tr>`,
+        )
+        .join("")}</tbody></table></div></section>
+      <section class="accounting-section"><h2>Mes ${esc(r.month.label)}</h2><p><strong class="profit">${money(r.month.profit)}</strong> de ganancia · ${r.month.count} ${r.month.count === 1 ? "ticket pagado" : "tickets pagados"} · ${money(r.month.gross)} cobrados</p></section>
+      <p class="muted accounting-note">${esc(r.note)}</p>`;
+    const open = (date) => {
+      accountingDate = date;
+      render();
+    };
+    $("#accounting-date").onsubmit = (event) => {
+      event.preventDefault();
+      open(String(new FormData(event.currentTarget).get("date")));
+    };
+    $("#accounting-today").onclick = () => open("");
+    document
+      .querySelectorAll("[data-accounting-day]")
+      .forEach(
+        (button) => (button.onclick = () => open(button.dataset.accountingDay)),
+      );
+    if ($("#accounting-csv"))
+      $("#accounting-csv").onclick = () => csvDownload(r);
+    document
+      .querySelectorAll("[data-ticket]")
+      .forEach(
+        (button) =>
+          (button.onclick = () =>
+            detail(button.dataset.ticket).catch((e) => toast(e.message))),
+      );
   }
   async function dashboard() {
     main.className = "admin-dashboard";

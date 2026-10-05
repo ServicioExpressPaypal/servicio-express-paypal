@@ -1700,3 +1700,177 @@ div.turn-now span {
 .recent-certificates .empty {
   margin: 0;
 }
+
+/* Admin accounting */
+.accounting-date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.accounting-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.accounting-summary article {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+}
+.accounting-summary span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.accounting-summary strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.accounting-summary small {
+  color: var(--muted);
+}
+.accounting-summary .accounting-profit {
+  border-color: #f26c1f;
+  background: #fff6ef;
+}
+.accounting-summary .accounting-profit strong {
+  font-size: 30px;
+  color: #b84a0b;
+}
+.accounting-section {
+  margin-bottom: 28px;
+}
+.accounting-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--white);
+}
+.accounting-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.accounting-table th,
+.accounting-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+.accounting-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.accounting-table tfoot th {
+  border-bottom: 0;
+  background: #f7f8f9;
+}
+.accounting-table tr.current td {
+  background: #fff6ef;
+}
+.accounting-table .profit,
+.accounting-section .profit {
+  font-weight: 800;
+  color: #b84a0b;
+}
+.accounting-table .text-button {
+  padding: 0;
+  font-size: 13px;
+}
+.accounting-note {
+  margin-top: 8px;
+}
+@media (max-width: 760px) {
+  .accounting-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .accounting-summary .accounting-profit {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 420px) {
+  .accounting-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.accounting-table.days {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .accounting-table.stack {
+    min-width: 0;
+  }
+  .accounting-table.stack thead {
+    display: none;
+  }
+  .accounting-table.stack tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 12px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .accounting-table.stack tbody td {
+    display: block;
+    padding: 2px 0;
+    border: 0;
+    white-space: normal;
+    text-align: left;
+  }
+  .accounting-table.stack tbody td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .accounting-table.stack tbody td[data-label="Ticket"] {
+    grid-column: 1 / -1;
+    overflow-wrap: anywhere;
+  }
+  .accounting-table.stack tbody td.num {
+    text-align: left;
+  }
+  .accounting-table.stack tfoot tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 12px;
+    padding: 12px;
+    background: #f7f8f9;
+  }
+  .accounting-table.stack tfoot th {
+    display: block;
+    padding: 2px 0;
+    background: transparent;
+    text-align: left;
+    white-space: normal;
+  }
+  .accounting-table.stack tfoot th[colspan] {
+    grid-column: 1 / -1;
+  }
+  .accounting-table.stack tfoot th:empty {
+    display: none;
+  }
+  .accounting-table.stack tfoot th[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 400;
+  }
+}

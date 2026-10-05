@@ -2892,6 +2892,133 @@ test("paid, delivered and cancelled certificates stay visible as recent, apart f
     await s.mf.dispose();
   }
 });
+test("admin accounting reports profit per paid ticket and per Managua day without personal data", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("accounting-owner@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(customer.id)
+      .run();
+    // Access control and input validation.
+    assert.equal((await customer.req("/api/admin/accounting")).status, 403);
+    assert.equal((await s.client()("/api/admin/accounting")).status, 401);
+    for (const bad of ["2026-13-01", "2026-02-30", "hoy", "2026-1-1"])
+      assert.equal(
+        (await admin.req("/api/admin/accounting?date=" + bad)).status,
+        400,
+      );
+    // Nothing paid yet: an empty day with zero totals.
+    let report = (await admin.req("/api/admin/accounting")).data;
+    assert.equal(report.timezone, "America/Managua");
+    assert.equal(report.day.count, 0);
+    assert.equal(report.day.profit, 0);
+    assert.deepEqual(report.day.tickets, []);
+    assert.equal(report.days.length, 14);
+    // Three tickets: two paid around Managua midnight and an unpaid one.
+    const make = async (amount) => {
+      await s.db
+        .prepare(
+          "UPDATE tickets SET created_at=created_at-90000000 WHERE user_id=?",
+        )
+        .bind(customer.id)
+        .run();
+      const created = await customer.req("/api/tickets", ticket({ amount }));
+      assert.equal(created.status, 201, JSON.stringify(created.data));
+      return created.data.id;
+    };
+    const processing = async (id, action) => {
+      const version = (await admin.req("/api/admin/tickets/" + id)).data
+        .version;
+      assert.equal(
+        (
+          await admin.req(`/api/admin/tickets/${id}/processing`, {
+            action,
+            version,
+          })
+        ).status,
+        200,
+      );
+    };
+    const first = await make("50");
+    await processing(first, "start");
+    await processing(first, "complete");
+    const second = await make("600");
+    await processing(second, "start");
+    const unpaid = await make("50");
+    // 2026-10-03 23:30 and 2026-10-04 00:30 in Managua (UTC-6).
+    const lateNight = Date.parse("2026-10-04T05:30:00Z");
+    const afterMidnight = Date.parse("2026-10-04T06:30:00Z");
+    await s.db
+      .prepare("UPDATE tickets SET processing_started_at=? WHERE id=?")
+      .bind(lateNight, first)
+      .run();
+    await s.db
+      .prepare("UPDATE tickets SET processing_started_at=? WHERE id=?")
+      .bind(afterMidnight, second)
+      .run();
+    const estimate = JSON.parse(
+      (
+        await s.db
+          .prepare("SELECT estimate FROM tickets WHERE id=?")
+          .bind(second)
+          .first()
+      ).estimate,
+    );
+    const previousDay = (
+      await admin.req("/api/admin/accounting?date=2026-10-03")
+    ).data;
+    assert.deepEqual(
+      previousDay.day.tickets.map((t) => t.id),
+      [first],
+    );
+    report = (await admin.req("/api/admin/accounting?date=2026-10-04")).data;
+    assert.deepEqual(
+      report.day.tickets.map((t) => t.id),
+      [second],
+    );
+    const [line] = report.day.tickets;
+    assert.equal(line.profit, estimate.service);
+    assert.equal(line.gross, estimate.amount);
+    assert.equal(
+      line.gross,
+      line.paypal + line.delivery + line.profit + line.net,
+    );
+    assert.equal(report.day.profit, estimate.service);
+    assert.equal(report.day.count, 1);
+    assert.equal(report.day.delivered, 0);
+    // The unpaid ticket never counts; the month adds both paid tickets.
+    assert.ok(!JSON.stringify(report).includes(unpaid));
+    assert.equal(report.month.label, "2026-10");
+    assert.equal(report.month.count, 2);
+    const firstEstimate = JSON.parse(
+      (
+        await s.db
+          .prepare("SELECT estimate FROM tickets WHERE id=?")
+          .bind(first)
+          .first()
+      ).estimate,
+    );
+    assert.equal(report.month.profit, firstEstimate.service + estimate.service);
+    assert.equal(previousDay.day.profit, firstEstimate.service);
+    const byDay = Object.fromEntries(report.days.map((d) => [d.date, d]));
+    assert.equal(byDay["2026-10-03"].count, 1);
+    assert.equal(byDay["2026-10-04"].profit, estimate.service);
+    assert.equal(byDay["2026-10-02"].count, 0);
+    // Confirming delivery updates the same row; no personal or bank data.
+    await processing(second, "complete");
+    report = (await admin.req("/api/admin/accounting?date=2026-10-04")).data;
+    assert.equal(report.day.delivered, 1);
+    assert.ok(report.day.tickets[0].deliveredAt);
+    const text = JSON.stringify(report);
+    assert.ok(
+      !/Beneficiario de Prueba|000987654321|accounting-owner/.test(text),
+    );
+  } finally {
+    await s.mf.dispose();
+  }
+});
 test("only one Express ticket per user is open at a time", async () => {
   const s = await setup();
   try {

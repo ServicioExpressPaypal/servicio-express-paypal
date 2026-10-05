@@ -83,6 +83,11 @@ por separado.
   (`status=recent`: enviados y cancelados, los 6 mas recientes). Ambas listas y el
   Historial se recargan solas por WebSocket cuando cambia un ticket. La prueba de
   navegador es opcional: `npm run test:ui` (requiere Playwright).
+- Contabilidad del admin: `GET /api/admin/accounting?date=AAAA-MM-DD` (por defecto hoy
+  en hora de Nicaragua) devuelve los tickets con pago confirmado ese dia, sus
+  totales, los ultimos 14 dias y el mes. Ganancia = comision de servicio guardada en
+  la estimacion del ticket (3% Express, 2% Internacional); PayPal y entrega son
+  estimaciones, no cargos reales. No incluye datos personales ni bancarios.
   Cada valor tiene IV aleatorio y AAD ligado a fila/campo. DATA_ENCRYPTION_KEY
   esta en Worker Secrets, no en D1. El correo de autenticacion no se cifra a
   nivel de campo. Ver SECURITY.md para migracion, respaldo y recuperacion.
