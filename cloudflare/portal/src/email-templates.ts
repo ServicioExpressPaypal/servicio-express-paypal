@@ -1,8 +1,8 @@
 import CertificateModel from "../public/certificate.js";
 
 // Customer-facing emails: a short HTML message with one clear button, plus a
-// plain-text alternative. The only remote image is the fixed brand logo; there
-// are no scripts, tracking pixels or remote fonts.
+// plain-text alternative. Remote images are fixed brand assets; there are no
+// scripts, tracking pixels or remote fonts.
 export type Mail = { subject: string; text: string; html: string };
 
 type Spec = {
@@ -15,6 +15,12 @@ type Spec = {
   button?: { label: string; url: string };
   after?: string[];
   quote?: { label: string; value: string };
+  certificate?: {
+    code: string;
+    ticketId: string;
+    value: string;
+    issuedAt: string;
+  };
   small?: string[];
 };
 
@@ -39,6 +45,7 @@ const page = "#f3f5f4";
 const brand = "#202323";
 const logoUrl =
   "https://saldoexpressnicaragua.com/assets/logo-saldo-express-header.jpg";
+const ribbonUrl = "https://portal.saldoexpressnicaragua.com/gift-ribbon.png";
 
 function safeUrl(value: string) {
   const url = new URL(value);
@@ -60,6 +67,15 @@ function render(spec: Spec): Mail {
     "",
     ...paragraphs.flatMap((p) => [p, ""]),
     ...(spec.quote ? [`${spec.quote.label}: ${spec.quote.value}`, ""] : []),
+    ...(spec.certificate
+      ? [
+          `Valor entregado: ${spec.certificate.value}`,
+          `Código del certificado: ${spec.certificate.code}`,
+          `Ticket: ${spec.certificate.ticketId}`,
+          `Emitido: ${spec.certificate.issuedAt}`,
+          "",
+        ]
+      : []),
     ...(spec.button ? [`${spec.button.label}:`, link, ""] : []),
     ...after.flatMap((p) => [p, ""]),
     ...small.flatMap((p) => [p, ""]),
@@ -99,15 +115,24 @@ ${
 }
 ${row(spec.eyebrow ? "8px 28px 0" : "14px 28px 0", `font-size:24px;line-height:1.25;font-weight:750;color:${ink};`, esc(spec.title))}
 ${paragraphs.map(body).join("\n")}
-${
-  spec.quote
-    ? row(
-        "16px 28px 0",
-        "",
-        `<div style="border-left:4px solid ${green};background:${page};padding:12px 14px;border-radius:4px;font-size:15px;line-height:1.5;color:${ink};"><strong>${esc(spec.quote.label)}</strong><br>${multiline(spec.quote.value)}</div>`,
-      )
-    : ""
-}
+	${
+    spec.quote
+      ? row(
+          "16px 28px 0",
+          "",
+          `<div style="border-left:4px solid ${green};background:${page};padding:12px 14px;border-radius:4px;font-size:15px;line-height:1.5;color:${ink};"><strong>${esc(spec.quote.label)}</strong><br>${multiline(spec.quote.value)}</div>`,
+        )
+      : ""
+  }
+	${
+    spec.certificate
+      ? row(
+          "20px 28px 0",
+          "",
+          `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="overflow:hidden;border:1px solid #d9dee5;border-radius:10px;background:#ffffff;color:#102b53;"><tr><td width="74" valign="middle" style="width:74px;background:#fff8f7;border-right:1px solid #ead8d6;"><img src="${ribbonUrl}" width="74" alt="" style="display:block;width:74px;height:auto;border:0;"></td><td valign="middle" style="padding:18px 14px;font-family:${font};"><div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:#102b53;">CERTIFICADO DE REGALO</div><div style="padding-top:4px;font-family:Georgia,serif;font-size:28px;font-weight:700;line-height:1;color:#102b53;">Efectivo</div><div style="padding-top:12px;font-size:11px;line-height:1.45;color:#667084;">Valor entregado</div><div style="padding-top:2px;font-size:20px;font-weight:800;line-height:1.2;color:#102b53;">${esc(spec.certificate.value)}</div></td><td width="154" valign="middle" style="width:154px;padding:16px;border-left:1px dashed #9da6b4;font-family:${font};"><div style="font-size:10px;font-weight:700;color:#667084;">CÓDIGO</div><div style="padding-top:6px;font-size:14px;font-weight:800;line-height:1.4;word-break:break-word;color:#102b53;">${esc(spec.certificate.code)}</div><div style="padding-top:12px;font-size:10px;line-height:1.45;color:#667084;">Ticket<br><strong style="color:#102b53;">${esc(spec.certificate.ticketId)}</strong></div></td></tr></table>`,
+        )
+      : ""
+  }
 ${
   spec.button
     ? row(
@@ -253,5 +278,30 @@ export function accountDecisionMail(
     quote: { label: "Motivo", value: reason },
     ...action,
     small: [`Si necesitas solicitar una revisión, escribe a ${CONTACT}.`],
+  });
+}
+
+export function certificateDeliveryMail(input: {
+  code: string;
+  ticketId: string;
+  value: string;
+  issuedAt: string;
+  appUrl: string;
+}) {
+  return render({
+    subject: `Tu certificado digital ${input.code} | Saldo Express`,
+    preheader: `Tu certificado ${input.code} ya fue emitido.`,
+    eyebrow: "CERTIFICADO EMITIDO",
+    logo: true,
+    title: "Tu certificado digital está listo",
+    paragraphs: [
+      "Confirmamos la entrega asociada a tu solicitud. Este correo contiene la constancia digital de tu certificado.",
+    ],
+    certificate: input,
+    button: { label: "Ver certificado en mi cuenta", url: input.appUrl },
+    small: [
+      "El código identifica este certificado y su ticket. No es una contraseña, un PIN ni un código de cobro.",
+      `Para consultas sobre esta entrega, indica el ticket ${input.ticketId}.`,
+    ],
   });
 }

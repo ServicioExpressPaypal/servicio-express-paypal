@@ -8,10 +8,11 @@ export default (function () {
   const version = "cuenta-revision-2026-10-05-v8";
   const reviewNotice =
     "Revisaremos tu solicitud en un plazo de hasta 2 días hábiles, de lunes a viernes, después de verificar tu correo y completar el formulario. Te notificaremos por correo si fue aprobada, rechazada o necesita aclaraciones. Hasta su aprobación no podrás crear tickets.";
-  const ticketConditionsVersion = "ticket-condiciones-2026-10-05-v7";
+  const ticketConditionsVersion = "ticket-condiciones-2026-10-05-v8";
   const extendedInternationalValidityVersions = new Set([
     "ticket-condiciones-2026-09-30-v5",
     "ticket-condiciones-2026-10-04-v6",
+    "ticket-condiciones-2026-10-05-v7",
     ticketConditionsVersion,
   ]);
   const title = "Certificado de regalo en efectivo";
@@ -31,7 +32,8 @@ export default (function () {
     "Turnos: los tickets creados con estas condiciones se atienden por orden de creación. Cuando es el turno de tu ticket tienes 2 minutos para pagar; si hay otros tickets esperando y no se confirma el pago, tu ticket pasa al final de la fila. Si no hay otros tickets esperando, tu turno no vence.",
     "Express: vigencia de 24 horas desde la creación. Método internacional (más de USD 500): vigencia de 6 días hábiles desde la creación; al confirmar manualmente el pago durante la vigencia, el vencimiento pasa a 6 días hábiles desde esa confirmación. La entrega internacional se estima entre 2 y 6 días hábiles desde el pago confirmado. El contador usa lunes a viernes, hora de Nicaragua, sin ajuste por feriados. Vencer no confirma la entrega ni extingue una operación pagada pendiente.",
     "Revisa los datos y el importe antes de pagar. No se ofrecen reembolsos voluntarios por cambio de opinión ni por errores en datos suministrados por el comprador cuando el envío ya se ejecutó conforme a ellos. Antes del envío, solicita la revisión de cualquier error. Esta regla no excluye devoluciones por servicio no prestado, cobro duplicado, error atribuible al operador ni derechos irrenunciables o mecanismos de reclamación de PayPal. Crear un ticket no genera por sí mismo un cobro.",
-    "El nombre del beneficiario, banco, número de cuenta y comentarios se usan durante la vigencia del ticket. Al vencer, cerrarse o cancelarse dejan de estar disponibles y se eliminan de la base activa en la siguiente limpieza, programada cada 15 minutos. Conservamos referencia, montos, moneda, fechas, estado y la aceptación de condiciones. Las copias técnicas de recuperación pueden conservar versiones anteriores hasta 30 días.",
+    "Al confirmar la entrega emitimos un certificado digital con un código único y lo enviamos al correo de tu cuenta. El código identifica el certificado y el ticket; no es una contraseña, un PIN ni un medio de cobro.",
+    "El nombre del beneficiario, banco, número de cuenta y comentarios se usan durante la vigencia del ticket. Al vencer, cerrarse o cancelarse dejan de estar disponibles y se eliminan de la base activa en la siguiente limpieza, programada cada 15 minutos. Conservamos referencia, código del certificado, montos, moneda, fechas, estado, constancia de envío del correo y la aceptación de condiciones. Las copias técnicas de recuperación pueden conservar versiones anteriores hasta 30 días.",
   ];
   const declaration =
     "Declaro que los datos son verdaderos, que el familiar o beneficiario me autorizó a proporcionarlos, que la cuenta bancaria indicada le pertenece y que los fondos relacionados con mi solicitud tienen procedencia lícita. Esta declaración no sustituye la verificación que corresponda.";
@@ -46,7 +48,7 @@ export default (function () {
     ],
     [
       "Historial",
-      "Se conservan referencia, montos, moneda, fechas, estados y versión de condiciones aceptada. Los respaldos técnicos pueden conservar versiones anteriores hasta 30 días.",
+      "Se conservan referencia, código del certificado, montos, moneda, fechas, estados, constancia de envío del correo y versión de condiciones aceptada. Los respaldos técnicos pueden conservar versiones anteriores hasta 30 días.",
     ],
     [
       "Proveedores y derechos",

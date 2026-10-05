@@ -1105,8 +1105,8 @@ textarea {
 }
 
 .gift-grid {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
 }
 
 .gift-option {
@@ -1118,19 +1118,21 @@ textarea {
 }
 
 .gift-face {
-  display: block;
-  min-height: 0;
-  border: 0;
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) 96px;
+  min-height: 148px;
+  border-bottom: 1px solid var(--line);
 }
 
 .gift-stub {
-  min-height: 78px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: baseline;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: 5px;
+  align-self: stretch;
   border: 0;
-  padding: 18px;
+  border-left: 1px dashed #a3aab6;
+  padding: 12px;
 }
 
 .gift-stub span,
@@ -1140,8 +1142,29 @@ textarea {
 }
 
 .gift-stub strong {
-  font-size: 30px;
+  font-size: 24px;
   line-height: 1;
+}
+
+.gift-title {
+  min-width: 0;
+  padding: 18px 10px;
+}
+
+.gift-title > span {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+}
+
+.gift-title h2 {
+  margin: 8px 0 10px;
+  font-size: 25px;
+}
+
+.gift-title small {
+  display: block;
+  line-height: 1.35;
 }
 
 .gift-summary {
@@ -1245,6 +1268,7 @@ textarea {
 .ticket-deadline,
 .order-progress,
 .processing-window,
+.digital-certificate,
 .ticket-data,
 .external-purchase,
 .ticket-chat,
@@ -1297,6 +1321,98 @@ textarea {
 
 .processing-window progress {
   accent-color: var(--brand);
+}
+
+.digital-certificate {
+  position: relative;
+  min-height: 210px;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) 190px;
+  overflow: hidden;
+  padding: 0;
+  border-color: #cfd5df;
+  color: #102b53;
+  background: linear-gradient(180deg, #ffffff, #fafbfc);
+}
+
+.digital-certificate-ribbon {
+  width: 84px;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  background: #fff7f6;
+}
+
+.digital-certificate-main {
+  align-self: center;
+  padding: 24px 20px;
+}
+
+.digital-certificate-main > span,
+.digital-certificate-stub span {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+}
+
+.digital-certificate-main h2 {
+  margin: 7px 0 20px;
+  font:
+    700 38px/1 Georgia,
+    serif;
+  letter-spacing: 0;
+}
+
+.digital-certificate-main p {
+  margin: 0 0 4px;
+  color: #667084;
+  font-size: 12px;
+}
+
+.digital-certificate-main strong {
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.digital-certificate-stub {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 22px;
+  border-left: 1px dashed #9da6b4;
+}
+
+.digital-certificate-stub strong,
+.digital-certificate-stub small {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.digital-certificate-stub strong {
+  margin-bottom: 14px;
+  font-size: 16px;
+}
+
+.certificate-email-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.certificate-email-status svg {
+  width: 17px;
+  height: 17px;
+}
+
+.certificate-code-inline {
+  color: #102b53;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .ticket-data {
@@ -1500,6 +1616,10 @@ dialog {
   .dashboard-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .gift-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -1569,6 +1689,14 @@ dialog {
     padding: 16px;
   }
 
+  .gift-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gift-face {
+    grid-template-columns: 56px minmax(0, 1fr) 96px;
+  }
+
   .gift-summary {
     padding: 13px 16px;
   }
@@ -1584,12 +1712,43 @@ dialog {
   .ticket-deadline,
   .order-progress,
   .processing-window,
+  .digital-certificate,
   .ticket-data,
   .external-purchase,
   .ticket-chat,
   .ticket-history,
   .account-section {
     padding: 17px;
+  }
+
+  .digital-certificate {
+    grid-template-columns: 58px minmax(0, 1fr);
+    padding: 0;
+  }
+
+  .digital-certificate-ribbon {
+    width: 58px;
+    grid-row: 1 / span 2;
+  }
+
+  .digital-certificate-main {
+    padding: 20px 18px 14px;
+  }
+
+  .digital-certificate-main h2 {
+    font-size: 32px;
+  }
+
+  .digital-certificate-stub {
+    grid-column: 2;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 14px 18px 20px;
+    border-top: 1px dashed #9da6b4;
+    border-left: 0;
+  }
+
+  .digital-certificate-stub strong {
+    margin: 0;
   }
 
   .order-progress ol {

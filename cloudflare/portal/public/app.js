@@ -38,6 +38,7 @@ import {
     expired: "Vencida",
     payment_confirmed: "Pago confirmado por el administrador",
     delivery_confirmed: "Envío al beneficiario confirmado por el administrador",
+    certificate_email_sent: "Certificado digital enviado por correo",
   };
   const methodLabel = (mode) =>
     mode === "express" ? "Certificado en efectivo" : "Método internacional";
@@ -580,7 +581,7 @@ import {
   }
   function historyRow(t) {
     const tracking = processingWindow(t);
-    return `<button class="ticket-row" data-ticket="${esc(t.id)}"><span><strong>${t.delivery_amount ? money(t.delivery_amount.received, t.delivery_amount.currency) : t.quote ? money(t.quote.received, t.currency) : money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>${t.delivery_amount ? "Importe enviado" : t.quote ? "Importe acordado" : "Valor del ticket"} · Monto base ${money(t.amount)}</small><small>${dateTime(t.created_at)}</small><small class="ticket-id">${esc(t.id)}</small>${tracking && t.processing_started_at ? `<small>${t.processing_completed_at ? "Envío confirmado" : "Entrega en proceso"}</small>` : ""}</span><span class="badge ${esc(t.status)}">${esc(labels[t.status])}</span></button>`;
+    return `<button class="ticket-row" data-ticket="${esc(t.id)}"><span><strong>${t.delivery_amount ? money(t.delivery_amount.received, t.delivery_amount.currency) : t.quote ? money(t.quote.received, t.currency) : money(t.estimate.net)}</strong> · ${methodLabel(t.mode)}<small>${t.delivery_amount ? "Importe enviado" : t.quote ? "Importe acordado" : "Valor del ticket"} · Monto base ${money(t.amount)}</small><small>${dateTime(t.created_at)}</small><small class="ticket-id">${esc(t.id)}</small>${t.certificate_code ? `<small class="certificate-code-inline">${esc(t.certificate_code)}</small>` : ""}${tracking && t.processing_started_at ? `<small>${t.processing_completed_at ? "Envío confirmado" : "Entrega en proceso"}</small>` : ""}</span><span class="badge ${esc(t.status)}">${esc(labels[t.status])}</span></button>`;
   }
   async function ticketHistory() {
     const params = new URLSearchParams({
@@ -640,8 +641,10 @@ import {
         .map((t) => t.id),
       async () => {
         const current = await api("/api/account/history?" + params);
-        return listSignature(current.items, current.total) !==
-          listSignature(result.items, result.total);
+        return (
+          listSignature(current.items, current.total) !==
+          listSignature(result.items, result.total)
+        );
       },
     );
   }
@@ -663,7 +666,7 @@ import {
       const cards = CertificateModel.presetAmounts
         .map((amount) => {
           const estimate = SaldoCalculator.estimate(amount * 100, "express");
-          return `<article class="gift-option"><div class="gift-face"><div class="gift-stub"><span>Monto base</span><strong>$${amount}</strong><small>USD</small></div></div><div class="gift-summary"><span>Valor estimado<strong>${money(estimate.net)}</strong></span><span>Costos estimados<strong>${money(estimate.total)}</strong></span></div><button type="button" class="gift-select" data-preset="${amount}" aria-label="Elegir certificado de ${amount} dólares">Elegir $${amount} USD ${icon("arrow-right")}</button></article>`;
+          return `<article class="gift-option"><div class="gift-face"><img class="gift-ribbon" src="/gift-ribbon.png" alt=""><div class="gift-title"><span>CERTIFICADO DE REGALO</span><h2>Efectivo</h2><small>Un detalle para compartir con quien elijas.</small></div><div class="gift-stub"><span>Monto base</span><strong>$${amount}</strong><small>USD</small></div></div><div class="gift-summary"><span>Valor estimado<strong>${money(estimate.net)}</strong></span><span>Costos estimados<strong>${money(estimate.total)}</strong></span></div><button type="button" class="gift-select" data-preset="${amount}" aria-label="Elegir certificado de ${amount} dólares">Elegir $${amount} USD ${icon("arrow-right")}</button></article>`;
         })
         .join("");
       $(".heading").outerHTML =
@@ -1032,6 +1035,15 @@ import {
     ];
     progress.innerHTML = `<h2>Estado de la compra</h2><ol>${steps.map(([label, at]) => `<li class="${at ? "done" : ""}">${icon(at ? "circle-check" : "circle")}<span><strong>${label}</strong><small>${at ? dateTime(at) : "Pendiente"}</small></span></li>`).join("")}</ol>${t.processing_completed_at ? "<p>El administrador confirmó el pago y el envío al beneficiario. Tu solicitud está completada.</p>" : t.processing_started_at ? "<p>Pago confirmado. El envío al beneficiario está pendiente.</p>" : t.status === "quoted" ? "<p>Coordiná el pago en el chat del ticket; todavía no está confirmado.</p>" : t.status === "closed" ? "<p>Este ticket se cerró con el flujo anterior. No hay una confirmación registrada de pago y envío.</p>" : ""}`;
     $(".ticket-deadline").after(progress);
+    if (t.certificate_code) {
+      const delivered = t.delivery_amount
+        ? money(t.delivery_amount.received, t.delivery_amount.currency)
+        : money(t.estimate.net);
+      progress.insertAdjacentHTML(
+        "afterend",
+        `<section class="digital-certificate" aria-labelledby="certificate-title"><img class="digital-certificate-ribbon" src="/gift-ribbon.png" alt=""><div class="digital-certificate-main"><span>CERTIFICADO DE REGALO</span><h2 id="certificate-title">Efectivo</h2><p>Valor entregado</p><strong>${delivered}</strong></div><div class="digital-certificate-stub"><span>Código</span><strong>${esc(t.certificate_code)}</strong><span>Ticket</span><small>${esc(t.id)}</small></div></section><p class="certificate-email-status">${t.certificate_email_sent_at ? `${icon("mail-check")} Enviado al correo de tu cuenta el ${dateTime(t.certificate_email_sent_at)}.` : `${icon("clock")} El correo con tu certificado está en cola de envío.`}</p>`,
+      );
+    }
     if (t.amount > 50000 && !["cancelled", "closed"].includes(t.status)) {
       const section = document.createElement("section");
       section.className = "processing-window";
@@ -1077,7 +1089,7 @@ import {
           canStart
             ? "Confirmar pago recibido"
             : "Confirmar envío al beneficiario",
-          `<p>${canStart ? "Confirmá solo si verificaste el pago por su canal oficial. El cliente verá «Pago confirmado»." + (t.amount > 50000 ? " El plazo de 2 a 6 días hábiles empieza ahora." : "") : "Confirmá solo si ya realizaste y verificaste el envío al beneficiario. El ticket quedará completado y el cliente verá «Enviado al beneficiario». Los datos de destino y comentarios se eliminarán."}</p><button class="button primary" id="confirm-processing">${canStart ? "Sí, recibí el pago" : "Sí, confirmé el envío"}</button><p class="form-error" id="processing-error" role="alert"></p>`,
+          `<p>${canStart ? "Confirmá solo si verificaste el pago por su canal oficial. El cliente verá «Pago confirmado»." + (t.amount > 50000 ? " El plazo de 2 a 6 días hábiles empieza ahora." : "") : "Confirmá solo si ya realizaste y verificaste el envío al beneficiario. El ticket quedará completado, se emitirá un código único y el certificado digital se enviará al correo del cliente. Los datos de destino y comentarios se eliminarán."}</p><button class="button primary" id="confirm-processing">${canStart ? "Sí, recibí el pago" : "Sí, emitir certificado y completar"}</button><p class="form-error" id="processing-error" role="alert"></p>`,
         );
         const needsRate = !canStart && t.currency === "NIO" && !t.quote;
         if (canStart)

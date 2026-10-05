@@ -6,6 +6,7 @@ import { createOTP } from "@better-auth/utils/otp";
 import CertificateModel from "../public/certificate.js";
 import {
   accountDecisionMail,
+  certificateDeliveryMail,
   passwordChangedMail,
   passwordResetDoneMail,
   resetPasswordMail,
@@ -35,6 +36,13 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
     "https://portal.example.test/api/auth/verify-email?token=a.b&x=<1>";
   const v = verificationMail(link);
   const approved = accountDecisionMail("active", "ok", "https://a.test/");
+  const certificate = certificateDeliveryMail({
+    code: "CERT-1234-ABCD-5678-EF90",
+    ticketId: "SE-ABCDEF12",
+    value: "USD 44.00",
+    issuedAt: "5 de octubre de 2026, 4:30 p. m.",
+    appUrl: "https://portal.example.test/?ticket=SE-ABCDEF12",
+  });
   assert.ok(
     v.html.includes(
       'href="https://portal.example.test/api/auth/verify-email?token=a.b&amp;x=&lt;1&gt;"',
@@ -47,6 +55,7 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
     resetPasswordMail(link),
     passwordResetDoneMail(),
     passwordChangedMail(),
+    certificate,
   ]) {
     assert.match(
       m.html,
@@ -60,6 +69,7 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
     passwordResetDoneMail(),
     passwordChangedMail(),
     approved,
+    certificate,
   ])
     assert.ok(!/<script|width="1"|height="1"/i.test(m.html));
   for (const m of [
@@ -68,6 +78,7 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
     resetPasswordMail(link),
     passwordResetDoneMail(),
     passwordChangedMail(),
+    certificate,
   ]) {
     assert.ok(!m.text.includes("Responsable: SoftOhm Systems LLC"));
     assert.ok(!m.html.includes("Responsable: SoftOhm Systems LLC"));
@@ -84,6 +95,14 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
   assert.match(resetPasswordMail(link).html, /SEGURIDAD DE LA CUENTA/);
   assert.match(resetPasswordMail(link).html, /Crear nueva contraseña/);
   assert.match(resetPasswordMail(link).text, /1 hora/);
+  assert.match(certificate.subject, /CERT-1234-ABCD-5678-EF90/);
+  assert.match(certificate.text, /Valor entregado: USD 44\.00/);
+  assert.match(certificate.text, /Ticket: SE-ABCDEF12/);
+  assert.match(certificate.html, /CERTIFICADO DE REGALO/);
+  assert.match(
+    certificate.html,
+    /src="https:\/\/portal\.saldoexpressnicaragua\.com\/gift-ribbon\.png"/,
+  );
   const d = accountDecisionMail(
     "suspended",
     '<b>x</b> & "y"',
@@ -1134,6 +1153,7 @@ async function setup(open = true, overrides = {}) {
     "0013_chat_encrypted_length.sql",
     "0014_ticket_turns.sql",
     "0015_ticket_images.sql",
+    "0016_digital_certificate.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -3398,12 +3418,51 @@ test("only admin can start paid international tracking; expiry erases destinatio
       (await admin.req(action, { action: "complete", version: 4 })).status,
       409,
     );
-    assert.ok(
-      (await customer.req(`/api/tickets/${id}`)).data.processing_completed_at,
+    let delivered = (await customer.req(`/api/tickets/${id}`)).data;
+    assert.ok(delivered.processing_completed_at);
+    assert.equal(delivered.status, "delivered");
+    assert.match(
+      delivered.certificate_code,
+      /^CERT-[A-F0-9]{4}(?:-[A-F0-9]{4}){3}$/,
     );
+    for (
+      let n = 0;
+      n < 30 &&
+      !s.emails.some(
+        (email) =>
+          email.to.includes("tracking@example.test") &&
+          email.subject.includes(delivered.certificate_code),
+      );
+      n++
+    )
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    const certificateEmail = s.emails.find(
+      (email) =>
+        email.to.includes("tracking@example.test") &&
+        email.subject.includes(delivered.certificate_code),
+    );
+    assert.ok(certificateEmail, "digital certificate email dispatched");
+    assert.match(certificateEmail.html, /CERTIFICADO DE REGALO/);
+    assert.match(certificateEmail.html, new RegExp(delivered.certificate_code));
+    assert.match(certificateEmail.text, new RegExp(id));
+    assert.match(certificateEmail.text, /540/);
+    assert.ok(!certificateEmail.text.includes(ticket().beneficiaryName));
+    assert.ok(!certificateEmail.text.includes(ticket().bankAccount));
+    delivered = (await customer.req(`/api/tickets/${id}`)).data;
+    assert.ok(delivered.certificate_email_sent_at > 0);
+    const certificateRow = await s.db
+      .prepare(
+        "SELECT certificate_email_sent_at,certificate_email_attempts FROM tickets WHERE id=?",
+      )
+      .bind(id)
+      .first();
+    assert.ok(certificateRow.certificate_email_sent_at > 0);
+    assert.equal(certificateRow.certificate_email_attempts, 0);
     assert.equal(
-      (await customer.req(`/api/tickets/${id}`)).data.status,
-      "delivered",
+      s.emails.filter((email) =>
+        email.subject.includes(delivered.certificate_code),
+      ).length,
+      1,
     );
     const unstarted = await customer.req(
       "/api/tickets",

@@ -1,5 +1,9 @@
 import { createAuth, sendMail, sendMailContent } from "./auth";
-import { accountDecisionMail, passwordChangedMail } from "./email-templates";
+import {
+  accountDecisionMail,
+  certificateDeliveryMail,
+  passwordChangedMail,
+} from "./email-templates";
 import { setupEnabled, inviteAdmin, completeAdminSetup } from "./admin-setup";
 import "../../../calculator-core.js";
 import "../../../_pilot/tickets/domain.js";
@@ -72,6 +76,10 @@ type Ticket = {
   processing_started_at: number | null;
   processing_completed_at: number | null;
   delivery_amount: string | null;
+  certificate_code: string | null;
+  certificate_email_sent_at: number | null;
+  certificate_email_attempts: number;
+  certificate_email_next_attempt_at: number;
 };
 type TicketMessage = {
   id: string;
@@ -277,7 +285,12 @@ async function publicTicket(
   const expired = isTicketExpired(t, now);
   const erased =
     expired || finalTicketStatuses.has(t.status) || !!t.processing_completed_at;
-  const { bank_account, ...safeTicket } = t;
+  const {
+    bank_account,
+    certificate_email_attempts: _certificateEmailAttempts,
+    certificate_email_next_attempt_at: _certificateEmailNextAttemptAt,
+    ...safeTicket
+  } = t;
   return {
     ...safeTicket,
     beneficiary_name: erased
@@ -448,6 +461,109 @@ async function notifyAccountDecision(env: Env, noticeId: string) {
       .bind(Date.now() + 3600000, noticeId)
       .run();
     console.error(JSON.stringify({ event: "account_notice_failed", noticeId }));
+  }
+}
+function createCertificateCode() {
+  const value = crypto
+    .randomUUID()
+    .replace(/-/g, "")
+    .slice(0, 16)
+    .toUpperCase();
+  return `CERT-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}`;
+}
+function certificateValue(ticket: {
+  delivery_amount: string | null;
+  estimate: string;
+}) {
+  if (ticket.delivery_amount) {
+    const delivery = JSON.parse(ticket.delivery_amount) as {
+      received: number;
+      currency: string;
+    };
+    return new Intl.NumberFormat("es-NI", {
+      style: "currency",
+      currency: delivery.currency,
+    }).format(delivery.received / 100);
+  }
+  const estimate = JSON.parse(ticket.estimate) as { net: number };
+  return ticketMoney(estimate.net);
+}
+async function notifyCertificateDelivery(env: Env, ticketId: string) {
+  if (env.EMAIL_PROVIDER === "disabled") return;
+  const now = Date.now();
+  const claim = await env.DB.prepare(
+    "UPDATE tickets SET certificate_email_next_attempt_at=? WHERE id=? AND certificate_code IS NOT NULL AND certificate_email_sent_at IS NULL AND certificate_email_attempts<5 AND certificate_email_next_attempt_at<=? RETURNING id",
+  )
+    .bind(now + 10 * 60000, ticketId, now)
+    .first<{ id: string }>();
+  if (!claim) return;
+  const ticket = await env.DB.prepare(
+    "SELECT t.id,t.user_id,t.estimate,t.delivery_amount,t.certificate_code,t.processing_completed_at,u.email FROM tickets t JOIN user u ON u.id=t.user_id WHERE t.id=?",
+  )
+    .bind(ticketId)
+    .first<{
+      id: string;
+      user_id: string;
+      estimate: string;
+      delivery_amount: string | null;
+      certificate_code: string;
+      processing_completed_at: number;
+      email: string;
+    }>();
+  if (!ticket) return;
+  try {
+    const issuedAt = new Date(ticket.processing_completed_at).toLocaleString(
+      "es-NI",
+      {
+        timeZone: "America/Managua",
+        dateStyle: "long",
+        timeStyle: "short",
+      },
+    );
+    await sendMailContent(
+      env,
+      ticket.email,
+      certificateDeliveryMail({
+        code: ticket.certificate_code,
+        ticketId: ticket.id,
+        value: certificateValue(ticket),
+        issuedAt,
+        appUrl: `${env.APP_URL}/?ticket=${encodeURIComponent(ticket.id)}`,
+      }),
+    );
+    const sentAt = Date.now();
+    await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE tickets SET certificate_email_sent_at=? WHERE id=? AND certificate_email_sent_at IS NULL",
+      ).bind(sentAt, ticket.id),
+      env.DB.prepare(
+        "INSERT INTO audit_events(id,actor_id,target_id,action,detail,created_at) SELECT ?,?,?,?,'',? WHERE changes()=1",
+      ).bind(
+        crypto.randomUUID(),
+        ticket.user_id,
+        ticket.id,
+        "certificate_email_sent",
+        sentAt,
+      ),
+    ]);
+  } catch {
+    const attempts = await env.DB.prepare(
+      "SELECT certificate_email_attempts AS attempts FROM tickets WHERE id=?",
+    )
+      .bind(ticket.id)
+      .first<{ attempts: number }>();
+    const delay = Math.min(
+      6 * 3600000,
+      15 * 60000 * 2 ** (attempts?.attempts || 0),
+    );
+    await env.DB.prepare(
+      "UPDATE tickets SET certificate_email_attempts=certificate_email_attempts+1,certificate_email_next_attempt_at=? WHERE id=? AND certificate_email_sent_at IS NULL",
+    )
+      .bind(Date.now() + delay, ticket.id)
+      .run();
+    console.error(
+      JSON.stringify({ event: "certificate_email_failed", ticketId }),
+    );
   }
 }
 async function handle(
@@ -1420,10 +1536,24 @@ async function handle(
         fail(400, (error as Error).message);
       }
     }
+    const certificateCode = starting ? null : createCertificateCode();
+    const ticketUpdate = starting
+      ? env.DB.prepare(
+          `UPDATE tickets SET ${column}=?,delivery_amount=?,expires_at=?,version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id`,
+        ).bind(now, delivery, expiresAt, now, target!.id, body.version)
+      : env.DB.prepare(
+          "UPDATE tickets SET processing_completed_at=?,delivery_amount=?,expires_at=?,status='closed',certificate_code=?,certificate_email_next_attempt_at=0,version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id",
+        ).bind(
+          now,
+          delivery,
+          expiresAt,
+          certificateCode,
+          now,
+          target!.id,
+          body.version,
+        );
     const result = await env.DB.batch([
-      env.DB.prepare(
-        `UPDATE tickets SET ${column}=?,delivery_amount=?,expires_at=?,${starting ? "" : "status='closed',"}version=version+1,updated_at=? WHERE id=? AND version=? RETURNING id`,
-      ).bind(now, delivery, expiresAt, now, target!.id, body.version),
+      ticketUpdate,
       env.DB.prepare(
         "INSERT INTO audit_events(id,actor_id,target_id,action,detail,created_at) SELECT ?,?,?,?,'',? WHERE changes()=1",
       ).bind(
@@ -1438,6 +1568,7 @@ async function handle(
       fail(409, "La solicitud cambió. Recarga antes de continuar.");
     await purgeExpiredTicketData(env);
     ctx.waitUntil(ticketChanged(env, target!.id));
+    if (!starting) ctx.waitUntil(notifyCertificateDelivery(env, target!.id));
     return json({ ok: true });
   }
   const ticketMatch = path.match(/^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)$/);
@@ -1686,5 +1817,12 @@ export default {
       .all<{ id: string }>();
     for (const job of accountJobs.results)
       ctx.waitUntil(notifyAccountDecision(env, job.id));
+    const certificateJobs = await env.DB.prepare(
+      "SELECT id FROM tickets WHERE certificate_code IS NOT NULL AND certificate_email_sent_at IS NULL AND certificate_email_attempts<5 AND certificate_email_next_attempt_at<=? LIMIT 20",
+    )
+      .bind(Date.now())
+      .all<{ id: string }>();
+    for (const job of certificateJobs.results)
+      ctx.waitUntil(notifyCertificateDelivery(env, job.id));
   },
 } satisfies ExportedHandler<Env>;
