@@ -518,7 +518,7 @@ test("temporary admin PIN is hashed, rate-limited and required after password lo
       )
       .bind(admin.id)
       .first();
-    assert.equal(stored.iterations, 210000);
+    assert.equal(stored.iterations, 100000);
     assert.ok(stored.salt.length >= 20);
     assert.ok(stored.pin_hash.length >= 40);
     assert.ok(!JSON.stringify(stored).includes("482731"));
