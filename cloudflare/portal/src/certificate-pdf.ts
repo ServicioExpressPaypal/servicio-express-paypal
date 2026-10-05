@@ -5,6 +5,7 @@ export type CertificatePdfInput = {
   ticketId: string;
   amount: string;
   issuedAt: string;
+  ribbonPng?: Uint8Array;
 };
 
 const printable = (value: string) =>
@@ -52,7 +53,12 @@ export async function certificatePdfAttachment(input: CertificatePdfInput) {
     borderColor: rgb(0.78, 0.8, 0.82),
     borderWidth: 1.2,
   });
-  page.drawRectangle({ x: 54, y: 16, width: 50, height: 328, color: red });
+  if (input.ribbonPng) {
+    const ribbon = await document.embedPng(input.ribbonPng);
+    page.drawImage(ribbon, { x: 12, y: 16, width: 164, height: 328 });
+  } else {
+    page.drawRectangle({ x: 54, y: 16, width: 50, height: 328, color: red });
+  }
   page.drawLine({
     start: { x: 578, y: 26 },
     end: { x: 578, y: 334 },
@@ -62,41 +68,41 @@ export async function certificatePdfAttachment(input: CertificatePdfInput) {
   });
 
   page.drawText("SALDO EXPRESS", {
-    x: 139,
+    x: 195,
     y: 296,
     font: bold,
     size: 11,
     color: gold,
   });
   page.drawText("CERTIFICADO DE REGALO", {
-    x: 139,
+    x: 195,
     y: 254,
     font: bold,
-    size: 22,
+    size: 19,
     color: navy,
   });
   page.drawText("Efectivo", {
-    x: 139,
+    x: 195,
     y: 176,
     font: display,
-    size: 65,
+    size: 58,
     color: navy,
   });
   page.drawLine({
-    start: { x: 139, y: 157 },
-    end: { x: 330, y: 157 },
+    start: { x: 195, y: 157 },
+    end: { x: 380, y: 157 },
     color: gold,
     thickness: 3,
   });
   page.drawText("MONTO DEL CERTIFICADO", {
-    x: 139,
+    x: 195,
     y: 115,
     font: bold,
     size: 10,
     color: muted,
   });
   page.drawText(printable(input.amount), {
-    x: 139,
+    x: 195,
     y: 76,
     font: bold,
     size: 27,
@@ -104,7 +110,33 @@ export async function certificatePdfAttachment(input: CertificatePdfInput) {
   });
 
   const stubX = 605;
-  const stub = (label: string, value: string, y: number, size = 12) => {
+  const stubWidth = 145;
+  const wrapWords = (value: string, size: number) => {
+    const words = printable(value).split(" ");
+    const lines: string[] = [];
+    for (const word of words) {
+      const current = lines.at(-1);
+      if (
+        current &&
+        regular.widthOfTextAtSize(`${current} ${word}`, size) <= stubWidth
+      )
+        lines[lines.length - 1] = `${current} ${word}`;
+      else lines.push(word);
+    }
+    return lines;
+  };
+  const wrapIdentifier = (value: string, maxLength: number) => {
+    const parts = printable(value).split("-");
+    const lines: string[] = [];
+    for (const part of parts) {
+      const current = lines.at(-1);
+      if (current && `${current}-${part}`.length <= maxLength)
+        lines[lines.length - 1] = `${current}-${part}`;
+      else lines.push(part);
+    }
+    return lines;
+  };
+  const stub = (label: string, lines: string[], y: number, size = 10) => {
     page.drawText(label, {
       x: stubX,
       y,
@@ -112,23 +144,24 @@ export async function certificatePdfAttachment(input: CertificatePdfInput) {
       size: 9,
       color: muted,
     });
-    page.drawText(printable(value), {
-      x: stubX,
-      y: y - 24,
-      font: bold,
-      size,
-      color: navy,
-      maxWidth: 150,
-    });
+    lines.slice(0, 3).forEach((line, index) =>
+      page.drawText(line, {
+        x: stubX,
+        y: y - 24 - index * (size + 4),
+        font: bold,
+        size,
+        color: navy,
+      }),
+    );
   };
-  stub("CODIGO", input.code, 285, 10);
-  stub("TICKET", input.ticketId, 207, 10);
-  stub("EMITIDO", input.issuedAt, 129, 9);
+  stub("CODIGO", wrapIdentifier(input.code, 30), 285, 8.5);
+  stub("TICKET", wrapIdentifier(input.ticketId, 20), 207, 8);
+  stub("EMITIDO", wrapWords(input.issuedAt, 8), 112, 8);
 
   page.drawText(
     "Documento digital. El codigo identifica el certificado y su ticket.",
     {
-      x: 139,
+      x: 195,
       y: 37,
       font: regular,
       size: 8,

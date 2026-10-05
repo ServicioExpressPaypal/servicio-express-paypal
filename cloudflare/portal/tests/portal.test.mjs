@@ -117,17 +117,21 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
 });
 
 test("digital certificate PDF is a valid attachment without destination data", async () => {
+  const ribbonPng = await readFile(
+    new URL("../public/gift-ribbon.png", import.meta.url),
+  );
   const attachment = await certificatePdfAttachment({
     code: "CERT-1234-ABCD-5678-EF90",
     ticketId: "SE-ABCDEF12",
     amount: "USD 25.00",
     issuedAt: "5 de octubre de 2026, 4:30 p. m.",
+    ribbonPng,
   });
   assert.equal(attachment.filename, "certificado-CERT-1234-ABCD-5678-EF90.pdf");
   const pdf = Buffer.from(attachment.content, "base64");
   assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
-  assert.ok(pdf.length > 1_000);
-  assert.ok(pdf.length < 500_000);
+  assert.ok(pdf.length > 1_000_000);
+  assert.ok(pdf.length < 3_000_000);
 });
 
 test("portal versions its client bundle and can refresh changed ticket conditions", async () => {
@@ -1171,8 +1175,16 @@ async function setup(open = true, overrides = {}) {
       r2Buckets: ["DOCUMENTS"],
       durableObjects: { TICKET_ROOM: "TicketRoom" },
       serviceBindings: {
-        ASSETS: (request) => {
-          assetRequests.push(new URL(request.url).pathname);
+        ASSETS: async (request) => {
+          const path = new URL(request.url).pathname;
+          assetRequests.push(path);
+          if (path === "/gift-ribbon.png")
+            return new Response(
+              await readFile(
+                new URL("../public/gift-ribbon.png", import.meta.url),
+              ),
+              { headers: { "content-type": "image/png" } },
+            );
           return new Response("asset");
         },
       },

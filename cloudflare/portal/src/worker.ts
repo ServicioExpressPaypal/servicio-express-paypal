@@ -505,6 +505,10 @@ async function notifyCertificateDelivery(env: Env, ticketId: string) {
       },
     );
     const value = ticketMoney(ticket.amount);
+    const ribbonResponse = await env.ASSETS.fetch(
+      new Request(new URL("/gift-ribbon.png", env.APP_URL)),
+    );
+    if (!ribbonResponse.ok) throw new Error("Certificate ribbon unavailable");
     const mail = certificateDeliveryMail({
       code: ticket.certificate_code,
       ticketId: ticket.id,
@@ -518,6 +522,7 @@ async function notifyCertificateDelivery(env: Env, ticketId: string) {
         ticketId: ticket.id,
         amount: value,
         issuedAt,
+        ribbonPng: new Uint8Array(await ribbonResponse.arrayBuffer()),
       }),
     ];
     await sendMailContent(env, ticket.email, mail);
