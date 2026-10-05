@@ -34,6 +34,11 @@ const managuaDate = (timestamp: number) =>
 // First instant (UTC ms) of a Managua calendar day.
 const dayStart = (date: string) =>
   Date.parse(date + "T00:00:00Z") + MANAGUA_OFFSET;
+const nextMonthStart = (month: string) => {
+  const value = new Date(month + "-01T00:00:00Z");
+  value.setUTCMonth(value.getUTCMonth() + 1);
+  return value.getTime() + MANAGUA_OFFSET;
+};
 
 export function parseAccountingDate(value: string | null, now = Date.now()) {
   if (!value) return managuaDate(now);
@@ -91,13 +96,15 @@ export async function accountingReport(env: Env, dateParam: string | null) {
   const date = parseAccountingDate(dateParam);
   const month = date.slice(0, 7);
   const monthStart = dayStart(month + "-01");
+  const monthEnd = nextMonthStart(month);
   const start = dayStart(date);
   const trailingStart = start - 13 * DAY;
   const from = Math.min(monthStart, trailingStart);
+  const to = Math.max(monthEnd, start + DAY);
   const rows = await env.DB.prepare(
     "SELECT id,mode,amount,estimate,processing_started_at,processing_completed_at FROM tickets WHERE processing_started_at>=? AND processing_started_at<? AND status!='cancelled' ORDER BY processing_started_at,id LIMIT 5000",
   )
-    .bind(from, start + DAY)
+    .bind(from, to)
     .all<Row>();
   const day = { ...empty(), tickets: [] as ReturnType<typeof entry>[] };
   const monthTotals = empty();

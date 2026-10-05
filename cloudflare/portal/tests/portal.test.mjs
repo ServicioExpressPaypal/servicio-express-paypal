@@ -2947,6 +2947,8 @@ test("admin accounting reports profit per paid ticket and per Managua day withou
     const second = await make("600");
     await processing(second, "start");
     const unpaid = await make("50");
+    const laterInMonth = await make("700");
+    await processing(laterInMonth, "start");
     // 2026-10-03 23:30 and 2026-10-04 00:30 in Managua (UTC-6).
     const lateNight = Date.parse("2026-10-04T05:30:00Z");
     const afterMidnight = Date.parse("2026-10-04T06:30:00Z");
@@ -2957,6 +2959,10 @@ test("admin accounting reports profit per paid ticket and per Managua day withou
     await s.db
       .prepare("UPDATE tickets SET processing_started_at=? WHERE id=?")
       .bind(afterMidnight, second)
+      .run();
+    await s.db
+      .prepare("UPDATE tickets SET processing_started_at=? WHERE id=?")
+      .bind(Date.parse("2026-10-06T18:00:00Z"), laterInMonth)
       .run();
     const estimate = JSON.parse(
       (
@@ -2988,10 +2994,13 @@ test("admin accounting reports profit per paid ticket and per Managua day withou
     assert.equal(report.day.profit, estimate.service);
     assert.equal(report.day.count, 1);
     assert.equal(report.day.delivered, 0);
-    // The unpaid ticket never counts; the month adds both paid tickets.
+    // The unpaid ticket never counts; the month includes paid tickets after
+    // the selected day while the day and trailing window remain unchanged.
     assert.ok(!JSON.stringify(report).includes(unpaid));
+    assert.ok(!JSON.stringify(report.day).includes(laterInMonth));
+    assert.ok(!JSON.stringify(report.days).includes(laterInMonth));
     assert.equal(report.month.label, "2026-10");
-    assert.equal(report.month.count, 2);
+    assert.equal(report.month.count, 3);
     const firstEstimate = JSON.parse(
       (
         await s.db
@@ -3000,7 +3009,18 @@ test("admin accounting reports profit per paid ticket and per Managua day withou
           .first()
       ).estimate,
     );
-    assert.equal(report.month.profit, firstEstimate.service + estimate.service);
+    const laterEstimate = JSON.parse(
+      (
+        await s.db
+          .prepare("SELECT estimate FROM tickets WHERE id=?")
+          .bind(laterInMonth)
+          .first()
+      ).estimate,
+    );
+    assert.equal(
+      report.month.profit,
+      firstEstimate.service + estimate.service + laterEstimate.service,
+    );
     assert.equal(previousDay.day.profit, firstEstimate.service);
     const byDay = Object.fromEntries(report.days.map((d) => [d.date, d]));
     assert.equal(byDay["2026-10-03"].count, 1);
