@@ -255,6 +255,26 @@ test(
       assert.match(await row.innerText(), /USD\s164\.00/);
       assert.match(await row.innerText(), /USD\s4\.92/);
       assert.match(await row.innerText(), /Pago confirmado/);
+      // Stable column widths keep the reference, amounts and status separated.
+      const columnWidths = await page
+        .locator(".accounting-tickets thead th")
+        .evaluateAll((cells) =>
+          cells.map((cell) => Math.round(cell.getBoundingClientRect().width)),
+      );
+      assert.ok(columnWidths[1] >= 220);
+      const amountWidths = columnWidths.slice(3, 7);
+      assert.ok(amountWidths.every((width) => width >= 108));
+      assert.ok(Math.max(...amountWidths) - Math.min(...amountWidths) <= 1);
+      assert.ok(columnWidths[7] >= 140);
+      assert.ok(
+        await page
+          .locator(".accounting-tickets tbody td.num")
+          .evaluateAll((cells) =>
+            cells.every(
+              (cell) => getComputedStyle(cell).textAlign === "right",
+            ),
+          ),
+      );
       // No beneficiary or bank data in the accounting view.
       assert.doesNotMatch(
         await page.locator("main").innerText(),

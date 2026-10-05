@@ -1945,12 +1945,37 @@ div.turn-now span {
   border-collapse: collapse;
   font-size: 14px;
 }
+.accounting-table.accounting-tickets {
+  min-width: 1008px;
+  table-layout: fixed;
+}
+.accounting-tickets .accounting-col-time {
+  width: 92px;
+}
+.accounting-tickets .accounting-col-ticket {
+  width: 228px;
+}
+.accounting-tickets .accounting-col-method {
+  width: 112px;
+}
+.accounting-tickets .accounting-col-money {
+  width: 108px;
+}
+.accounting-tickets .accounting-col-status {
+  width: 144px;
+}
 .accounting-table th,
 .accounting-table td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   text-align: left;
   white-space: nowrap;
+}
+.accounting-table thead th {
+  background: #f7f8f9;
+  color: #4e5965;
+  font-size: 12px;
+  font-weight: 750;
 }
 .accounting-table .num {
   text-align: right;
@@ -1971,6 +1996,17 @@ div.turn-now span {
 .accounting-table .text-button {
   padding: 0;
   font-size: 13px;
+}
+.accounting-ticket-cell {
+  min-width: 0;
+}
+.accounting-table .accounting-ticket-link {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .accounting-note {
   margin-top: 8px;
@@ -1993,60 +2029,68 @@ div.turn-now span {
   min-width: 0;
 }
 @media (max-width: 600px) {
-  .accounting-table.stack {
+  .accounting-table.accounting-stack {
     min-width: 0;
+    table-layout: auto;
   }
-  .accounting-table.stack thead {
+  .accounting-table.accounting-stack colgroup {
     display: none;
   }
-  .accounting-table.stack tbody tr {
+  .accounting-table.accounting-stack thead {
+    display: none;
+  }
+  .accounting-table.accounting-stack tbody tr {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 2px 12px;
     padding: 12px;
     border-bottom: 1px solid var(--line);
   }
-  .accounting-table.stack tbody td {
+  .accounting-table.accounting-stack tbody td {
     display: block;
     padding: 2px 0;
     border: 0;
     white-space: normal;
     text-align: left;
   }
-  .accounting-table.stack tbody td::before {
+  .accounting-table.accounting-stack tbody td::before {
     content: attr(data-label);
     display: block;
     color: var(--muted);
     font-size: 12px;
   }
-  .accounting-table.stack tbody td[data-label="Ticket"] {
+  .accounting-table.accounting-stack tbody td[data-label="Ticket"] {
     grid-column: 1 / -1;
     overflow-wrap: anywhere;
   }
-  .accounting-table.stack tbody td.num {
+  .accounting-table.accounting-stack .accounting-ticket-link {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .accounting-table.accounting-stack tbody td.num {
     text-align: left;
   }
-  .accounting-table.stack tfoot tr {
+  .accounting-table.accounting-stack tfoot tr {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 2px 12px;
     padding: 12px;
     background: #f7f8f9;
   }
-  .accounting-table.stack tfoot th {
+  .accounting-table.accounting-stack tfoot th {
     display: block;
     padding: 2px 0;
     background: transparent;
     text-align: left;
     white-space: normal;
   }
-  .accounting-table.stack tfoot th[colspan] {
+  .accounting-table.accounting-stack tfoot th[colspan] {
     grid-column: 1 / -1;
   }
-  .accounting-table.stack tfoot th:empty {
+  .accounting-table.accounting-stack tfoot th:empty {
     display: none;
   }
-  .accounting-table.stack tfoot th[data-label]::before {
+  .accounting-table.accounting-stack tfoot th[data-label]::before {
     content: attr(data-label);
     display: block;
     color: var(--muted);
