@@ -105,7 +105,9 @@ test("terms describe the digital gift certificate, payment methods and ticket mo
   assert.match(terms, /24 horas de\s+vigencia/);
   assert.match(terms, /6 días hábiles/);
   assert.match(terms, /Una vez entregado el certificado no hay reembolso/);
-  assert.match(terms, /canal oficial de WhatsApp/);
+  assert.match(terms, /todo el proceso\s+\(solicitud, pago, seguimiento y entrega\) se hace dentro de la\s+plataforma/);
+  assert.match(terms, /WhatsApp\s+<a [^>]*>\+505 8619 9889<\/a> es solo para\s+consultas/);
+  assert.doesNotMatch(terms, /fuera de (la|este) (plataforma|portal)|se coordina por/i);
   assert.doesNotMatch(terms, /<table/i);
 });
 
