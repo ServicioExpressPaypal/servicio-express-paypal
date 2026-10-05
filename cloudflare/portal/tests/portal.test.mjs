@@ -34,20 +34,49 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
   const link =
     "https://portal.example.test/api/auth/verify-email?token=a.b&x=<1>";
   const v = verificationMail(link);
+  const approved = accountDecisionMail("active", "ok", "https://a.test/");
   assert.ok(
     v.html.includes(
       'href="https://portal.example.test/api/auth/verify-email?token=a.b&amp;x=&lt;1&gt;"',
     ),
   );
   assert.equal(v.text.match(/https:\/\/\S+/)[0], link);
+  for (const m of [v, approved]) {
+    assert.match(
+      m.html,
+      /src="https:\/\/saldoexpressnicaragua\.com\/assets\/logo-saldo-express-header\.jpg"/,
+    );
+    assert.match(m.html, /alt="Saldo Express"/);
+  }
   for (const m of [
     v,
     resetPasswordMail(link),
     passwordResetDoneMail(),
     passwordChangedMail(),
-    accountDecisionMail("active", "ok", "https://a.test/"),
+    approved,
   ])
-    assert.ok(!/<script|<img|src=/i.test(m.html));
+    assert.ok(!/<script|width="1"|height="1"/i.test(m.html));
+  for (const m of [
+    resetPasswordMail(link),
+    passwordResetDoneMail(),
+    passwordChangedMail(),
+  ])
+    assert.ok(!/<img|src=/i.test(m.html));
+  for (const m of [
+    v,
+    approved,
+    resetPasswordMail(link),
+    passwordResetDoneMail(),
+    passwordChangedMail(),
+  ]) {
+    assert.ok(!m.text.includes("Responsable: SoftOhm Systems LLC"));
+    assert.ok(!m.html.includes("Responsable: SoftOhm Systems LLC"));
+    assert.ok(!m.text.includes("Nunca te pediremos"));
+    assert.ok(!m.html.includes("Nunca te pediremos"));
+  }
+  assert.equal(approved.subject, "Tu cuenta fue aprobada | Saldo Express");
+  assert.match(approved.html, /CUENTA APROBADA/);
+  assert.match(approved.html, /Entrar a mi cuenta/);
   assert.match(resetPasswordMail(link).text, /1 hora/);
   const d = accountDecisionMail(
     "suspended",
@@ -1223,7 +1252,7 @@ async function setup(open = true, overrides = {}) {
       (e) => e.to.includes(email) && e.text.includes("/api/auth/verify-email"),
     );
     assert.ok(message, "verification email dispatched");
-    assert.match(message.html, /Confirmar mi correo/);
+    assert.match(message.html, /Verificar mi correo/);
     assert.equal(message.reply_to, "support@example.test");
     const url = new URL(message.text.match(/https:\/\/\S+/)[0]);
     r = await req(url.pathname + url.search);
@@ -1563,12 +1592,13 @@ test("owner invitation is private, expires, single-use and does not open custome
     assert.equal((await req("/api/config")).data.registrationOpen, false);
     for (
       let n = 0;
-      n < 30 && !s.emails.some((e) => e.subject === "Verifica tu correo");
+      n < 30 &&
+      !s.emails.some((e) => e.subject === "Confirma tu correo | Saldo Express");
       n++
     )
       await new Promise((r) => setTimeout(r, 20));
     const verification = s.emails.find(
-      (e) => e.subject === "Verifica tu correo",
+      (e) => e.subject === "Confirma tu correo | Saldo Express",
     );
     assert.ok(verification);
     const url = new URL(verification.text.match(/https:\/\/\S+/)[0]);
@@ -1713,7 +1743,7 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
       !s.emails.some(
         (email) =>
           email.to.includes("client-a@example.test") &&
-          email.subject.includes("Actualización"),
+          email.subject.includes("aprobada"),
       );
       n++
     )
@@ -1721,11 +1751,11 @@ test("verified auth, minimal profile, MFA admin, activation, persistent tickets,
     const activationNotice = s.emails.find(
       (email) =>
         email.to.includes("client-a@example.test") &&
-        email.subject.includes("Actualización"),
+        email.subject.includes("aprobada"),
     );
     assert.ok(activationNotice, "account activation notice dispatched");
     assert.match(activationNotice.text, /Expediente ficticio verificado/);
-    assert.match(activationNotice.html, /Abrir mi cuenta/);
+    assert.match(activationNotice.html, /Entrar a mi cuenta/);
     assert.ok(!activationNotice.text.includes(ticket().bankAccount));
     const activationRow = await s.db
       .prepare(
