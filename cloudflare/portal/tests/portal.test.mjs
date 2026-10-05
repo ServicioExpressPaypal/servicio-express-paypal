@@ -41,7 +41,13 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
     ),
   );
   assert.equal(v.text.match(/https:\/\/\S+/)[0], link);
-  for (const m of [v, approved]) {
+  for (const m of [
+    v,
+    approved,
+    resetPasswordMail(link),
+    passwordResetDoneMail(),
+    passwordChangedMail(),
+  ]) {
     assert.match(
       m.html,
       /src="https:\/\/saldoexpressnicaragua\.com\/assets\/logo-saldo-express-header\.jpg"/,
@@ -57,12 +63,6 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
   ])
     assert.ok(!/<script|width="1"|height="1"/i.test(m.html));
   for (const m of [
-    resetPasswordMail(link),
-    passwordResetDoneMail(),
-    passwordChangedMail(),
-  ])
-    assert.ok(!/<img|src=/i.test(m.html));
-  for (const m of [
     v,
     approved,
     resetPasswordMail(link),
@@ -77,6 +77,12 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
   assert.equal(approved.subject, "Tu cuenta fue aprobada | Saldo Express");
   assert.match(approved.html, /CUENTA APROBADA/);
   assert.match(approved.html, /Entrar a mi cuenta/);
+  assert.match(
+    resetPasswordMail(link).subject,
+    /Restablece tu contraseña \| Saldo Express/,
+  );
+  assert.match(resetPasswordMail(link).html, /SEGURIDAD DE LA CUENTA/);
+  assert.match(resetPasswordMail(link).html, /Crear nueva contraseña/);
   assert.match(resetPasswordMail(link).text, /1 hora/);
   const d = accountDecisionMail(
     "suspended",

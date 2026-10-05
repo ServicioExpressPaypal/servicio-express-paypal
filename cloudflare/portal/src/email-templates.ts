@@ -168,37 +168,44 @@ export const verificationMail = (url: string) =>
 
 export const resetPasswordMail = (url: string) =>
   render({
-    subject: "Restablece tu contraseña",
-    preheader: "Elige una nueva contraseña para tu cuenta.",
-    title: "Restablece tu contraseña",
+    subject: "Restablece tu contraseña | Saldo Express",
+    preheader: "Crea una nueva contraseña para recuperar el acceso.",
+    eyebrow: "SEGURIDAD DE LA CUENTA",
+    logo: true,
+    title: "Crea una contraseña nueva",
     paragraphs: [
-      "Recibimos una solicitud para restablecer la contraseña de tu cuenta de Saldo Express. Usa el botón para elegir una nueva.",
+      "Recibimos una solicitud para restablecer la contraseña de tu cuenta de Saldo Express.",
+      "Usa el siguiente botón para crear una contraseña nueva y recuperar el acceso a tu cuenta.",
     ],
-    button: { label: "Elegir nueva contraseña", url },
+    button: { label: "Crear nueva contraseña", url },
     small: [
-      "El enlace vence en 1 hora. Al cambiar la contraseña cerraremos tus sesiones abiertas.",
-      "Si no lo solicitaste, ignora este mensaje: tu contraseña actual sigue siendo válida.",
+      "Este enlace vence en 1 hora y solo puede usarse una vez.",
+      "Si no solicitaste este cambio, ignora el mensaje. Tu contraseña actual seguirá funcionando.",
     ],
   });
 
 export const passwordResetDoneMail = () =>
   render({
-    subject: "Tu contraseña fue restablecida",
-    preheader: "La contraseña de tu cuenta fue restablecida.",
-    title: "Contraseña restablecida",
+    subject: "Contraseña restablecida | Saldo Express",
+    preheader: "Ya puedes entrar con tu nueva contraseña.",
+    eyebrow: "CAMBIO CONFIRMADO",
+    logo: true,
+    title: "Tu contraseña fue restablecida",
     paragraphs: [
-      "La contraseña de tu cuenta de Saldo Express fue restablecida y cerramos las sesiones anteriores.",
+      "Tu nueva contraseña ya está activa. También cerramos las sesiones anteriores para proteger tu cuenta.",
     ],
     small: [`Si no fuiste tú, escribe cuanto antes a ${CONTACT}.`],
   });
 
 export const passwordChangedMail = () =>
   render({
-    subject: "Tu contraseña fue cambiada",
-    preheader: "Cambiaste la contraseña de tu cuenta.",
-    title: "Contraseña cambiada",
+    subject: "Contraseña actualizada | Saldo Express",
+    preheader: "La contraseña de tu cuenta fue actualizada.",
+    eyebrow: "CAMBIO CONFIRMADO",
+    logo: true,
+    title: "Tu contraseña fue actualizada",
     paragraphs: [
-      "Cambiaste la contraseña de tu cuenta de Saldo Express y cerramos tus otras sesiones.",
+      "La contraseña de tu cuenta de Saldo Express fue actualizada. También cerramos las otras sesiones abiertas.",
     ],
     small: [`Si no fuiste tú, escribe cuanto antes a ${CONTACT}.`],
   });
