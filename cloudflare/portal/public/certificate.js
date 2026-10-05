@@ -1,23 +1,24 @@
 export default (function () {
   "use strict";
-  // v7 only clarifies the legal texts (response deadlines, external payment
-  // records, changes clause). It adds no data, purposes or recipients, so it is
+  // v8 clarifies that the customer process stays in the portal and WhatsApp is
+  // only a support channel. It adds no data, purposes or recipients, so it is
   // not a material change: existing accounts keep the version they accepted
-  // (e.g. v6) in registration_consents. A material change needs a renewed
-  // acceptance flow before the version is bumped.
-  const version = "cuenta-revision-2026-09-30-v7";
+  // (for example v7) in registration_consents. A material change needs a
+  // renewed acceptance flow.
+  const version = "cuenta-revision-2026-10-05-v8";
   const reviewNotice =
     "Revisaremos tu solicitud en un plazo de hasta 2 días hábiles, de lunes a viernes, después de verificar tu correo y completar el formulario. Te notificaremos por correo si fue aprobada, rechazada o necesita aclaraciones. Hasta su aprobación no podrás crear tickets.";
-  const ticketConditionsVersion = "ticket-condiciones-2026-10-04-v6";
+  const ticketConditionsVersion = "ticket-condiciones-2026-10-05-v7";
   const extendedInternationalValidityVersions = new Set([
     "ticket-condiciones-2026-09-30-v5",
+    "ticket-condiciones-2026-10-04-v6",
     ticketConditionsVersion,
   ]);
   const title = "Certificado de regalo en efectivo";
   const supportEmail = "soportesaldoexpress@gmail.com";
   const presetAmounts = Object.freeze([50, 100, 200, 300, 400, 500]);
   const description =
-    "Un regalo de valor monetario para compartir con tu familia o con un beneficiario que elijas. Su solicitud se gestiona de forma digital mediante un ticket. Crear el ticket no completa la compra ni emite el certificado; el pago y la entrega se coordinan por separado.";
+    "Un regalo de valor monetario para compartir con tu familia o con un beneficiario que elijas. La solicitud, el pago, el seguimiento y la entrega se gestionan mediante un ticket dentro de la plataforma. Crear el ticket no completa la compra ni emite el certificado.";
   const banks = ["LAFISE", "BDF", "Banpro", "BAC", "Ficohsa", "Avanz"];
   const ticketConditions = [
     "Solo se procesan órdenes pagadas con cuentas verificadas por PayPal.",

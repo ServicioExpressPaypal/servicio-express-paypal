@@ -985,7 +985,7 @@ import {
       : '<p class="notice">La conversación está cerrada porque el ticket venció o finalizó.</p>';
     const whatsappText = ticketShareText(t, location.origin + "/");
     const whatsapp = me.admin
-      ? `<section class="external-purchase"><div><h2>${me.admin ? "Resumen por WhatsApp" : "Continuar por WhatsApp"}</h2><p>${me.admin ? "Compartí referencia, montos y plazo. Los datos bancarios quedan en el panel privado. El envío requiere confirmación en WhatsApp." : "Tu ticket está registrado. Continuá por WhatsApp para coordinar la atención."}</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(whatsappText)}" target="_blank" rel="noopener">${icon("message-circle")}${me.admin ? "Enviar resumen a Saldo Express" : "Abrir WhatsApp"}</a></section>`
+      ? `<section class="external-purchase"><div><h2>Aviso interno por WhatsApp</h2><p>Compartí la referencia, los montos y el plazo como aviso operativo. Los datos bancarios quedan en el panel privado. El pago y el envío se confirman únicamente desde este panel.</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(whatsappText)}" target="_blank" rel="noopener">${icon("message-circle")}Enviar aviso a Saldo Express</a></section>`
       : "";
     const notification = me.admin
       ? `<p class="notice"><strong>Aviso del ticket:</strong> Correo ${t.notification?.email_delivered ? "enviado" : "pendiente"} · WhatsApp ${t.notification?.whatsapp_delivered ? "enviado" : config.whatsappEnabled ? (t.notification?.whatsapp_attempts ? "en reintento" : "en cola") : "pendiente de activación"}. El aviso no contiene el número de cuenta.</p>`

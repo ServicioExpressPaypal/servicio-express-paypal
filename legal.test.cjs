@@ -111,11 +111,14 @@ test("terms describe the digital gift certificate, payment methods and ticket mo
   assert.doesNotMatch(terms, /<table/i);
 });
 
-test("ticket source includes the 24-hour conversation and WhatsApp handoff", () => {
+test("ticket source includes the 24-hour conversation and admin WhatsApp notice", () => {
   const app = read("cloudflare/portal/public/app.js");
   const migration = read("cloudflare/portal/migrations/0004_ticket_chat.sql");
   assert.match(app, /Conversación del ticket/);
   assert.match(app, /wa\.me\/50586199889/);
+  assert.match(app, /Aviso interno por WhatsApp/);
+  assert.match(app, /El pago y el envío se confirman únicamente desde este panel/);
+  assert.doesNotMatch(app, /requiere confirmación en WhatsApp/);
   assert.match(app, /vigencia es de 24 horas/);
   assert.match(app, /6 días hábiles desde la confirmación del pago/);
   assert.match(migration, /CREATE TABLE ticket_messages/);
