@@ -69,10 +69,11 @@ test(
           }
         });
       });
-      browser = await playwright.chromium.launch({
-        executablePath:
-          process.env.PLAYWRIGHT_CHROMIUM || "/opt/pw-browsers/chromium",
-      });
+      browser = await playwright.chromium.launch(
+        process.env.PLAYWRIGHT_CHROMIUM
+          ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM }
+          : {},
+      );
       const page = await (
         await browser.newContext({ viewport: { width: 1000, height: 900 } })
       ).newPage();
@@ -125,7 +126,8 @@ test(
         expressId,
         { timeout: 10000 },
       );
-      // Admin confirms delivery: it moves to "Certificados recientes".
+      // Admin confirms delivery immediately after the first live refresh. The
+      // backup check catches it even if it lands while sockets reconnect.
       assert.equal(
         (
           await admin(`/api/admin/tickets/${expressId}/processing`, {

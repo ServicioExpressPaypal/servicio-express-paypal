@@ -637,6 +637,11 @@ import {
       result.items
         .filter((t) => !t.processing_completed_at && !t.expired)
         .map((t) => t.id),
+      async () => {
+        const current = await api("/api/account/history?" + params);
+        return listSignature(current.items, current.total) !==
+          listSignature(result.items, result.total);
+      },
     );
   }
   async function tickets() {
@@ -687,7 +692,27 @@ import {
           (b.onclick = () =>
             detail(b.dataset.ticket).catch((e) => toast(e.message))),
       );
-    if (!me.admin) watchTickets(rows.map((t) => t.id));
+    if (!me.admin) {
+      const snapshot = listSignature(
+        [...rows, ...recent.items],
+        rows.length + recent.total,
+      );
+      watchTickets(
+        rows.map((t) => t.id),
+        async () => {
+          const [active, finished] = await Promise.all([
+            api("/api/account/history?status=active"),
+            api("/api/account/history?status=recent"),
+          ]);
+          return (
+            listSignature(
+              [...active.items, ...finished.items],
+              active.total + finished.total,
+            ) !== snapshot
+          );
+        },
+      );
+    }
   }
   function newTicket(presetAmount) {
     main.className = "ticket-create-view";
@@ -846,8 +871,19 @@ import {
   let listSockets = [];
   let listWatchMarker = null;
   let listReloadTimer;
+  let listPollTimer;
+  let listPollBusy = false;
+  function listSignature(items, total = items.length) {
+    return `${total}|${items
+      .map((ticket) =>
+        [ticket.id, ticket.status, ticket.version, ticket.updated_at].join(":"),
+      )
+      .join("|")}`;
+  }
   function stopWatchingTickets() {
     clearTimeout(listReloadTimer);
+    clearInterval(listPollTimer);
+    listPollBusy = false;
     listSockets.forEach((socket) => {
       socket.onclose = null;
       socket.close();
@@ -855,9 +891,9 @@ import {
     listSockets = [];
     listWatchMarker = null;
   }
-  function watchTickets(ids) {
+  function watchTickets(ids, hasChanged) {
     stopWatchingTickets();
-    if (!("WebSocket" in window) || !ids.length) return;
+    if (!ids.length) return;
     const marker = (listWatchMarker = main.firstElementChild);
     const reload = () => {
       clearTimeout(listReloadTimer);
@@ -868,6 +904,25 @@ import {
         render().then(() => window.scrollTo(0, scroll));
       }, 250);
     };
+    if (hasChanged) {
+      listPollTimer = setInterval(async () => {
+        if (
+          listPollBusy ||
+          listWatchMarker !== marker ||
+          document.activeElement?.closest("form")
+        )
+          return;
+        listPollBusy = true;
+        try {
+          if (await hasChanged()) reload();
+        } catch {
+          /* WebSocket remains the primary update path. */
+        } finally {
+          listPollBusy = false;
+        }
+      }, 5000);
+    }
+    if (!("WebSocket" in window)) return;
     ids.slice(0, 6).forEach((id) => {
       const open = (delay = 1000) => {
         if (listWatchMarker !== marker) return;
