@@ -4,6 +4,7 @@ import {
   certificateDeliveryMail,
   passwordChangedMail,
 } from "./email-templates";
+import { certificatePdfAttachment } from "./certificate-pdf";
 import { setupEnabled, inviteAdmin, completeAdminSetup } from "./admin-setup";
 import "../../../calculator-core.js";
 import "../../../_pilot/tickets/domain.js";
@@ -471,23 +472,6 @@ function createCertificateCode() {
     .toUpperCase();
   return `CERT-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}`;
 }
-function certificateValue(ticket: {
-  delivery_amount: string | null;
-  estimate: string;
-}) {
-  if (ticket.delivery_amount) {
-    const delivery = JSON.parse(ticket.delivery_amount) as {
-      received: number;
-      currency: string;
-    };
-    return new Intl.NumberFormat("es-NI", {
-      style: "currency",
-      currency: delivery.currency,
-    }).format(delivery.received / 100);
-  }
-  const estimate = JSON.parse(ticket.estimate) as { net: number };
-  return ticketMoney(estimate.net);
-}
 async function notifyCertificateDelivery(env: Env, ticketId: string) {
   if (env.EMAIL_PROVIDER === "disabled") return;
   const now = Date.now();
@@ -498,14 +482,13 @@ async function notifyCertificateDelivery(env: Env, ticketId: string) {
     .first<{ id: string }>();
   if (!claim) return;
   const ticket = await env.DB.prepare(
-    "SELECT t.id,t.user_id,t.estimate,t.delivery_amount,t.certificate_code,t.processing_completed_at,u.email FROM tickets t JOIN user u ON u.id=t.user_id WHERE t.id=?",
+    "SELECT t.id,t.user_id,t.amount,t.certificate_code,t.processing_completed_at,u.email FROM tickets t JOIN user u ON u.id=t.user_id WHERE t.id=?",
   )
     .bind(ticketId)
     .first<{
       id: string;
       user_id: string;
-      estimate: string;
-      delivery_amount: string | null;
+      amount: number;
       certificate_code: string;
       processing_completed_at: number;
       email: string;
@@ -520,17 +503,23 @@ async function notifyCertificateDelivery(env: Env, ticketId: string) {
         timeStyle: "short",
       },
     );
-    await sendMailContent(
-      env,
-      ticket.email,
-      certificateDeliveryMail({
+    const value = ticketMoney(ticket.amount);
+    const mail = certificateDeliveryMail({
+      code: ticket.certificate_code,
+      ticketId: ticket.id,
+      value,
+      issuedAt,
+      appUrl: `${env.APP_URL}/?ticket=${encodeURIComponent(ticket.id)}`,
+    });
+    mail.attachments = [
+      await certificatePdfAttachment({
         code: ticket.certificate_code,
         ticketId: ticket.id,
-        value: certificateValue(ticket),
+        amount: value,
         issuedAt,
-        appUrl: `${env.APP_URL}/?ticket=${encodeURIComponent(ticket.id)}`,
       }),
-    );
+    ];
+    await sendMailContent(env, ticket.email, mail);
     const sentAt = Date.now();
     await env.DB.batch([
       env.DB.prepare(

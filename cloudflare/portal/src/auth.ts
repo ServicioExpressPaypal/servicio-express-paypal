@@ -8,6 +8,7 @@ import {
   resetPasswordMail,
   verificationMail,
   type Mail,
+  type MailAttachment,
 } from "./email-templates";
 
 type MailEnv = Pick<
@@ -136,8 +137,11 @@ export async function sendMail(
   subject: string,
   text: string,
   html?: string,
+  attachments?: MailAttachment[],
 ) {
   if (env.EMAIL_PROVIDER === "cloudflare" && env.EMAIL) {
+    if (attachments?.length)
+      throw new Error("Email attachments require the Resend provider");
     await env.EMAIL.send({
       from: env.EMAIL_FROM,
       to,
@@ -161,6 +165,7 @@ export async function sendMail(
         subject,
         text,
         ...(html ? { html } : {}),
+        ...(attachments?.length ? { attachments } : {}),
       }),
     });
     if (!response.ok) throw new Error("Email delivery failed");
@@ -169,4 +174,4 @@ export async function sendMail(
   throw new Error("Email sending unavailable");
 }
 export const sendMailContent = (env: MailEnv, to: string, mail: Mail) =>
-  sendMail(env, to, mail.subject, mail.text, mail.html);
+  sendMail(env, to, mail.subject, mail.text, mail.html, mail.attachments);

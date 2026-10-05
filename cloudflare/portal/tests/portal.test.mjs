@@ -12,6 +12,7 @@ import {
   resetPasswordMail,
   verificationMail,
 } from "../src/email-templates.ts";
+import { certificatePdfAttachment } from "../src/certificate-pdf.ts";
 import {
   encryptField,
   decryptField,
@@ -39,7 +40,7 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
   const certificate = certificateDeliveryMail({
     code: "CERT-1234-ABCD-5678-EF90",
     ticketId: "SE-ABCDEF12",
-    value: "USD 44.00",
+    value: "USD 50.00",
     issuedAt: "5 de octubre de 2026, 4:30 p. m.",
     appUrl: "https://portal.example.test/?ticket=SE-ABCDEF12",
   });
@@ -96,7 +97,7 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
   assert.match(resetPasswordMail(link).html, /Crear nueva contraseña/);
   assert.match(resetPasswordMail(link).text, /1 hora/);
   assert.match(certificate.subject, /CERT-1234-ABCD-5678-EF90/);
-  assert.match(certificate.text, /Valor entregado: USD 44\.00/);
+  assert.match(certificate.text, /Monto del certificado: USD 50\.00/);
   assert.match(certificate.text, /Ticket: SE-ABCDEF12/);
   assert.match(certificate.html, /CERTIFICADO DE REGALO/);
   assert.match(
@@ -113,6 +114,20 @@ test("customer emails are escaped, link-safe and keep a plain-text alternative",
   assert.ok(d.text.includes('Motivo: <b>x</b> & "y"'));
   assert.ok(!d.html.includes("<a "));
   assert.throws(() => verificationMail("javascript:alert(1)"));
+});
+
+test("digital certificate PDF is a valid attachment without destination data", async () => {
+  const attachment = await certificatePdfAttachment({
+    code: "CERT-1234-ABCD-5678-EF90",
+    ticketId: "SE-ABCDEF12",
+    amount: "USD 25.00",
+    issuedAt: "5 de octubre de 2026, 4:30 p. m.",
+  });
+  assert.equal(attachment.filename, "certificado-CERT-1234-ABCD-5678-EF90.pdf");
+  const pdf = Buffer.from(attachment.content, "base64");
+  assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
+  assert.ok(pdf.length > 1_000);
+  assert.ok(pdf.length < 500_000);
 });
 
 test("scheduled security alerts aggregate counts, rate-limit mail and expire old events", async () => {
@@ -3513,7 +3528,22 @@ test("only admin can start paid international tracking; expiry erases destinatio
     assert.match(certificateEmail.html, /CERTIFICADO DE REGALO/);
     assert.match(certificateEmail.html, new RegExp(delivered.certificate_code));
     assert.match(certificateEmail.text, new RegExp(id));
-    assert.match(certificateEmail.text, /540/);
+    assert.match(certificateEmail.text, /Monto del certificado: USD 600\.00/);
+    assert.doesNotMatch(
+      certificateEmail.text,
+      /Monto del certificado: USD 540\.00/,
+    );
+    assert.equal(certificateEmail.attachments.length, 1);
+    assert.equal(
+      certificateEmail.attachments[0].filename,
+      `certificado-${delivered.certificate_code}.pdf`,
+    );
+    assert.equal(
+      Buffer.from(certificateEmail.attachments[0].content, "base64")
+        .subarray(0, 5)
+        .toString(),
+      "%PDF-",
+    );
     assert.ok(!certificateEmail.text.includes(ticket().beneficiaryName));
     assert.ok(!certificateEmail.text.includes(ticket().bankAccount));
     delivered = (await customer.req(`/api/tickets/${id}`)).data;

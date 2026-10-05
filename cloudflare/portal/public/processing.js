@@ -88,8 +88,8 @@ export function ticketShareText(ticket, portalUrl) {
   link.searchParams.set("ticket", ticket.id);
   return [
     `Solicitud Saldo Express: ${ticket.id}`,
-    `Monto solicitado: ${usd(ticket.amount)}`,
-    `Valor estimado: ${usd(ticket.estimate.net)}`,
+    `Monto del certificado: ${usd(ticket.amount)}`,
+    `Valor estimado a entregar: ${usd(ticket.estimate.net)}`,
     `Modalidad: ${ticket.amount > 50000 ? "Método internacional" : "Método Express"}`,
     ...(ticket.amount > 50000
       ? [

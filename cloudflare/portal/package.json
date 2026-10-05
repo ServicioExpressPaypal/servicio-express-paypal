@@ -12,7 +12,8 @@
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
-    "better-auth": "1.7.6"
+    "better-auth": "1.7.6",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@better-auth/utils": "0.4.2",
