@@ -130,6 +130,21 @@ test("digital certificate PDF is a valid attachment without destination data", a
   assert.ok(pdf.length < 500_000);
 });
 
+test("portal versions its client bundle and can refresh changed ticket conditions", async () => {
+  const shell = await readFile(
+    new URL("../public/app-shell.html", import.meta.url),
+    "utf8",
+  );
+  const app = await readFile(
+    new URL("../public/app.js", import.meta.url),
+    "utf8",
+  );
+  assert.match(shell, /app\.js\?v=20261005-10/);
+  assert.match(app, /certificate\.js\?v=20261005-9/);
+  assert.match(app, /certificate\.js\?refresh=/);
+  assert.match(app, /Actualizamos las condiciones en este formulario/);
+});
+
 test("scheduled security alerts aggregate counts, rate-limit mail and expire old events", async () => {
   const s = await setup();
   try {

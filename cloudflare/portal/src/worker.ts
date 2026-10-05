@@ -47,6 +47,7 @@ import {
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
 declare const TicketModel: typeof import("../../../_pilot/tickets/domain.js");
 declare const AccountModel: typeof import("../../../_pilot/tickets/accounts.js");
+const ASSET_VERSION = "20261005-10";
 type Profile = {
   user_id: string;
   status: string;
@@ -616,6 +617,7 @@ async function handle(
       fail(405, "Método no permitido.");
     if (path === "/" || path === "/index.html") {
       const appUrl = new URL("/app-shell.html", request.url);
+      appUrl.searchParams.set("v", ASSET_VERSION);
       return env.ASSETS.fetch(
         new Request(appUrl, {
           method: request.method,

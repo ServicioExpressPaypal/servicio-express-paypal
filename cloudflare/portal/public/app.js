@@ -1,10 +1,12 @@
-import CertificateModel from "./certificate.js";
-import { toCanvas } from "./qrcode.js";
+import InitialCertificateModel from "./certificate.js?v=20261005-9";
+import { toCanvas } from "./qrcode.js?v=20261005-10";
 import {
   processingWindow,
   ticketShareText,
   deliveryAmount,
-} from "./processing.js";
+} from "./processing.js?v=20261005-10";
+
+let CertificateModel = InitialCertificateModel;
 
 (() => {
   "use strict";
@@ -770,18 +772,39 @@ import {
     main.focus();
     window.scrollTo({ top: 0, behavior: "instant" });
     bind("ticket", async (f) => {
-      const result = await api("/api/tickets", {
-        amount: f.get("amount"),
-        beneficiaryName: f.get("beneficiaryName"),
-        bank: f.get("bank"),
-        bankAccount: f.get("bankAccount"),
-        currency: f.get("currency"),
-        paypalOwnership: f.get("paypalOwnership") === "on",
-        consent: f.get("consent") === "on",
-        conditionsAccepted: f.get("conditionsAccepted") === "on",
-        conditionsVersion: CertificateModel.ticketConditionsVersion,
-        requestKey,
-      });
+      let result;
+      try {
+        result = await api("/api/tickets", {
+          amount: f.get("amount"),
+          beneficiaryName: f.get("beneficiaryName"),
+          bank: f.get("bank"),
+          bankAccount: f.get("bankAccount"),
+          currency: f.get("currency"),
+          paypalOwnership: f.get("paypalOwnership") === "on",
+          consent: f.get("consent") === "on",
+          conditionsAccepted: f.get("conditionsAccepted") === "on",
+          conditionsVersion: CertificateModel.ticketConditionsVersion,
+          requestKey,
+        });
+      } catch (error) {
+        if (!error.message.includes("Las condiciones del ticket cambiaron"))
+          throw error;
+        const fresh = (await import(`./certificate.js?refresh=${Date.now()}`))
+          .default;
+        if (
+          fresh.ticketConditionsVersion ===
+          CertificateModel.ticketConditionsVersion
+        )
+          throw error;
+        CertificateModel = fresh;
+        $("#ticket .ticket-conditions ul").innerHTML = fresh.ticketConditions
+          .map((condition) => `<li>${esc(condition)}</li>`)
+          .join("");
+        $("#ticket [name=conditionsAccepted]").checked = false;
+        throw new Error(
+          "Actualizamos las condiciones en este formulario. Revísalas, vuelve a marcar su aceptación y envía el ticket nuevamente.",
+        );
+      }
       toast("Solicitud registrada.");
       await detail(result.id);
     });
