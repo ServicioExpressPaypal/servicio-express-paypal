@@ -908,6 +908,21 @@ h2 {
   background: var(--white);
 }
 
+.app-header .brand {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
 .brand-wordmark {
   color: var(--ink);
   font-size: 21px;
@@ -1632,6 +1647,12 @@ dialog {
 
   .brand-wordmark {
     font-size: 20px;
+  }
+
+  .brand-logo {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
   }
 
   #navigation {
