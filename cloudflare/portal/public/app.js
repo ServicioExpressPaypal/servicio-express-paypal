@@ -795,15 +795,21 @@ import {
       );
     };
   }
+  function turnWindowText(queue) {
+    const seconds = queue.windowSeconds || 120;
+    return seconds % 60 === 0
+      ? `${seconds / 60} ${seconds === 60 ? "minuto" : "minutos"}`
+      : `${seconds} segundos`;
+  }
   function turnNotice(queue) {
     if (!queue) return "";
     if (me.admin)
       return `<p class="notice turn-info">Cola: posición ${queue.position} de ${queue.total}.</p>`;
     if (!queue.isTurn)
-      return `<p class="notice turn-info"><strong>Turno ${queue.position} de ${queue.total}.</strong> ${queue.ahead === 1 ? "Hay 1 ticket antes que el tuyo." : `Hay ${queue.ahead} tickets antes que el tuyo.`} Te avisaremos aquí cuando sea tu turno.</p>`;
+      return `<p class="notice turn-info"><strong>Turno ${queue.position} de ${queue.total}.</strong> ${queue.ahead === 1 ? "Hay 1 ticket antes que el tuyo." : `Hay ${queue.ahead} tickets antes que el tuyo.`} Cuando sea tu turno tendrás ${turnWindowText(queue)} para pagar; si no pagas a tiempo, tu ticket pasa al final de la fila. Te avisaremos aquí.</p>`;
     if (!queue.turnExpiresAt)
       return '<p class="notice turn-now"><strong>Es tu turno.</strong> Puedes pagar ahora; no hay otros tickets esperando.</p>';
-    return '<p class="notice turn-now"><strong>Es tu turno.</strong> Tienes <time id="turn-timer"></time> para pagar. Si no, tu ticket pasa al final de la fila.</p>';
+    return `<div class="notice turn-now" role="timer"><strong>Es tu turno. Paga ahora.</strong><time id="turn-timer"></time><span>Tienes ${turnWindowText(queue)} para pagar. Si no, tu ticket pasa al final de la fila.</span></div>`;
   }
   async function detail(id) {
     clearInterval(turnTimer);
@@ -994,6 +1000,7 @@ import {
         $("#ticket-message").value = "";
         addChatMessage(sent);
       });
+    window.scrollTo({ top: 0, behavior: "instant" });
     const timer = $("#turn-timer");
     if (timer && t.queue?.turnExpiresAt) {
       const offset = t.queue.serverNow - Date.now();

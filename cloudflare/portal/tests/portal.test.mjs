@@ -2513,6 +2513,7 @@ test("customers get automatic turns by ticket creation order and admins are neve
     assert.equal(q.isTurn, true);
     assert.ok(q.turnExpiresAt > q.serverNow);
     assert.ok(q.turnExpiresAt - q.serverNow <= 120000);
+    assert.equal(q.windowSeconds, 120);
     q = await queueOf(b, second.data.id);
     assert.deepEqual(
       [q.position, q.ahead, q.isTurn, q.turnExpiresAt],

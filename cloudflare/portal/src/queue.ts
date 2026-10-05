@@ -110,6 +110,7 @@ export function queueInfo(
       index === 0 && waiting && head.turn_started_at != null
         ? head.turn_started_at + turnWindowMs(env)
         : null,
+    windowSeconds: Math.round(turnWindowMs(env) / 1000),
     serverNow: now,
   };
 }

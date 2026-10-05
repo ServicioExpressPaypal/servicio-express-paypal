@@ -261,6 +261,85 @@ await db
     ticketId,
   )
   .run();
+// PREVIEW_QUEUE=N agrega N clientes ficticios con un ticket Express cada uno
+// para ver la fila de turnos: la mitad antes del cliente de prueba y el resto despues.
+const queueNames = [
+  "Ana Lopez",
+  "Bruno Mejia",
+  "Carla Rios",
+  "Diego Salas",
+  "Elena Pineda",
+  "Felipe Mora",
+  "Gabriela Cruz",
+  "Hector Vega",
+  "Irene Soto",
+  "Jorge Ramos",
+];
+const extraQueue = Math.min(Number(process.env.PREVIEW_QUEUE || 0), 30);
+for (let i = 1; i <= extraQueue; i++) {
+  const email = `fila${i}@example.test`;
+  const signup = await mf.dispatchFetch(origin + "/api/auth/sign-up/email", {
+    method: "POST",
+    headers: {
+      origin,
+      "content-type": "application/json",
+      "cf-connecting-ip": `192.0.2.${20 + i}`,
+    },
+    body: JSON.stringify({
+      email,
+      name: queueNames[i % queueNames.length],
+      password: "SoloPruebas-2026!",
+      callbackURL: origin + "/",
+      legalAccepted: true,
+      legalVersion: CertificateModel.version,
+      fullName: queueNames[i % queueNames.length],
+      phone: "+12025550123",
+    }),
+  });
+  if (!signup.ok)
+    throw new Error(
+      `Unable to seed queue account: ${signup.status} ${await signup.text()}`,
+    );
+  await db
+    .prepare("UPDATE user SET emailVerified=1 WHERE email=?")
+    .bind(email)
+    .run();
+  const queued = await db
+    .prepare("SELECT id FROM user WHERE email=?")
+    .bind(email)
+    .first();
+  await db
+    .prepare(
+      "UPDATE profiles SET status='active', dossier=(SELECT dossier FROM profiles WHERE user_id=?) WHERE user_id=?",
+    )
+    .bind(customer.id, queued.id)
+    .run();
+  const created =
+    now +
+    (i <= Math.floor(extraQueue / 2)
+      ? -60000 * (extraQueue - i + 1)
+      : 1000 * i);
+  await db
+    .prepare(
+      "INSERT INTO tickets(id,user_id,request_key,amount,mode,beneficiary_name,bank,bank_account,currency,terms_version,terms_accepted_at,estimate,status,created_at,updated_at,expires_at) SELECT ?,?,?,amount,mode,beneficiary_name,bank,bank_account,currency,terms_version,terms_accepted_at,estimate,'reviewing',?,?,? FROM tickets WHERE id=?",
+    )
+    .bind(
+      `SE-${String(i).padStart(8, "0")}-3333-4333-8333-333333333333`,
+      queued.id,
+      crypto.randomUUID(),
+      created,
+      created,
+      now + 86400000,
+      ticketId,
+    )
+    .run();
+}
+if (extraQueue)
+  await db
+    .prepare(
+      "UPDATE tickets SET queue_at=created_at WHERE mode='express' AND queue_at IS NULL",
+    )
+    .run();
 console.log(`Vista local con datos ficticios: ${await mf.ready}`);
 console.log(
   "Cliente: cliente@example.test | Pendiente: pendiente@example.test | Administrador: admin@example.test",
