@@ -6,6 +6,10 @@ import "../../../calculator-core.js";
 
 const port = Number(process.env.PORT || 8792);
 const origin = `http://127.0.0.1:${port}`;
+const adminSecurityBinding =
+  process.env.PREVIEW_ADMIN_SECURITY === "pin"
+    ? { ADMIN_SECOND_FACTOR: "pin" }
+    : {};
 const assets = new Set([
   "index.html",
   "app-shell.html",
@@ -46,6 +50,7 @@ const mf = new Miniflare(
       APP_URL: origin,
       BETTER_AUTH_SECRET: "local-preview-only-not-a-production-secret",
       ADMIN_EMAIL: "admin@example.test",
+      ...adminSecurityBinding,
       ADMIN_REQUIRE_MFA:
         process.env.PREVIEW_REQUIRE_MFA === "true" ? "true" : "false",
       DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
@@ -98,6 +103,7 @@ for (const file of [
   "0014_ticket_turns.sql",
   "0015_ticket_images.sql",
   "0016_digital_certificate.sql",
+  "0017_admin_pin.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),

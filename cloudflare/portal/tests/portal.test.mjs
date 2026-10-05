@@ -143,7 +143,7 @@ test("portal versions its client bundle and can refresh changed ticket condition
     new URL("../public/app.js", import.meta.url),
     "utf8",
   );
-  assert.match(shell, /app\.js\?v=20261005-10/);
+  assert.match(shell, /app\.js\?v=20261005-11/);
   assert.match(app, /certificate\.js\?v=20261005-9/);
   assert.match(app, /certificate\.js\?refresh=/);
   assert.match(app, /Actualizamos las condiciones en este formulario/);
@@ -458,6 +458,95 @@ test("legacy documents download with sandboxed headers and admin MFA recovery is
       "application/octet-stream",
     );
     assert.match(download.headers.get("content-security-policy"), /sandbox/);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("temporary admin PIN is hashed, rate-limited and required after password login", async () => {
+  const s = await setup(true, { ADMIN_SECOND_FACTOR: "pin" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("pin-customer@example.test");
+    let me = await admin.req("/api/me");
+    assert.equal(me.data.adminSecurityMode, "pin");
+    assert.equal(me.data.adminPinConfigured, false);
+    assert.equal(me.data.adminReady, false);
+    assert.equal((await admin.req("/api/admin/users")).status, 403);
+    assert.equal(
+      (
+        await customer.req("/api/admin/pin/setup", {
+          password: customer.password,
+          pin: "482731",
+          confirmation: "482731",
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await admin.req("/api/admin/pin/setup", {
+          password: "incorrect-password",
+          pin: "482731",
+          confirmation: "482731",
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await admin.req("/api/admin/pin/setup", {
+          password: admin.password,
+          pin: "123456",
+          confirmation: "123456",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await admin.req("/api/admin/pin/setup", {
+          password: admin.password,
+          pin: "482731",
+          confirmation: "482731",
+        })
+      ).status,
+      200,
+    );
+    const stored = await s.db
+      .prepare(
+        "SELECT salt,pin_hash,iterations FROM admin_pin_credentials WHERE user_id=?",
+      )
+      .bind(admin.id)
+      .first();
+    assert.equal(stored.iterations, 210000);
+    assert.ok(stored.salt.length >= 20);
+    assert.ok(stored.pin_hash.length >= 40);
+    assert.ok(!JSON.stringify(stored).includes("482731"));
+    me = await admin.req("/api/me");
+    assert.equal(me.data.adminPinConfigured, true);
+    assert.equal(me.data.adminReady, true);
+    await s.db.prepare("UPDATE admin_grants SET expires_at=0").run();
+    assert.equal((await admin.req("/api/admin/users")).status, 403);
+    assert.equal(
+      (await admin.req("/api/admin/unlock", { code: "482730" })).status,
+      403,
+    );
+    assert.equal((await admin.req("/api/me")).data.adminReady, false);
+    assert.equal(
+      (await admin.req("/api/admin/unlock", { code: "482731" })).status,
+      200,
+    );
+    assert.equal((await admin.req("/api/admin/users")).status, 200);
+    assert.equal(
+      (
+        await s.db
+          .prepare(
+            "SELECT count(*) AS total FROM security_events WHERE event='admin_unlock_failed'",
+          )
+          .first()
+      ).total,
+      1,
+    );
   } finally {
     await s.mf.dispose();
   }
@@ -1263,6 +1352,7 @@ async function setup(open = true, overrides = {}) {
     "0014_ticket_turns.sql",
     "0015_ticket_images.sql",
     "0016_digital_certificate.sql",
+    "0017_admin_pin.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(

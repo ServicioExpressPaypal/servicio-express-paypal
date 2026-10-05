@@ -25,7 +25,11 @@ invulnerability or a legal/compliance certification.
    encrypted fields. Email, bank label, currency and operational metadata remain
    queryable; provider storage encryption is additional, not a substitute.
 6. Server-side session and verified-email checks cannot be replaced by UI state.
-7. Admin access additionally requires TOTP/recovery code and a 15-minute grant.
+7. Admin access requires a 15-minute grant. The current temporary mode verifies
+   the account password and then a separately stored six-digit PIN derived with
+   PBKDF2-SHA-256, random salt and a Worker secret. This is a two-step control,
+   not phishing-resistant MFA. The application retains its TOTP/recovery-code
+   mode for the planned migration to a true independent second factor.
 8. Amounts, ownership, statuses, estimates and transition versions are validated
    on the server; clients cannot approve themselves or change calculated values.
 9. Sessions use Secure, HttpOnly cookies, trusted origins and no browser caching.
@@ -94,11 +98,13 @@ Restore only with access closed, preserving the matching encryption key, then
 run retention and encryption migration before reopening. Rollback after migration
 must retain the encryption-aware reader, not a pre-encryption Worker version.
 
-Registration is now open after confirming that the existing owner has a verified
-email and enabled MFA in production. New customers still require email
-verification and manual account approval before creating tickets. For future
-rollouts or recovery, keep `REGISTRATION_OPEN=false` until the owner has enrolled
-MFA. Never generate an OTP for the owner, collect their recovery codes, or
-silently disable MFA to bypass setup.
+Registration is open and new customers still require email verification and
+manual account approval before creating tickets. Migration 0017 must be present
+before deploying PIN mode. The existing owner must create the temporary PIN on
+the first administrative access; until then, server-side authorization blocks
+all `/api/admin/*` operations. For future rollouts or recovery, keep
+`REGISTRATION_OPEN=false` until the owner has verified the configured factor.
+Move `ADMIN_SECOND_FACTOR` to `totp` when an authenticator is ready. Never
+generate an OTP or PIN for the owner, collect recovery codes, or bypass setup.
 Public home remains in construction. Release readiness also requires review of
 business/legal obligations outside this technical audit.

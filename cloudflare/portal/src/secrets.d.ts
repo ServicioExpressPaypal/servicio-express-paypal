@@ -1,4 +1,6 @@
 interface Env {
+  ADMIN_SECOND_FACTOR?: string;
+  ADMIN_REQUIRE_MFA?: string;
   TURNSTILE_SECRET?: string;
   BETTER_AUTH_SECRET: string;
   DATA_ENCRYPTION_KEY: string;

@@ -28,6 +28,7 @@ export async function securityMaintenance(env: Env) {
       (r.event === "server_error" && r.count >= 5) ||
       (r.event === "account_locked" && r.count >= 3) ||
       (r.event === "admin_unlock_failed" && r.count >= 3) ||
+      (r.event === "admin_pin_setup_failed" && r.count >= 3) ||
       (r.event === "auth_failed" && r.count >= 10) ||
       (r.event === "request_blocked" && r.count >= 20),
   );

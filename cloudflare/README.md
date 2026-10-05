@@ -10,10 +10,10 @@ recursos de otros proyectos de la cuenta.
 - R2: `saldo-express-kyc-staging`, privado, sin dominio publico.
 - Worker `saldo-express-portal` desplegado en https://portal.saldoexpressnicaragua.com.
 - El nuevo portal esta conectado a D1 y R2. La demo original permanece separada.
-- Existe la cuenta verificada del propietario; no hay documentos ni tickets de clientes.
 - El correo administrador esta configurado como secreto del Worker; no se publica
-  en el frontend. Por peticion del propietario, el acceso no exige autenticador
-  (`ADMIN_REQUIRE_MFA=false`). La configuracion TOTP pendiente fue eliminada.
+  en el frontend. El acceso exige contrasena y un PIN administrativo temporal
+  (`ADMIN_SECOND_FACTOR=pin`) con autorizacion de 15 minutos. El PIN no sustituye
+  un segundo factor independiente; el modo TOTP permanece listo para activarse.
 - GitHub Pages sigue alojando la pagina; el dominio mantiene su registrador.
 - Resend configurado: dominio verificado, clave de solo envio limitada al dominio
   guardada como secreto del Worker. Correo de verificacion real entregado a Gmail;
@@ -27,17 +27,18 @@ recursos de otros proyectos de la cuenta.
   el panel, el registro padre .com y el resolvedor 1.1.1.1. Pagina y piloto devuelven
   HTTPS 200; www redirige correctamente. Cloudflare confirmo activacion.
 
-## Antes de recibir datos
+## Operacion
 
 1. Mantener Resend como proveedor de correo. Cloudflare Email Sending no se utiliza.
-2. Completar aviso de privacidad y terminos, conservacion/eliminacion y respaldos.
-3. Revisar proteccion del acceso administrativo antes de admitir documentos sensibles.
-4. Comprobar el flujo con correo real antes de abrir registro y documentos.
+2. Revisar aviso de privacidad y terminos cuando cambie el flujo o la retencion.
+3. Mantener Turnstile, limites de intentos y el factor administrativo activos.
+4. Ejecutar pruebas, migraciones y verificacion remota antes de cada despliegue.
 
-Registro y documentos estan deshabilitados en el servidor. No enviar documentos
-reales a este entorno. Ver `portal/README.md` para pruebas y puesta en marcha.
+El registro publico esta habilitado. No se aceptan documentos de identidad; los
+datos temporales de cada ticket se eliminan conforme a la retencion documentada.
+Ver `portal/README.md` para pruebas y puesta en marcha.
 
 El alta privada del administrador se realiza mediante invitacion de un solo uso
 al correo configurado. El alta inicial ya se cerro tras crear la cuenta. El
-borrador `portal/legal-review.md` sigue pendiente de domicilio, contacto y
-revision antes de abrir clientes; no se sirve desde la web.
+aviso legal no se sirve desde esta carpeta; las versiones publicas viven en la
+raiz y se copian al portal durante el build.

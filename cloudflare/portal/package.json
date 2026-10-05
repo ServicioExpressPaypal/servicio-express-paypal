@@ -20,6 +20,7 @@
     "@types/node": "26.6.2",
     "esbuild": "0.28.2",
     "miniflare": "5.20260926.1-alpha",
+    "playwright": "1.63.0",
     "prettier": "3.9.9",
     "qrcode": "1.5.4",
     "typescript": "7.0.2",

@@ -42,12 +42,18 @@ import {
   deliveryAmount,
   ticketExpiry,
 } from "../public/processing.js";
+import {
+  adminSecurityMode,
+  createAdminPin,
+  validateAdminPin,
+  verifyAdminPin,
+} from "./admin-pin";
 
 // The same tested calculator and state machines power the demo and the API.
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
 declare const TicketModel: typeof import("../../../_pilot/tickets/domain.js");
 declare const AccountModel: typeof import("../../../_pilot/tickets/accounts.js");
-const ASSET_VERSION = "20261005-10";
+const ASSET_VERSION = "20261005-11";
 type Profile = {
   user_id: string;
   status: string;
@@ -761,16 +767,26 @@ async function handle(
     !!env.ADMIN_EMAIL &&
     user.email.toLowerCase() === env.ADMIN_EMAIL.toLowerCase();
   const profile = await profileFor(env, user.id);
-  const requireMfa = env.ADMIN_REQUIRE_MFA !== "false";
+  const adminMode = adminSecurityMode(env);
+  const pinConfigured =
+    admin && adminMode === "pin"
+      ? !!(await env.DB.prepare(
+          "SELECT 1 FROM admin_pin_credentials WHERE user_id=?",
+        )
+          .bind(user.id)
+          .first())
+      : false;
   const grant =
-    admin && requireMfa && user.twoFactorEnabled
+    admin &&
+    adminMode !== "test-bypass" &&
+    (adminMode !== "totp" || user.twoFactorEnabled)
       ? await env.DB.prepare(
           "SELECT expires_at FROM admin_grants WHERE session_id=? AND expires_at>?",
         )
           .bind(sid, Date.now())
           .first()
       : null;
-  const adminReady = admin && (!requireMfa || !!grant);
+  const adminReady = admin && (adminMode === "test-bypass" || !!grant);
   if (path === "/api/me")
     return json({
       user: {
@@ -786,6 +802,8 @@ async function handle(
         .first(),
       admin,
       adminReady,
+      adminSecurityMode: admin ? adminMode : undefined,
+      adminPinConfigured: admin ? pinConfigured : undefined,
       twoFactorEnabled: !!user.twoFactorEnabled,
       profile: {
         status: profile.status,
@@ -890,33 +908,110 @@ async function handle(
       pageSize,
     });
   }
+  if (path === "/api/admin/pin/setup" && request.method === "POST") {
+    if (!admin || adminMode !== "pin")
+      fail(403, "La configuración del PIN no está disponible.");
+    if (pinConfigured) fail(409, "El PIN administrativo ya está configurado.");
+    await rate(env, `admin-pin-setup:${user.id}`, 3, 3600);
+    const body = await payload(request);
+    await verifyBot(request, env, body.turnstileToken, "admin-pin-setup");
+    if (
+      typeof body.password !== "string" ||
+      !body.password ||
+      body.password.length > 128
+    )
+      fail(400, "Confirma tu contraseña actual.");
+    try {
+      await auth.api.verifyPassword({
+        headers: request.headers,
+        body: { password: body.password },
+      });
+    } catch {
+      ctx.waitUntil(securityEvent(env, "admin_pin_setup_failed", user.id));
+      fail(403, "La contraseña actual no es correcta.");
+    }
+    let pin = "";
+    try {
+      pin = validateAdminPin(body.pin);
+    } catch (error) {
+      fail(400, (error as Error).message);
+    }
+    if (body.confirmation !== pin) fail(400, "Los PIN no coinciden.");
+    const credential = await createAdminPin(env, user.id, pin);
+    const now = Date.now();
+    const result = await env.DB.batch([
+      env.DB.prepare(
+        "INSERT OR IGNORE INTO admin_pin_credentials(user_id,salt,pin_hash,iterations,updated_at) VALUES(?,?,?,?,?) RETURNING user_id",
+      ).bind(
+        user.id,
+        credential.salt,
+        credential.pin_hash,
+        credential.iterations,
+        now,
+      ),
+      env.DB.prepare(
+        "INSERT INTO admin_grants(session_id,expires_at) SELECT ?,? WHERE changes()=1 ON CONFLICT(session_id) DO UPDATE SET expires_at=excluded.expires_at",
+      ).bind(sid, now + 15 * 60000),
+      env.DB.prepare(
+        "INSERT INTO audit_events(id,actor_id,target_id,action,detail,created_at) SELECT ?,?,?,?,'',? WHERE changes()=1",
+      ).bind(
+        crypto.randomUUID(),
+        user.id,
+        user.id,
+        "admin_pin_configured",
+        now,
+      ),
+    ]);
+    if (!result[0].results.length)
+      fail(409, "El PIN administrativo ya está configurado.");
+    ctx.waitUntil(securityEvent(env, "admin_pin_configured", user.id));
+    return json({ ok: true });
+  }
   if (path === "/api/admin/unlock" && request.method === "POST") {
-    if (!admin || !user.twoFactorEnabled)
-      fail(403, "Configura el doble factor primero.");
+    if (!admin || adminMode === "test-bypass")
+      fail(403, "La verificación administrativa no está disponible.");
     await rate(env, `admin-unlock:${user.id}`, 5, 300);
     const body = await payload(request);
-    if (
-      typeof body.code !== "string" ||
-      (body.backup
-        ? !/^[A-Za-z0-9-]{8,32}$/.test(body.code)
-        : !/^\d{6}$/.test(body.code))
-    )
-      fail(400, "Escribe un código válido.");
-    try {
-      if (body.backup === true) {
-        await auth.api.verifyBackupCode({
-          headers: request.headers,
-          body: { code: body.code, trustDevice: false },
-        });
-      } else {
-        await auth.api.verifyTOTP({
-          headers: request.headers,
-          body: { code: body.code, trustDevice: false },
-        });
+    if (adminMode === "pin") {
+      if (typeof body.code !== "string" || !/^\d{6}$/.test(body.code))
+        fail(400, "Escribe un PIN válido.");
+      const credential = await env.DB.prepare(
+        "SELECT salt,pin_hash,iterations FROM admin_pin_credentials WHERE user_id=?",
+      )
+        .bind(user.id)
+        .first<{ salt: string; pin_hash: string; iterations: number }>();
+      if (!credential)
+        throw new HttpError(409, "Configura primero tu PIN administrativo.");
+      if (!(await verifyAdminPin(env, user.id, body.code, credential))) {
+        ctx.waitUntil(securityEvent(env, "admin_unlock_failed", user.id));
+        fail(403, "PIN incorrecto.");
       }
-    } catch {
-      ctx.waitUntil(securityEvent(env, "admin_unlock_failed", user.id));
-      fail(403, "Código incorrecto o vencido.");
+    } else {
+      if (!user.twoFactorEnabled)
+        fail(403, "Configura el doble factor primero.");
+      if (
+        typeof body.code !== "string" ||
+        (body.backup
+          ? !/^[A-Za-z0-9-]{8,32}$/.test(body.code)
+          : !/^\d{6}$/.test(body.code))
+      )
+        fail(400, "Escribe un código válido.");
+      try {
+        if (body.backup === true) {
+          await auth.api.verifyBackupCode({
+            headers: request.headers,
+            body: { code: body.code, trustDevice: false },
+          });
+        } else {
+          await auth.api.verifyTOTP({
+            headers: request.headers,
+            body: { code: body.code, trustDevice: false },
+          });
+        }
+      } catch {
+        ctx.waitUntil(securityEvent(env, "admin_unlock_failed", user.id));
+        fail(403, "Código incorrecto o vencido.");
+      }
     }
     await env.DB.batch([
       env.DB.prepare(
@@ -930,7 +1025,7 @@ async function handle(
     fail(
       403,
       admin
-        ? "Confirma tu doble factor para administrar."
+        ? "Confirma tu factor de seguridad para administrar."
         : "Acceso reservado al administrador.",
     );
 

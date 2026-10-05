@@ -1,10 +1,10 @@
 import InitialCertificateModel from "./certificate.js?v=20261005-9";
-import { toCanvas } from "./qrcode.js?v=20261005-10";
+import { toCanvas } from "./qrcode.js?v=20261005-11";
 import {
   processingWindow,
   ticketShareText,
   deliveryAmount,
-} from "./processing.js?v=20261005-10";
+} from "./processing.js?v=20261005-11";
 
 let CertificateModel = InitialCertificateModel;
 
@@ -79,6 +79,7 @@ let CertificateModel = InitialCertificateModel;
     "/api/auth/send-verification-email": "resend",
     "/api/auth/change-password": "password",
     "/api/account/delete": "delete",
+    "/api/admin/pin/setup": "admin-pin-setup",
   };
   function mountBot(action) {
     if (!config.turnstileSiteKey) return;
@@ -434,6 +435,27 @@ let CertificateModel = InitialCertificateModel;
     });
   }
   function security(backup = false) {
+    if (me.adminSecurityMode === "pin") {
+      if (!me.adminPinConfigured) {
+        main.innerHTML = `<div class="onboarding"><h1>Crea tu PIN administrativo</h1><p>Este PIN será solicitado además de tu contraseña para abrir el panel. No uses fechas ni secuencias fáciles.</p>${form("pin-setup", `${field("Contraseña actual", "password", "password", 'autocomplete="current-password" maxlength="128"')}${field("PIN de 6 dígitos", "pin", "password", 'inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="new-password"')}${field("Repite el PIN", "confirmation", "password", 'inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="new-password"')}<div id="bot-check"></div>`, "Guardar PIN y abrir panel")}</div>`;
+        mountBot("admin-pin-setup");
+        bind("pin-setup", async (formData) => {
+          await api("/api/admin/pin/setup", {
+            password: formData.get("password"),
+            pin: formData.get("pin"),
+            confirmation: formData.get("confirmation"),
+          });
+          await refresh();
+        });
+        return;
+      }
+      main.innerHTML = `<div class="onboarding"><h1>Acceso de administrador</h1><p>Introduce tu PIN de seguridad. El acceso administrativo permanecerá abierto durante 15 minutos.</p>${form("pin-unlock", field("PIN de 6 dígitos", "code", "password", 'inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code"'), "Abrir panel")}</div>`;
+      bind("pin-unlock", async (formData) => {
+        await api("/api/admin/unlock", { code: formData.get("code") });
+        await refresh();
+      });
+      return;
+    }
     if (!me.twoFactorEnabled) {
       main.innerHTML = `<div class="onboarding"><h1>Protege tu acceso</h1>${form("enable", field("Confirma tu contraseña", "password", "password", 'autocomplete="current-password"'), "Configurar autenticador")}</div>`;
       bind("enable", async (f) => {

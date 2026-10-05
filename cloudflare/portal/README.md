@@ -12,11 +12,13 @@ por separado.
 - Better Auth guarda un hash de la contrasena y sesiones HttpOnly/Secure. La
   cuenta queda pendiente desde su alta; solo una cuenta activa puede crear tickets.
 - ADMIN_EMAIL define el unico administrador. ADMIN_SETUP_OPEN debe permanecer
-  false. ADMIN_REQUIRE_MFA=true exige TOTP o codigo de recuperacion de un solo
-  uso para abrir el panel (hoy esta en false de forma temporal: el panel abre solo
-  con contrasena; las cuentas con TOTP ya activado siguen pidiendolo hasta
-  desactivarlo en la base de datos). La autorizacion administrativa vence en 15 minutos.
-  El QR se genera localmente, sin enviar su secreto a otro proveedor.
+  false. ADMIN_SECOND_FACTOR=pin exige contrasena y un PIN administrativo de seis
+  digitos antes de abrir el panel. El PIN se deriva con PBKDF2-SHA-256, sal aleatoria
+  y un secreto del Worker; D1 no guarda el PIN original. Es una proteccion temporal
+  de dos pasos, no un segundo factor independiente. Cambiar a
+  ADMIN_SECOND_FACTOR=totp habilita TOTP y codigos de recuperacion de un solo uso.
+  La autorizacion administrativa vence en 15 minutos. El QR de TOTP se genera
+  localmente, sin enviar su secreto a otro proveedor.
 - REGISTRATION_OPEN y KYC_OPEN controlan registro y aceptacion del perfil.
   KYC_OPEN es un nombre heredado: este flujo no certifica identidad ni KYC legal.
 - El registro publico del portal esta habilitado tras verificar el doble factor
@@ -74,15 +76,15 @@ por separado.
   retransmite; el Durable Object no guarda nada. Cada conexion vence a los 10
   minutos y el navegador se reconecta (reautenticando).
 - El chat admite imagenes solo como comprobante de pago: `POST
-  /api/(admin/)tickets/:id/images` (cuerpo binario JPG/PNG/WebP de hasta 1 MB,
+/api/(admin/)tickets/:id/images` (cuerpo binario JPG/PNG/WebP de hasta 1 MB,
   maximo 5 por ticket; el navegador las reduce antes de subirlas) y `GET
-  .../images/:imageId`. Se guardan cifradas en `ticket_images` (migracion 0015) y
+.../images/:imageId`. Se guardan cifradas en `ticket_images` (migracion 0015) y
   se borran en cascada con el mensaje al vencer, cerrar o eliminar la cuenta.
 - Panel del cliente: "Solicitudes vigentes o en proceso" (`/api/account/history?status=active`,
   incluye pagos confirmados pendientes de envio) y "Certificados recientes"
   (`status=recent`: enviados y cancelados, los 6 mas recientes). Ambas listas y el
   Historial se recargan solas por WebSocket cuando cambia un ticket. La prueba de
-  navegador es opcional: `npm run test:ui` (requiere Playwright).
+  navegador es obligatoria en CI: `npm run test:ui`.
 - Contabilidad del admin: `GET /api/admin/accounting?date=AAAA-MM-DD` (por defecto hoy
   en hora de Nicaragua) devuelve los tickets con pago confirmado ese dia, sus
   totales, los ultimos 14 dias y el mes. Ganancia = comision de servicio guardada en
@@ -173,9 +175,11 @@ Nunca publicar estas cuentas ni usar secretos reales en la demo. Para wrangler
 dev, usar .dev.vars ignorado por Git con APP_URL local, TURNSTILE_ENABLED=false
 y secretos exclusivos de desarrollo.
 
-Mantener REGISTRATION_OPEN=false hasta verificar migraciones, secretos,
-Turnstile, avisos y MFA del propietario en produccion; entonces abrir y comprobar
-/api/config. El cierre del registro no interrumpe cuentas existentes.
+Mantener REGISTRATION_OPEN=false en una recuperacion hasta verificar migraciones,
+secretos, Turnstile, avisos y el factor administrativo en produccion; entonces
+abrir y comprobar /api/config. El cierre del registro no interrumpe cuentas
+existentes. En el despliegue actual el registro publico esta habilitado y el
+administrador debe crear su PIN en el primer acceso posterior a la migracion 0017.
 No regenerar BETTER_AUTH_SECRET al desplegar: invalidaria sesiones y MFA.
 
 Limitacion conocida: listas limitadas a los 100 registros mas recientes. Agregar

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '20 13 * * 1'
+    - cron: "20 13 * * 1"
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,8 +18,8 @@ jobs:
       - uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: 'false'
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
   portal:
     runs-on: ubuntu-latest
     defaults:
@@ -36,3 +36,5 @@ jobs:
       - run: npm audit --audit-level=moderate
       - run: npm run check
       - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui

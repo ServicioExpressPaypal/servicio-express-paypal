@@ -1,23 +1,22 @@
-// Browser test for the customer panel. It starts the local preview (fictional
-// data only) and drives it with Playwright; it is skipped when Playwright is
-// not installed. Run with: npm run test:ui
+// Browser tests use an isolated local preview with fictional data only.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { createRequire } from "node:module";
 import test from "node:test";
+import { chromium } from "playwright";
 
-const require = createRequire(import.meta.url);
-let playwright;
-try {
-  playwright = require("playwright");
-} catch {
-  /* Playwright is optional. */
-}
 let port = 8780 + (process.pid % 20);
 let origin = `http://127.0.0.1:${port}`;
 const password = "SoloPruebas-2026!";
 const expressId = "SE-11111111-1111-4111-8111-111111111111";
 const internationalId = "SE-22222222-2222-4222-8222-222222222222";
+
+function launchBrowser() {
+  return chromium.launch(
+    process.env.PLAYWRIGHT_CHROMIUM
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM }
+      : {},
+  );
+}
 
 async function adminClient() {
   const jar = new Map();
@@ -48,7 +47,7 @@ async function adminClient() {
 
 test(
   "customer panel keeps paid, delivered and cancelled certificates visible, live",
-  { skip: !playwright && "Playwright is not installed", timeout: 120000 },
+  { timeout: 120000 },
   async () => {
     const server = spawn(process.execPath, ["scripts/preview.mjs"], {
       env: { ...process.env, PORT: String(port) },
@@ -69,11 +68,7 @@ test(
           }
         });
       });
-      browser = await playwright.chromium.launch(
-        process.env.PLAYWRIGHT_CHROMIUM
-          ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM }
-          : {},
-      );
+      browser = await launchBrowser();
       const page = await (
         await browser.newContext({ viewport: { width: 1000, height: 900 } })
       ).newPage();
@@ -183,7 +178,7 @@ test(
 
 test(
   "admin accounting panel shows profit per ticket and the day summary",
-  { skip: !playwright && "Playwright is not installed", timeout: 120000 },
+  { timeout: 120000 },
   async () => {
     port += 20;
     origin = `http://127.0.0.1:${port}`;
@@ -206,10 +201,7 @@ test(
           }
         });
       });
-      browser = await playwright.chromium.launch({
-        executablePath:
-          process.env.PLAYWRIGHT_CHROMIUM || "/opt/pw-browsers/chromium",
-      });
+      browser = await launchBrowser();
       const context = await browser.newContext({
         viewport: { width: 1000, height: 900 },
         acceptDownloads: true,
@@ -260,7 +252,7 @@ test(
         .locator(".accounting-tickets thead th")
         .evaluateAll((cells) =>
           cells.map((cell) => Math.round(cell.getBoundingClientRect().width)),
-      );
+        );
       assert.ok(columnWidths[1] >= 220);
       const amountWidths = columnWidths.slice(3, 7);
       assert.ok(amountWidths.every((width) => width >= 108));
@@ -270,9 +262,7 @@ test(
         await page
           .locator(".accounting-tickets tbody td.num")
           .evaluateAll((cells) =>
-            cells.every(
-              (cell) => getComputedStyle(cell).textAlign === "right",
-            ),
+            cells.every((cell) => getComputedStyle(cell).textAlign === "right"),
           ),
       );
       // No beneficiary or bank data in the accounting view.
@@ -304,7 +294,7 @@ test(
 
 test(
   "password recovery tells the user the link was sent, from login and from settings",
-  { skip: !playwright && "Playwright is not installed", timeout: 120000 },
+  { timeout: 120000 },
   async () => {
     port += 20;
     origin = `http://127.0.0.1:${port}`;
@@ -327,10 +317,7 @@ test(
           }
         });
       });
-      browser = await playwright.chromium.launch({
-        executablePath:
-          process.env.PLAYWRIGHT_CHROMIUM || "/opt/pw-browsers/chromium",
-      });
+      browser = await launchBrowser();
       const page = await (
         await browser.newContext({ viewport: { width: 375, height: 800 } })
       ).newPage();
@@ -367,6 +354,62 @@ test(
       assert.match(dialog, /cliente@example\.test/);
       await page.click("#recover-done");
       assert.equal(await page.locator("#dialog[open]").count(), 0);
+    } finally {
+      await browser?.close();
+      server.kill();
+    }
+  },
+);
+
+test(
+  "admin creates the temporary PIN before the dashboard can open",
+  { timeout: 120000 },
+  async () => {
+    port += 20;
+    origin = `http://127.0.0.1:${port}`;
+    const server = spawn(process.execPath, ["scripts/preview.mjs"], {
+      env: {
+        ...process.env,
+        PORT: String(port),
+        PREVIEW_ADMIN_SECURITY: "pin",
+      },
+      stdio: ["ignore", "pipe", "inherit"],
+    });
+    let browser;
+    try {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("preview did not start")),
+          60000,
+        );
+        server.on("exit", () => reject(new Error("preview exited")));
+        server.stdout.on("data", (chunk) => {
+          if (String(chunk).includes("Vista local")) {
+            clearTimeout(timer);
+            resolve();
+          }
+        });
+      });
+      browser = await launchBrowser();
+      const page = await (
+        await browser.newContext({ viewport: { width: 1000, height: 900 } })
+      ).newPage();
+      await page.goto(origin + "/");
+      await page.fill("input[type=email]", "admin@example.test");
+      await page.fill("input[type=password]", password);
+      await page.click("#auth button[type=submit]");
+      await page
+        .getByRole("heading", {
+          name: "Crea tu PIN administrativo",
+        })
+        .waitFor();
+      assert.equal(await page.locator(".admin-dashboard").count(), 0);
+      await page.fill('input[name="password"]', password);
+      await page.fill('input[name="pin"]', "482731");
+      await page.fill('input[name="confirmation"]', "482731");
+      await page.click("#pin-setup button[type=submit]");
+      await page.getByRole("heading", { name: "Resumen" }).waitFor();
+      assert.ok(await page.getByRole("button", { name: "Usuarios" }).count());
     } finally {
       await browser?.close();
       server.kill();

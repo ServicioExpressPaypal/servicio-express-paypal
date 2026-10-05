@@ -45,9 +45,8 @@
     "MAINTENANCE_MODE": "false",
     "REGISTRATION_OPEN": "true",
     "ADMIN_SETUP_OPEN": "false",
-    // TEMPORAL por decision del propietario: acceso admin solo con contrasena.
-    // Volver a "true" y reinscribir el doble factor en cuanto sea posible.
-    "ADMIN_REQUIRE_MFA": "false",
+    // PIN reforzado temporal. Cambiar a "totp" al activar el autenticador.
+    "ADMIN_SECOND_FACTOR": "pin",
     "KYC_OPEN": "true",
     "EMAIL_PROVIDER": "resend",
     "TURNSTILE_ENABLED": "true",
