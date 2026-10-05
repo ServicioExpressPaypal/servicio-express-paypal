@@ -17,6 +17,8 @@ import {
 import {
   encryptField,
   decryptField,
+  encryptBytes,
+  decryptBytes,
   profileFields,
   ticketFields,
   encryptLegacyData,
@@ -77,6 +79,7 @@ type TicketMessage = {
   author_role: "customer" | "admin";
   body: string;
   created_at: number;
+  image_id?: string | null;
 };
 type TicketNotification = {
   ticket_id: string;
@@ -117,6 +120,19 @@ const authPaths = new Set([
   "/two-factor/verify-backup-code",
 ]);
 
+const maxImageBytes = 1_000_000;
+const maxTicketImages = 5;
+// Only receipts in common photo formats; the signature must match the type.
+const imageTypes: Record<string, (b: Uint8Array) => boolean> = {
+  "image/jpeg": (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  "image/png": (b) =>
+    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
+      (v, i) => b[i] === v,
+    ),
+  "image/webp": (b) =>
+    String.fromCharCode(...b.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...b.slice(8, 12)) === "WEBP",
+};
 async function limitedBody(request: Request, max: number) {
   if (Number(request.headers.get("content-length")) > max)
     fail(413, "Archivo o solicitud demasiado grande.");
@@ -1160,6 +1176,118 @@ async function handle(
       headers: { upgrade: "websocket" },
     });
   }
+  const imageMatch = path.match(
+    /^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)\/images(?:\/([a-f0-9-]{36}))?$/,
+  );
+  if (imageMatch) {
+    const target = await env.DB.prepare("SELECT * FROM tickets WHERE id=?")
+      .bind(imageMatch[2])
+      .first<Ticket>();
+    if (!target || (!imageMatch[1] && target.user_id !== user.id))
+      fail(404, "Solicitud no encontrada.");
+    if (request.method === "GET" && imageMatch[3]) {
+      const image = await env.DB.prepare(
+        "SELECT mime,data FROM ticket_images WHERE id=? AND ticket_id=?",
+      )
+        .bind(imageMatch[3], target!.id)
+        .first<{ mime: string; data: ArrayBuffer }>();
+      if (!image) fail(404, "Imagen no encontrada.");
+      return new Response(
+        await decryptBytes(env, image!.data, `image:${imageMatch[3]}`),
+        {
+          headers: {
+            "content-type": image!.mime,
+            "cache-control": "private, no-store",
+            "x-content-type-options": "nosniff",
+            "content-disposition": "inline",
+          },
+        },
+      );
+    }
+    if (request.method !== "POST" || imageMatch[3])
+      fail(405, "Método no permitido.");
+    if (isTicketExpired(target!) || finalTicketStatuses.has(target!.status))
+      fail(409, "La conversación de este ticket ya está cerrada.");
+    const mime = (request.headers.get("content-type") || "").split(";")[0];
+    if (!imageTypes[mime])
+      fail(415, "Solo se admiten imágenes JPG, PNG o WebP.");
+    await rate(env, `images:${user.id}:${target!.id}`, 10, 3600);
+    const taken = await env.DB.prepare(
+      "SELECT COUNT(*) AS total FROM ticket_images WHERE ticket_id=?",
+    )
+      .bind(target!.id)
+      .first<{ total: number }>();
+    if ((taken?.total || 0) >= maxTicketImages)
+      fail(409, `Cada ticket admite hasta ${maxTicketImages} imágenes.`);
+    const bytes = await limitedBody(request, maxImageBytes);
+    if (bytes.byteLength < 64 || !imageTypes[mime](new Uint8Array(bytes)))
+      fail(
+        400,
+        "La imagen no es válida. Usa una foto o captura JPG, PNG o WebP.",
+      );
+    const id = crypto.randomUUID(),
+      imageId = crypto.randomUUID(),
+      now = Date.now(),
+      role = imageMatch[1] ? "admin" : "customer",
+      text = "Comprobante de pago";
+    const [securedMessage, securedImage] = await Promise.all([
+      encryptField(env, text, `message:${id}`),
+      encryptBytes(env, bytes, `image:${imageId}`),
+    ]);
+    const result = await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO ticket_messages(id,ticket_id,author_id,author_role,body,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM tickets WHERE id=? AND expires_at>? AND status NOT IN ('closed','cancelled')) RETURNING id",
+      ).bind(
+        id,
+        target!.id,
+        user.id,
+        role,
+        securedMessage,
+        now,
+        target!.id,
+        now,
+      ),
+      env.DB.prepare(
+        "INSERT INTO ticket_images(id,message_id,ticket_id,mime,size,data,created_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM ticket_messages WHERE id=?)",
+      ).bind(
+        imageId,
+        id,
+        target!.id,
+        mime,
+        bytes.byteLength,
+        securedImage,
+        now,
+        id,
+      ),
+      env.DB.prepare(
+        "UPDATE tickets SET updated_at=? WHERE id=? AND expires_at>? AND status NOT IN ('closed','cancelled')",
+      ).bind(now, target!.id, now),
+      env.DB.prepare(
+        "INSERT INTO audit_events SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM ticket_messages WHERE id=?)",
+      ).bind(
+        crypto.randomUUID(),
+        user.id,
+        target!.id,
+        "message_sent",
+        role,
+        now,
+        id,
+      ),
+    ]);
+    if (!result[0].results.length)
+      fail(409, "La conversación de este ticket ya está cerrada.");
+    const sent = {
+      id,
+      author_role: role,
+      body: text,
+      created_at: now,
+      image_id: imageId,
+    };
+    ctx.waitUntil(
+      broadcastTicket(env, target!.id, { type: "message", message: sent }),
+    );
+    return json(sent, 201);
+  }
   const messageMatch = path.match(
     /^\/api\/(admin\/)?tickets\/(SE-[A-F0-9-]+)\/messages$/,
   );
@@ -1310,7 +1438,7 @@ async function handle(
           .bind(target!.id)
           .all(),
         env.DB.prepare(
-          "SELECT id,author_role,body,created_at FROM ticket_messages WHERE ticket_id=? ORDER BY created_at,id LIMIT 200",
+          "SELECT id,author_role,body,created_at,(SELECT id FROM ticket_images WHERE message_id=ticket_messages.id) AS image_id FROM ticket_messages WHERE ticket_id=? ORDER BY created_at,id LIMIT 200",
         )
           .bind(target!.id)
           .all<TicketMessage>(),

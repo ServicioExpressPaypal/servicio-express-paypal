@@ -33,6 +33,41 @@ export async function encryptField(
   return prefix + btoa(String.fromCharCode(...bytes));
 }
 
+// Binary variants for stored files: iv (12 bytes) + AES-GCM ciphertext.
+export async function encryptBytes(
+  env: EncryptionEnv,
+  value: ArrayBuffer,
+  context: string,
+) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv, additionalData: encoder.encode(context) },
+    await encryptionKey(env),
+    value,
+  );
+  const bytes = new Uint8Array(iv.length + ciphertext.byteLength);
+  bytes.set(iv);
+  bytes.set(new Uint8Array(ciphertext), iv.length);
+  return bytes.buffer;
+}
+
+export async function decryptBytes(
+  env: EncryptionEnv,
+  value: ArrayBuffer,
+  context: string,
+) {
+  const bytes = new Uint8Array(value);
+  return crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: bytes.slice(0, 12),
+      additionalData: encoder.encode(context),
+    },
+    await encryptionKey(env),
+    bytes.slice(12),
+  );
+}
+
 export async function decryptField(
   env: EncryptionEnv,
   value: string,

@@ -1127,6 +1127,7 @@ async function setup(open = true, overrides = {}) {
     "0012_security_events.sql",
     "0013_chat_encrypted_length.sql",
     "0014_ticket_turns.sql",
+    "0015_ticket_images.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -1148,7 +1149,7 @@ async function setup(open = true, overrides = {}) {
           origin,
           "cf-connecting-ip": address,
           cookie: [...jar].map(([k, v]) => k + "=" + v).join("; "),
-          ...(body instanceof FormData
+          ...(body instanceof FormData || body instanceof Uint8Array
             ? {}
             : { "content-type": "application/json" }),
           ...custom,
@@ -1156,7 +1157,7 @@ async function setup(open = true, overrides = {}) {
         body:
           body === undefined
             ? undefined
-            : body instanceof FormData
+            : body instanceof FormData || body instanceof Uint8Array
               ? body
               : JSON.stringify(body),
       });
@@ -2521,6 +2522,101 @@ test("ticket chat is delivered in real time over WebSockets to both participants
     await s.mf.dispose();
   }
 });
+test("chat accepts payment-proof images from both sides, stores them encrypted and deletes them with the ticket", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("proof-chat@example.test");
+    const other = await s.registered("proof-other@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id IN (?,?)")
+      .bind(customer.id, other.id)
+      .run();
+    const created = await customer.req("/api/tickets", ticket());
+    assert.equal(created.status, 201);
+    const id = created.data.id;
+    const png = new Uint8Array(200);
+    png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    png.fill(7, 8);
+    const jpg = new Uint8Array(200);
+    jpg.set([0xff, 0xd8, 0xff, 0xe0]);
+    const post = (who, path, bytes, type) =>
+      who.req(path, bytes, { "content-type": type });
+    const own = `/api/tickets/${id}/images`;
+    // Customer attaches a receipt and it shows up in the conversation.
+    let r = await post(customer, own, png, "image/png");
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.equal(r.data.author_role, "customer");
+    assert.ok(r.data.image_id);
+    const imageId = r.data.image_id;
+    const view = await customer.req(`${own}/${imageId}`);
+    assert.equal(view.status, 200);
+    assert.equal(view.headers.get("content-type"), "image/png");
+    assert.match(view.headers.get("cache-control"), /no-store/);
+    assert.equal(view.headers.get("x-content-type-options"), "nosniff");
+    // The stored bytes are not the original image.
+    const row = await s.db
+      .prepare("SELECT data,size FROM ticket_images WHERE id=?")
+      .bind(imageId)
+      .first();
+    assert.equal(row.size, 200);
+    assert.notDeepEqual(
+      Array.from(new Uint8Array(row.data).slice(12, 20)),
+      Array.from(png.slice(0, 8)),
+    );
+    const conversation = await customer.req("/api/tickets/" + id);
+    assert.equal(conversation.data.messages[0].image_id, imageId);
+    // The admin sees it and can attach one too.
+    assert.equal(
+      (await admin.req(`/api/admin/tickets/${id}/images/${imageId}`)).status,
+      200,
+    );
+    r = await post(admin, `/api/admin/tickets/${id}/images`, jpg, "image/jpeg");
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.equal(r.data.author_role, "admin");
+    assert.equal((await customer.req(`${own}/${r.data.image_id}`)).status, 200);
+    // Strangers, wrong types and fake files are refused.
+    assert.equal((await other.req(`${own}/${imageId}`)).status, 404);
+    assert.equal((await post(other, own, png, "image/png")).status, 404);
+    assert.equal((await s.client()(`${own}/${imageId}`)).status, 401);
+    assert.equal((await post(customer, own, png, "image/svg+xml")).status, 415);
+    assert.equal(
+      (await post(customer, own, new Uint8Array(200), "image/png")).status,
+      400,
+    );
+    assert.equal((await post(customer, own, jpg, "image/png")).status, 400);
+    assert.equal(
+      (await post(customer, own, new Uint8Array(1_100_000), "image/png"))
+        .status,
+      413,
+    );
+    // At most five images per ticket (two are already attached).
+    for (let i = 0; i < 3; i++)
+      assert.equal((await post(customer, own, jpg, "image/jpeg")).status, 201);
+    assert.equal((await post(customer, own, jpg, "image/jpeg")).status, 409);
+    // Cancelling the ticket erases the images together with the messages.
+    const current = await customer.req("/api/tickets/" + id);
+    const cancelled = await customer.req("/api/tickets/" + id, {
+      action: "cancelled",
+      version: current.data.version,
+    });
+    assert.equal(cancelled.status, 200, JSON.stringify(cancelled.data));
+    await customer.req("/api/tickets/" + id);
+    assert.equal(
+      (
+        await s.db
+          .prepare("SELECT COUNT(*) n FROM ticket_images WHERE ticket_id=?")
+          .bind(id)
+          .first()
+      ).n,
+      0,
+    );
+    assert.equal((await post(customer, own, png, "image/png")).status, 409);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+
 test("customers get automatic turns by ticket creation order and admins are never restricted", async () => {
   const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
   try {

@@ -73,6 +73,11 @@ por separado.
   Object `TicketRoom` por ticket. El Worker guarda el mensaje cifrado y luego lo
   retransmite; el Durable Object no guarda nada. Cada conexion vence a los 10
   minutos y el navegador se reconecta (reautenticando).
+- El chat admite imagenes solo como comprobante de pago: `POST
+  /api/(admin/)tickets/:id/images` (cuerpo binario JPG/PNG/WebP de hasta 1 MB,
+  maximo 5 por ticket; el navegador las reduce antes de subirlas) y `GET
+  .../images/:imageId`. Se guardan cifradas en `ticket_images` (migracion 0015) y
+  se borran en cascada con el mensaje al vencer, cerrar o eliminar la cuenta.
   Cada valor tiene IV aleatorio y AAD ligado a fila/campo. DATA_ENCRYPTION_KEY
   esta en Worker Secrets, no en D1. El correo de autenticacion no se cifra a
   nivel de campo. Ver SECURITY.md para migracion, respaldo y recuperacion.

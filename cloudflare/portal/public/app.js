@@ -141,11 +141,13 @@ import {
         headers:
           body instanceof FormData
             ? {}
-            : { "content-type": "application/json" },
+            : body instanceof Blob
+              ? { "content-type": body.type }
+              : { "content-type": "application/json" },
         body:
           body === undefined
             ? undefined
-            : body instanceof FormData
+            : body instanceof FormData || body instanceof Blob
               ? body
               : JSON.stringify(body),
       });
@@ -678,7 +680,7 @@ import {
     const conditions = CertificateModel.ticketConditions
       .map((condition) => `<li>${esc(condition)}</li>`)
       .join("");
-    main.innerHTML = `<div class="onboarding ticket-create"><h1>${esc(CertificateModel.title)}</h1><p>${esc(CertificateModel.description)}</p><p class="notice">Express: 24 horas de vigencia. Internacional: 6 días hábiles; si se confirma el pago durante la vigencia, se cuentan desde esa confirmación. La atención y la confirmación se coordinan por el canal oficial de WhatsApp.</p>${form("ticket", `${field("Monto de la solicitud (USD)", "amount", "number", 'min="25" max="3000" step="0.01"')}<p class="field-hint">Método Express: máximo USD 500 por ticket. Los montos mayores se clasifican automáticamente como Método internacional.</p><fieldset class="ticket-destination"><legend>Datos del beneficiario</legend>${field("Nombre completo de la persona", "beneficiaryName", "text", 'autocomplete="off" minlength="5" maxlength="120"')}${field("Número de cuenta bancaria", "bankAccount", "text", 'inputmode="numeric" autocomplete="off" minlength="6" maxlength="40"')}<div class="field-pair"><label class="field">Banco<select name="bank" required><option value="">Selecciona</option>${CertificateModel.banks.map((b) => `<option>${esc(b)}</option>`).join("")}</select></label><label class="field">Moneda de la cuenta<select name="currency" required><option value="">Selecciona</option><option value="USD">Dólares</option><option value="NIO">Córdobas</option></select></label></div></fieldset><div class="estimate" id="estimate">Ingresa el monto para calcular el valor del certificado.</div><section class="ticket-conditions" aria-labelledby="ticket-conditions-title"><h2 id="ticket-conditions-title">Condiciones de la solicitud</h2><ul>${conditions}</ul></section><label class="check"><input name="paypalOwnership" type="checkbox" required>Declaro que utilizaré una cuenta de PayPal propia, a mi nombre.</label><label class="check"><input name="conditionsAccepted" type="checkbox" required>Confirmo que soy mayor de edad, revisé los datos bancarios y acepto estas condiciones.</label><label class="check"><input name="consent" type="checkbox" required>Solicito atención mediante este ticket y acepto su vigencia según la modalidad y las condiciones de compra y reembolsos. Crear el ticket no confirma una compra, un pago ni un depósito.</label>`, "Crear ticket de solicitud")}<button class="text-button" id="back">Volver</button></div>`;
+    main.innerHTML = `<div class="onboarding ticket-create"><h1>${esc(CertificateModel.title)}</h1><p>${esc(CertificateModel.description)}</p><p class="notice">Express: 24 horas de vigencia. Internacional: 6 días hábiles; si se confirma el pago durante la vigencia, se cuentan desde esa confirmación. La atención y la confirmación se coordinan en el chat del ticket.</p>${form("ticket", `${field("Monto de la solicitud (USD)", "amount", "number", 'min="25" max="3000" step="0.01"')}<p class="field-hint">Método Express: máximo USD 500 por ticket. Los montos mayores se clasifican automáticamente como Método internacional.</p><fieldset class="ticket-destination"><legend>Datos del beneficiario</legend>${field("Nombre completo de la persona", "beneficiaryName", "text", 'autocomplete="off" minlength="5" maxlength="120"')}${field("Número de cuenta bancaria", "bankAccount", "text", 'inputmode="numeric" autocomplete="off" minlength="6" maxlength="40"')}<div class="field-pair"><label class="field">Banco<select name="bank" required><option value="">Selecciona</option>${CertificateModel.banks.map((b) => `<option>${esc(b)}</option>`).join("")}</select></label><label class="field">Moneda de la cuenta<select name="currency" required><option value="">Selecciona</option><option value="USD">Dólares</option><option value="NIO">Córdobas</option></select></label></div></fieldset><div class="estimate" id="estimate">Ingresa el monto para calcular el valor del certificado.</div><section class="ticket-conditions" aria-labelledby="ticket-conditions-title"><h2 id="ticket-conditions-title">Condiciones de la solicitud</h2><ul>${conditions}</ul></section><label class="check"><input name="paypalOwnership" type="checkbox" required>Declaro que utilizaré una cuenta de PayPal propia, a mi nombre.</label><label class="check"><input name="conditionsAccepted" type="checkbox" required>Confirmo que soy mayor de edad, revisé los datos bancarios y acepto estas condiciones.</label><label class="check"><input name="consent" type="checkbox" required>Solicito atención mediante este ticket y acepto su vigencia según la modalidad y las condiciones de compra y reembolsos. Crear el ticket no confirma una compra, un pago ni un depósito.</label>`, "Crear ticket de solicitud")}<button class="text-button" id="back">Volver</button></div>`;
     $("#ticket").oninput = () => {
       const f = new FormData($("#ticket"));
       try {
@@ -715,6 +717,34 @@ import {
       await detail(result.id);
     });
   }
+  // Resizes a receipt photo in the browser so it uploads quickly (max ~900 KB).
+  async function shrinkImage(file) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type))
+      throw new Error("Usa una imagen JPG, PNG o WebP.");
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file);
+    } catch {
+      throw new Error("No se pudo leer la imagen. Prueba con otra.");
+    }
+    let scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.82 - attempt * 0.08),
+      );
+      if (blob && blob.size <= 900000) return blob;
+      scale *= 0.75;
+    }
+    throw new Error("La imagen es demasiado grande. Prueba con otra.");
+  }
+  let imageBase = "";
   function chatMessageHtml(message) {
     const own = me.admin
       ? message.author_role === "admin"
@@ -724,7 +754,7 @@ import {
       : message.author_role === "admin"
         ? "Saldo Express"
         : "Cliente";
-    return `<article class="chat-message ${own ? "own" : ""}" data-message-id="${esc(message.id)}"><div><strong>${author}</strong><time datetime="${new Date(message.created_at).toISOString()}">${dateTime(message.created_at)}</time></div><p>${esc(message.body)}</p></article>`;
+    return `<article class="chat-message ${own ? "own" : ""}" data-message-id="${esc(message.id)}"><div><strong>${author}</strong><time datetime="${new Date(message.created_at).toISOString()}">${dateTime(message.created_at)}</time></div><p>${esc(message.body)}</p>${message.image_id ? `<a class="chat-proof" href="${imageBase}${esc(message.image_id)}" target="_blank" rel="noopener"><img src="${imageBase}${esc(message.image_id)}" alt="Comprobante de pago" loading="lazy"></a>` : ""}</article>`;
   }
   function addChatMessage(message) {
     const list = $(".chat-messages");
@@ -819,18 +849,18 @@ import {
     const base = me.admin ? "/api/admin/tickets/" : "/api/tickets/";
     const t = await api(base + id);
     main.className = `ticket-detail ${me.admin ? "admin-detail" : "customer-detail"}`;
+    imageBase = `${base}${id}/images/`;
     const messages = t.messages || [];
     const messageList = messages.length
       ? messages.map(chatMessageHtml).join("")
       : '<p class="chat-empty">Todavía no hay comentarios en este ticket.</p>';
     const messageForm = t.canMessage
-      ? `<form id="message-form" class="chat-form"><label for="ticket-message">Nuevo comentario</label><textarea id="ticket-message" name="message" required maxlength="1000" rows="3" placeholder="Escribe un comentario sobre este ticket"></textarea><div><small>Máximo 1,000 caracteres.</small><button class="button primary" type="submit">${icon("send")}Enviar</button></div><p class="form-error" role="alert"></p></form>`
+      ? `<form id="message-form" class="chat-form"><label for="ticket-message">Nuevo comentario</label><textarea id="ticket-message" name="message" required maxlength="1000" rows="3" placeholder="Escribe un comentario sobre este ticket"></textarea><div><small>Máximo 1,000 caracteres.</small><button class="button primary" type="submit">${icon("send")}Enviar</button></div><p class="form-error" role="alert"></p></form><div class="chat-proof-upload"><input type="file" id="proof-file" accept="image/jpeg,image/png,image/webp" hidden><button class="button" type="button" id="proof-button">${icon("image-up")}Adjuntar imagen</button><small>Solo imágenes (comprobantes de pago) JPG, PNG o WebP, hasta 5 por ticket. Se eliminan al vencer o cerrar el ticket.</small><p class="form-error" id="proof-error" role="alert"></p></div>`
       : '<p class="notice">La conversación está cerrada porque el ticket venció o finalizó.</p>';
     const whatsappText = ticketShareText(t, location.origin + "/");
-    const whatsapp =
-      me.admin || t.canMessage
-        ? `<section class="external-purchase"><div><h2>${me.admin ? "Resumen por WhatsApp" : "Continuar por WhatsApp"}</h2><p>${me.admin ? "Compartí referencia, montos y plazo. Los datos bancarios quedan en el panel privado. El envío requiere confirmación en WhatsApp." : "Tu ticket está registrado. Continuá por WhatsApp para coordinar la atención."}</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(whatsappText)}" target="_blank" rel="noopener">${icon("message-circle")}${me.admin ? "Enviar resumen a Saldo Express" : "Abrir WhatsApp"}</a></section>`
-        : "";
+    const whatsapp = me.admin
+      ? `<section class="external-purchase"><div><h2>${me.admin ? "Resumen por WhatsApp" : "Continuar por WhatsApp"}</h2><p>${me.admin ? "Compartí referencia, montos y plazo. Los datos bancarios quedan en el panel privado. El envío requiere confirmación en WhatsApp." : "Tu ticket está registrado. Continuá por WhatsApp para coordinar la atención."}</p></div><a class="button primary" href="https://wa.me/50586199889?text=${encodeURIComponent(whatsappText)}" target="_blank" rel="noopener">${icon("message-circle")}${me.admin ? "Enviar resumen a Saldo Express" : "Abrir WhatsApp"}</a></section>`
+      : "";
     const notification = me.admin
       ? `<p class="notice"><strong>Aviso del ticket:</strong> Correo ${t.notification?.email_delivered ? "enviado" : "pendiente"} · WhatsApp ${t.notification?.whatsapp_delivered ? "enviado" : config.whatsappEnabled ? (t.notification?.whatsapp_attempts ? "en reintento" : "en cola") : "pendiente de activación"}. El aviso no contiene el número de cuenta.</p>`
       : "";
@@ -874,7 +904,7 @@ import {
       ["Pago confirmado", t.processing_started_at],
       ["Enviado al beneficiario", t.processing_completed_at],
     ];
-    progress.innerHTML = `<h2>Estado de la compra</h2><ol>${steps.map(([label, at]) => `<li class="${at ? "done" : ""}">${icon(at ? "circle-check" : "circle")}<span><strong>${label}</strong><small>${at ? dateTime(at) : "Pendiente"}</small></span></li>`).join("")}</ol>${t.processing_completed_at ? "<p>El administrador confirmó el pago y el envío al beneficiario. Tu solicitud está completada.</p>" : t.processing_started_at ? "<p>Pago confirmado. El envío al beneficiario está pendiente.</p>" : t.status === "quoted" ? "<p>Coordiná el pago por WhatsApp; todavía no está confirmado.</p>" : t.status === "closed" ? "<p>Este ticket se cerró con el flujo anterior. No hay una confirmación registrada de pago y envío.</p>" : ""}`;
+    progress.innerHTML = `<h2>Estado de la compra</h2><ol>${steps.map(([label, at]) => `<li class="${at ? "done" : ""}">${icon(at ? "circle-check" : "circle")}<span><strong>${label}</strong><small>${at ? dateTime(at) : "Pendiente"}</small></span></li>`).join("")}</ol>${t.processing_completed_at ? "<p>El administrador confirmó el pago y el envío al beneficiario. Tu solicitud está completada.</p>" : t.processing_started_at ? "<p>Pago confirmado. El envío al beneficiario está pendiente.</p>" : t.status === "quoted" ? "<p>Coordiná el pago en el chat del ticket; todavía no está confirmado.</p>" : t.status === "closed" ? "<p>Este ticket se cerró con el flujo anterior. No hay una confirmación registrada de pago y envío.</p>" : ""}`;
     $(".ticket-deadline").after(progress);
     if (t.amount > 50000 && !["cancelled", "closed"].includes(t.status)) {
       const section = document.createElement("section");
@@ -1000,6 +1030,29 @@ import {
         $("#ticket-message").value = "";
         addChatMessage(sent);
       });
+    if ($("#proof-file")) {
+      $("#proof-button").onclick = () => $("#proof-file").click();
+      $("#proof-file").onchange = async (event) => {
+        const file = event.target.files[0];
+        event.target.value = "";
+        const error = $("#proof-error");
+        error.textContent = "";
+        if (!file) return;
+        const button = $("#proof-button");
+        button.disabled = true;
+        try {
+          const sent = await api(
+            base + id + "/images",
+            await shrinkImage(file),
+          );
+          addChatMessage(sent);
+        } catch (e) {
+          error.textContent = e.message;
+        } finally {
+          button.disabled = false;
+        }
+      };
+    }
     window.scrollTo({ top: 0, behavior: "instant" });
     const timer = $("#turn-timer");
     if (timer && t.queue?.turnExpiresAt) {
