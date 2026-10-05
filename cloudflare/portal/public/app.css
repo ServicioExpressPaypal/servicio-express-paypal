@@ -2054,3 +2054,14 @@ div.turn-now span {
     font-weight: 400;
   }
 }
+
+.recover-sent {
+  border-left: 4px solid #1f7a4d;
+  background: #eef8f2;
+}
+.recover-tips {
+  margin: 12px 0 20px;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.6;
+}

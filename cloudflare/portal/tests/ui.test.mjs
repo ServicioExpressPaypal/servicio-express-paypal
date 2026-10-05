@@ -281,3 +281,75 @@ test(
     }
   },
 );
+
+test(
+  "password recovery tells the user the link was sent, from login and from settings",
+  { skip: !playwright && "Playwright is not installed", timeout: 120000 },
+  async () => {
+    port += 20;
+    origin = `http://127.0.0.1:${port}`;
+    const server = spawn(process.execPath, ["scripts/preview.mjs"], {
+      env: { ...process.env, PORT: String(port) },
+      stdio: ["ignore", "pipe", "inherit"],
+    });
+    let browser;
+    try {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("preview did not start")),
+          60000,
+        );
+        server.on("exit", () => reject(new Error("preview exited")));
+        server.stdout.on("data", (chunk) => {
+          if (String(chunk).includes("Vista local")) {
+            clearTimeout(timer);
+            resolve();
+          }
+        });
+      });
+      browser = await playwright.chromium.launch({
+        executablePath:
+          process.env.PLAYWRIGHT_CHROMIUM || "/opt/pw-browsers/chromium",
+      });
+      const page = await (
+        await browser.newContext({ viewport: { width: 375, height: 800 } })
+      ).newPage();
+      // From the login screen: the form is replaced by a visible confirmation.
+      await page.goto(origin + "/");
+      await page.click("#recover");
+      await page.fill("input[type=email]", "cliente@example.test");
+      await page.click("#auth button[type=submit]");
+      await page.waitForSelector(".recover-sent", { timeout: 10000 });
+      const sent = await page.locator("main").innerText();
+      assert.match(sent, /Revisa tu correo/);
+      assert.match(sent, /Te enviamos un enlace de recuperación/);
+      assert.match(sent, /cliente@example\.test/);
+      assert.match(sent, /vence en 1 hora/);
+      assert.match(sent, /spam/);
+      assert.equal(await page.locator("input[type=email]").count(), 0);
+      assert.ok(
+        (await page.evaluate(() => document.documentElement.scrollWidth)) <=
+          375,
+      );
+      await page.click("#recover-back");
+      await page.waitForSelector("#auth input[type=password]");
+      // From Settings (signed in): the dialog turns into the confirmation.
+      await page.fill("input[type=email]", "cliente@example.test");
+      await page.fill("input[type=password]", password);
+      await page.click("#auth button[type=submit]");
+      await page.waitForSelector(".gift-catalog");
+      await page.getByRole("button", { name: "Ajustes" }).click();
+      await page.click("#reset-password");
+      await page.click("#password-email button[type=submit]");
+      await page.waitForSelector("#dialog .recover-sent", { timeout: 10000 });
+      const dialog = await page.locator("#dialog").innerText();
+      assert.match(dialog, /Te enviamos un enlace de recuperación/);
+      assert.match(dialog, /cliente@example\.test/);
+      await page.click("#recover-done");
+      assert.equal(await page.locator("#dialog[open]").count(), 0);
+    } finally {
+      await browser?.close();
+      server.kill();
+    }
+  },
+);

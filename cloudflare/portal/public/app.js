@@ -311,6 +311,15 @@ import {
   function contactFields(p = {}) {
     return `${field("Nombre completo", "fullName", "text", `autocomplete="name" minlength="5" maxlength="120" value="${esc(p.name || "")}"`)}${field("Teléfono de contacto", "phone", "tel", `autocomplete="tel" maxlength="30" placeholder="+ código de país y número" value="${esc(p.phone || "")}"`)}`;
   }
+  function recoverSentHtml(email) {
+    return `<p class="notice recover-sent"><strong>Te enviamos un enlace de recuperación</strong> a <strong>${esc(email)}</strong>, si existe una cuenta con ese correo.</p><ul class="recover-tips"><li>El enlace vence en 1 hora y solo se puede usar una vez.</li><li>Puede tardar unos minutos. Revisa también spam o promociones.</li><li>Si no llega, espera unos minutos y pide otro enlace.</li></ul>`;
+  }
+  function recoverSent(email) {
+    main.className = "auth-view";
+    main.innerHTML = `<div class="onboarding" role="status"><h1>Revisa tu correo</h1>${recoverSentHtml(email)}<button class="button" id="recover-back">Volver a ingresar</button><button class="text-button" id="recover-again">Pedir otro enlace</button></div>`;
+    $("#recover-back").onclick = () => login();
+    $("#recover-again").onclick = () => login("recover");
+  }
   function login(mode = "login") {
     const reset = !!resetToken;
     main.className = "auth-view";
@@ -353,11 +362,18 @@ import {
           return;
         }
         if (mode === "recover") {
-          await api("/api/auth/request-password-reset", {
-            email: f.get("email"),
-            redirectTo: location.origin + "/",
-          });
-          toast("Si existe la cuenta, recibirás un enlace de recuperación.");
+          const submit = $("#auth button[type=submit]");
+          submit.textContent = "Enviando enlace…";
+          try {
+            await api("/api/auth/request-password-reset", {
+              email: f.get("email"),
+              redirectTo: location.origin + "/",
+            });
+          } catch (error) {
+            submit.textContent = "Enviar enlace";
+            throw error;
+          }
+          recoverSent(String(f.get("email")).trim());
           return;
         }
         if (mode === "signup") {
@@ -546,12 +562,21 @@ import {
       );
       mountBot("recover");
       bind("password-email", async () => {
-        await api("/api/auth/request-password-reset", {
-          email: me.user.email,
-          redirectTo: location.origin + "/",
-        });
-        $("#dialog").close();
-        toast("Revisa tu correo para restablecer la contraseña.");
+        const submit = $("#password-email button[type=submit]");
+        submit.textContent = "Enviando enlace…";
+        try {
+          await api("/api/auth/request-password-reset", {
+            email: me.user.email,
+            redirectTo: location.origin + "/",
+          });
+        } catch (error) {
+          submit.textContent = "Enviar enlace";
+          throw error;
+        }
+        $("#dialog-title").textContent = "Revisa tu correo";
+        $("#dialog-body").innerHTML =
+          `<div role="status">${recoverSentHtml(me.user.email)}</div><button class="button" type="button" id="recover-done">Entendido</button>`;
+        $("#recover-done").onclick = () => $("#dialog").close();
       });
     };
     $("#delete-account").onclick = () => {

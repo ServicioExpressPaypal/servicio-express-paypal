@@ -24,12 +24,22 @@ export function authOptions(
   env: AuthEnv,
   ctx: Pick<ExecutionContext, "waitUntil">,
 ) {
+  // One retry covers a transient failure of the mail provider; the recipient
+  // is never logged, only that delivery failed.
   const queueEmail = (to: string, mail: Mail) => {
     ctx.waitUntil(
-      sendMailContent(env, to, mail).catch(() => {
-        // Do not log recipient addresses, verification links, or tokens.
+      (async () => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            await sendMailContent(env, to, mail);
+            return;
+          } catch {
+            if (attempt === 0)
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+          }
+        }
         console.error(JSON.stringify({ event: "email_delivery_failed" }));
-      }),
+      })(),
     );
   };
   return {

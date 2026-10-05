@@ -794,6 +794,68 @@ test("customer password changes require proof and revoke other sessions", async 
   }
 });
 
+test("password reset link is emailed to the account, retried once on provider failure, and unknown emails get the same answer", async () => {
+  const s = await setup();
+  try {
+    const email = "reset-mail@example.test";
+    await s.registered(email);
+    const waitFor = async (count) => {
+      for (let n = 0; n < 200 && s.emails.length < count; n++)
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    };
+    const before = s.emails.length;
+    // The mail provider fails the first attempt; the retry still delivers.
+    s.resendFailures.count = 1;
+    const asked = await s.client()("/api/auth/request-password-reset", {
+      email,
+      redirectTo: origin + "/",
+    });
+    assert.equal(asked.status, 200);
+    await waitFor(before + 1);
+    assert.equal(
+      s.emails.length,
+      before + 1,
+      "reset email delivered after retry",
+    );
+    const message = s.emails.at(-1);
+    assert.deepEqual(message.to, [email]);
+    assert.match(message.subject, /Restablece tu contraseña/);
+    assert.match(message.html, /Crear nueva contraseña/);
+    const link = new URL(message.text.match(/https:\/\/\S+/)[0]);
+    assert.equal(link.host, new URL(origin).host);
+    // The link leads to the reset screen with a token that works only once.
+    const redirect = await s.client()(link.pathname + link.search);
+    const token = new URL(redirect.headers.get("location")).searchParams.get(
+      "token",
+    );
+    assert.ok(token);
+    const change = (password) =>
+      s.client()("/api/auth/reset-password", { token, newPassword: password });
+    assert.equal((await change("brand-new-password-12345")).status, 200);
+    assert.equal((await change("another-password-123456")).status, 400);
+    assert.equal(
+      (
+        await s.client()("/api/auth/sign-in/email", {
+          email,
+          password: "brand-new-password-12345",
+        })
+      ).status,
+      200,
+    );
+    // An unknown address gets the same response and no email is sent.
+    const count = s.emails.length;
+    const unknown = await s.client()("/api/auth/request-password-reset", {
+      email: "nobody-here@example.test",
+      redirectTo: origin + "/",
+    });
+    assert.equal(unknown.status, 200);
+    assert.deepEqual(unknown.data.status, asked.data.status);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    assert.equal(s.emails.length, count);
+  } finally {
+    await s.mf.dispose();
+  }
+});
 test("history paginates, filters, scopes ownership and hides expired destinations", async () => {
   const s = await setup();
   try {
@@ -1065,6 +1127,7 @@ test("deletion blocks live quotes, pending deliveries and admin; bad passwords l
 async function setup(open = true, overrides = {}) {
   const emails = [];
   const whatsapp = [];
+  const resendFailures = { count: 0 };
   const assetRequests = [];
   const botTokens = new Set();
   let botChecks = 0;
@@ -1123,6 +1186,10 @@ async function setup(open = true, overrides = {}) {
           });
         }
         if (url.host === "api.resend.com") {
+          if (resendFailures.count > 0) {
+            resendFailures.count--;
+            return new Response("provider unavailable", { status: 503 });
+          }
           emails.push(await request.json());
           return Response.json({ id: crypto.randomUUID() });
         }
@@ -1306,6 +1373,7 @@ async function setup(open = true, overrides = {}) {
     mf,
     db,
     emails,
+    resendFailures,
     whatsapp,
     assetRequests,
     client,
