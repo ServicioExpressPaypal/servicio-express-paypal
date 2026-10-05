@@ -3,7 +3,8 @@ type PinEnv = Pick<Env, "BETTER_AUTH_SECRET">;
 export type AdminSecurityMode = "pin" | "totp" | "test-bypass";
 
 const encoder = new TextEncoder();
-const iterations = 210_000;
+// Cloudflare Workers currently rejects PBKDF2 counts above this runtime limit.
+const iterations = 100_000;
 const weakPins = new Set(["012345", "123456", "654321", "987654"]);
 
 function encode(bytes: Uint8Array) {
