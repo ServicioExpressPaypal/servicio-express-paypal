@@ -45,7 +45,9 @@
     "MAINTENANCE_MODE": "false",
     "REGISTRATION_OPEN": "true",
     "ADMIN_SETUP_OPEN": "false",
-    "ADMIN_REQUIRE_MFA": "true",
+    // TEMPORAL por decision del propietario: acceso admin solo con contrasena.
+    // Volver a "true" y reinscribir el doble factor en cuanto sea posible.
+    "ADMIN_REQUIRE_MFA": "false",
     "KYC_OPEN": "true",
     "EMAIL_PROVIDER": "resend",
     "TURNSTILE_ENABLED": "true",

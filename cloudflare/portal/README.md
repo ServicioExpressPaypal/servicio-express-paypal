@@ -13,7 +13,9 @@ por separado.
   cuenta queda pendiente desde su alta; solo una cuenta activa puede crear tickets.
 - ADMIN_EMAIL define el unico administrador. ADMIN_SETUP_OPEN debe permanecer
   false. ADMIN_REQUIRE_MFA=true exige TOTP o codigo de recuperacion de un solo
-  uso para abrir el panel. La autorizacion administrativa vence en 15 minutos.
+  uso para abrir el panel (hoy esta en false de forma temporal: el panel abre solo
+  con contrasena; las cuentas con TOTP ya activado siguen pidiendolo hasta
+  desactivarlo en la base de datos). La autorizacion administrativa vence en 15 minutos.
   El QR se genera localmente, sin enviar su secreto a otro proveedor.
 - REGISTRATION_OPEN y KYC_OPEN controlan registro y aceptacion del perfil.
   KYC_OPEN es un nombre heredado: este flujo no certifica identidad ni KYC legal.
