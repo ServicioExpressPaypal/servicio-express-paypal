@@ -53,7 +53,7 @@ import {
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
 declare const TicketModel: typeof import("../../../_pilot/tickets/domain.js");
 declare const AccountModel: typeof import("../../../_pilot/tickets/accounts.js");
-const ASSET_VERSION = "20261005-11";
+const ASSET_VERSION = "20261005-13";
 type Profile = {
   user_id: string;
   status: string;
@@ -106,6 +106,10 @@ type TicketNotification = {
   expires_at: number;
   whatsapp_delivered: number;
   whatsapp_attempts: number;
+};
+type TicketIntakeStatus = {
+  open: boolean;
+  updatedAt: number | null;
 };
 const finalTicketStatuses = new Set(["closed", "cancelled"]);
 class HttpError extends Error {
@@ -210,6 +214,15 @@ function audit(
     detail,
     Date.now(),
   );
+}
+async function ticketIntakeStatus(env: Env): Promise<TicketIntakeStatus> {
+  const setting = await env.DB.prepare(
+    "SELECT value,updated_at FROM portal_settings WHERE key='ticket_intake'",
+  ).first<{ value: string; updated_at: number }>();
+  return {
+    open: setting?.value !== "paused",
+    updatedAt: setting?.updated_at || null,
+  };
 }
 function guardedAudit(
   env: Env,
@@ -614,15 +627,18 @@ async function handle(
   if (path === "/api/health") {
     return json({ ok: true });
   }
-  if (path === "/api/config")
+  if (path === "/api/config") {
+    const intake = await ticketIntakeStatus(env);
     return json({
       registrationOpen:
         env.REGISTRATION_OPEN === "true" && env.EMAIL_PROVIDER !== "disabled",
       kycOpen: env.KYC_OPEN === "true",
+      ticketIntakeOpen: intake.open,
       whatsappEnabled: env.WHATSAPP_PROVIDER === "meta",
       turnstileSiteKey:
         env.TURNSTILE_ENABLED === "true" ? env.TURNSTILE_SITE_KEY : null,
     });
+  }
   if (!path.startsWith("/api/")) {
     if (request.method !== "GET" && request.method !== "HEAD")
       fail(405, "Método no permitido.");
@@ -1029,6 +1045,28 @@ async function handle(
         : "Acceso reservado al administrador.",
     );
 
+  if (path === "/api/admin/ticket-intake") {
+    if (request.method === "GET") return json(await ticketIntakeStatus(env));
+    if (request.method !== "POST") fail(405, "Método no permitido.");
+    const body = await payload(request);
+    if (typeof body.open !== "boolean")
+      fail(400, "Indica si se aceptan nuevas solicitudes.");
+    await rate(env, `ticket-intake:${user.id}`, 20, 3600);
+    const now = Date.now();
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO portal_settings(key,value,updated_at,updated_by) VALUES('ticket_intake',?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at,updated_by=excluded.updated_by",
+      ).bind(body.open ? "open" : "paused", now, user.id),
+      audit(
+        env,
+        user.id,
+        "ticket-intake",
+        body.open ? "ticket_intake_opened" : "ticket_intake_paused",
+      ),
+    ]);
+    return json({ open: body.open, updatedAt: now });
+  }
+
   if (path === "/api/profile" && request.method === "POST") {
     if (env.KYC_OPEN !== "true")
       fail(
@@ -1106,6 +1144,11 @@ async function handle(
       .bind(user.id, body.requestKey)
       .first<Ticket>();
     if (existing) return json(await publicTicket(env, existing));
+    if (!(await ticketIntakeStatus(env)).open)
+      fail(
+        409,
+        "Se alcanzó la capacidad disponible de solicitudes. Intenta nuevamente cuando el portal indique que hay nuevos tickets disponibles.",
+      );
     await rate(env, `tickets:${user.id}`, 10, 3600);
     let estimate;
     try {

@@ -99,6 +99,30 @@ test(
         await page.locator("html").getAttribute("data-theme"),
         "light",
       );
+      const admin = await adminClient();
+      assert.equal(
+        (await admin("/api/admin/ticket-intake", { open: false })).status,
+        200,
+      );
+      await page.reload();
+      await page.waitForSelector(".intake-unavailable");
+      assert.match(
+        await page.locator(".intake-unavailable").innerText(),
+        /Capacidad de solicitudes alcanzada/,
+      );
+      assert.equal(await page.locator("#new-ticket").isDisabled(), true);
+      assert.ok(
+        await page
+          .locator(".gift-select")
+          .evaluateAll((buttons) => buttons.every((button) => button.disabled)),
+      );
+      assert.equal(
+        (await admin("/api/admin/ticket-intake", { open: true })).status,
+        200,
+      );
+      await page.reload();
+      await page.waitForSelector(".gift-catalog");
+      assert.equal(await page.locator("#new-ticket").isDisabled(), false);
       const active = () => page.locator(".customer-tickets > .ticket-list");
       const recent = () => page.locator("#recent-list");
       // Both seeded tickets are active; nothing finished yet (empty state).
@@ -117,7 +141,6 @@ test(
       await page.waitForSelector(
         '.chat-message-link[href="https://example.com/cliente"]',
       );
-      const admin = await adminClient();
       assert.equal(
         (
           await admin(`/api/admin/tickets/${expressId}/messages`, {
@@ -265,6 +288,23 @@ test(
       await page.fill("input[type=email]", "admin@example.test");
       await page.fill("input[type=password]", password);
       await page.click("button[type=submit]");
+      await page.waitForSelector("#intake-toggle");
+      assert.equal(
+        await page.locator("#intake-toggle").getAttribute("aria-checked"),
+        "true",
+      );
+      await page.click("#intake-toggle");
+      await page.waitForSelector(".intake-control.paused");
+      assert.equal(
+        await page.locator("#intake-toggle").getAttribute("aria-checked"),
+        "false",
+      );
+      assert.match(
+        await page.locator(".intake-control").innerText(),
+        /Se alcanzó la capacidad disponible/,
+      );
+      await page.click("#intake-toggle");
+      await page.waitForSelector(".intake-control.open");
       await page.getByRole("button", { name: "Contabilidad" }).click();
       await page.waitForSelector(".accounting-summary");
       // Empty state before any payment is confirmed.

@@ -993,6 +993,18 @@ footer {
   filter: none;
 }
 
+.button:disabled,
+.gift-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.gift-select:disabled {
+  border-color: var(--line);
+  background: #e9edf1;
+  color: var(--muted);
+}
+
 .button.danger {
   border-color: #d8a7aa;
   background: var(--white);
@@ -1510,6 +1522,68 @@ textarea {
 
 .admin-heading h1 {
   font-size: 30px;
+}
+
+.intake-unavailable {
+  margin: 0 0 24px;
+}
+
+.intake-unavailable strong,
+.intake-unavailable p {
+  display: block;
+  margin: 0;
+}
+
+.intake-unavailable p {
+  margin-top: 5px;
+}
+
+.intake-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 0 0 22px;
+  padding: 18px 20px;
+  border: 1px solid #b8c8bd;
+  border-radius: 8px;
+  background: #f3f8f4;
+}
+
+.intake-control.paused {
+  border-color: #dfbd8d;
+  background: #fff8ed;
+}
+
+.intake-control h2,
+.intake-control p {
+  margin: 0;
+}
+
+.intake-control h2 {
+  margin-top: 3px;
+  font-size: 18px;
+}
+
+.intake-control p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.intake-status {
+  color: #236245;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.intake-control.paused .intake-status {
+  color: #8b5000;
+}
+
+.intake-control .button {
+  flex: 0 0 auto;
 }
 
 .admin-metrics {
@@ -2232,6 +2306,41 @@ html[data-theme="dark"] .button.warning {
   border-color: #876638;
   background: #2a2319;
   color: #f1c987;
+}
+
+html[data-theme="dark"] .gift-select:disabled {
+  border-color: #343b46;
+  background: #20262e;
+  color: #8f98a5;
+}
+
+html[data-theme="dark"] .intake-control {
+  border-color: #3e5f4c;
+  background: #17261e;
+}
+
+html[data-theme="dark"] .intake-control.paused {
+  border-color: #876638;
+  background: #2a2319;
+}
+
+html[data-theme="dark"] .intake-status {
+  color: #77d59e;
+}
+
+html[data-theme="dark"] .intake-control.paused .intake-status {
+  color: #f1c987;
+}
+
+@media (max-width: 640px) {
+  .intake-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .intake-control .button {
+    width: 100%;
+  }
 }
 
 html[data-theme="dark"] .accounting-table thead th,

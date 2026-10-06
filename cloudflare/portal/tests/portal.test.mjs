@@ -143,8 +143,8 @@ test("portal versions its client bundle and can refresh changed ticket condition
     new URL("../public/app.js", import.meta.url),
     "utf8",
   );
-  assert.match(shell, /app\.js\?v=20261005-12/);
-  assert.match(app, /certificate\.js\?v=20261005-9/);
+  assert.match(shell, /app\.js\?v=20261005-13/);
+  assert.match(app, /certificate\.js\?v=20261005-10/);
   assert.match(app, /certificate\.js\?refresh=/);
   assert.match(app, /Actualizamos las condiciones en este formulario/);
 });
@@ -1353,6 +1353,7 @@ async function setup(open = true, overrides = {}) {
     "0015_ticket_images.sql",
     "0016_digital_certificate.sql",
     "0017_admin_pin.sql",
+    "0018_ticket_intake.sql",
   ]) {
     const sql = await readFile("migrations/" + name, "utf8");
     await db.batch(
@@ -1540,6 +1541,60 @@ function ticket(overrides = {}) {
     ...overrides,
   };
 }
+test("admin can pause daily ticket intake without affecting existing tickets", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("capacity@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(customer.id)
+      .run();
+
+    assert.equal((await s.client()("/api/config")).data.ticketIntakeOpen, true);
+    assert.equal(
+      (await customer.req("/api/admin/ticket-intake", { open: false })).status,
+      403,
+    );
+    assert.equal(
+      (await admin.req("/api/admin/ticket-intake", { open: "no" })).status,
+      400,
+    );
+    let changed = await admin.req("/api/admin/ticket-intake", {
+      open: false,
+    });
+    assert.equal(changed.status, 200);
+    assert.equal(changed.data.open, false);
+    assert.equal(
+      (await s.client()("/api/config")).data.ticketIntakeOpen,
+      false,
+    );
+    const blocked = await customer.req("/api/tickets", ticket());
+    assert.equal(blocked.status, 409);
+    assert.match(blocked.data.error, /capacidad disponible/i);
+    assert.equal(
+      (await s.db.prepare("SELECT COUNT(*) AS total FROM tickets").first())
+        .total,
+      0,
+    );
+
+    changed = await admin.req("/api/admin/ticket-intake", { open: true });
+    assert.equal(changed.status, 200);
+    assert.equal(changed.data.open, true);
+    assert.equal((await customer.req("/api/tickets", ticket())).status, 201);
+    const events = await s.db
+      .prepare(
+        "SELECT action FROM audit_events WHERE target_id='ticket-intake' ORDER BY created_at",
+      )
+      .all();
+    assert.deepEqual(
+      events.results.map((event) => event.action),
+      ["ticket_intake_paused", "ticket_intake_opened"],
+    );
+  } finally {
+    await s.mf.dispose();
+  }
+});
 test("registration contact data is validated, private and never auto-approves", async () => {
   const valid = {
     fullName: "  Ana   María López  ",

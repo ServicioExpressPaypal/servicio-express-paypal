@@ -1,4 +1,4 @@
-import InitialCertificateModel from "./certificate.js?v=20261005-9";
+import InitialCertificateModel from "./certificate.js?v=20261005-10";
 import { toCanvas } from "./qrcode.js?v=20261005-11";
 import {
   processingWindow,
@@ -764,23 +764,26 @@ let CertificateModel = InitialCertificateModel;
     let rows;
     if (me.admin) rows = await api("/api/admin/tickets");
     else {
-      const [active, finished] = await Promise.all([
+      const [active, finished, latestConfig] = await Promise.all([
         api("/api/account/history?status=active"),
         api("/api/account/history?status=recent"),
+        api("/api/config"),
       ]);
       rows = active.items;
       recent = finished;
+      config = { ...config, ...latestConfig };
     }
     main.innerHTML = `<div class="heading"><h1>${me.admin ? "Solicitudes" : "Mis solicitudes"}</h1>${!me.admin ? `<button class="button primary" id="new-ticket">${icon("plus")}Nueva solicitud</button>` : ""}</div><div class="ticket-list">${rows.length ? rows.map((t) => `<button class="ticket-row" data-ticket="${t.id}"><span><strong>${money(t.amount)}</strong> · ${methodLabel(t.mode)}<small>Monto del certificado · Valor estimado a entregar ${money(t.estimate.net)}</small><small>${esc(t.beneficiary_name || t.full_name || t.bank)} · ${new Date(t.created_at).toLocaleDateString("es-NI")}</small><small class="ticket-expiry">${esc(expiryText(t))}</small><small class="ticket-id">${esc(t.id)}</small></span><span class="badge ${t.status}">${labels[t.status]}</span></button>`).join("") : `<p class="empty">${me.admin ? "Todavía no hay solicitudes." : "No tienes solicitudes vigentes. Elige un certificado arriba para crear una."}</p>`}</div>`;
     if (!me.admin) {
+      const intakeOpen = config.ticketIntakeOpen !== false;
       const cards = CertificateModel.presetAmounts
         .map((amount) => {
           const estimate = SaldoCalculator.estimate(amount * 100, "express");
-          return `<article class="gift-option"><div class="gift-face"><img class="gift-ribbon" src="/gift-ribbon.png" alt=""><div class="gift-title"><span>CERTIFICADO DE REGALO</span><h2>Efectivo</h2><small>Un detalle para compartir con quien elijas.</small></div><div class="gift-stub"><span>Monto del certificado</span><strong>$${amount}</strong><small>USD</small></div></div><div class="gift-summary"><span>Valor estimado a entregar<strong>${money(estimate.net)}</strong></span><span>Costos estimados<strong>${money(estimate.total)}</strong></span></div><button type="button" class="gift-select" data-preset="${amount}" aria-label="Elegir certificado de ${amount} dólares">Elegir $${amount} USD ${icon("arrow-right")}</button></article>`;
+          return `<article class="gift-option"><div class="gift-face"><img class="gift-ribbon" src="/gift-ribbon.png" alt=""><div class="gift-title"><span>CERTIFICADO DE REGALO</span><h2>Efectivo</h2><small>Un detalle para compartir con quien elijas.</small></div><div class="gift-stub"><span>Monto del certificado</span><strong>$${amount}</strong><small>USD</small></div></div><div class="gift-summary"><span>Valor estimado a entregar<strong>${money(estimate.net)}</strong></span><span>Costos estimados<strong>${money(estimate.total)}</strong></span></div><button type="button" class="gift-select" data-preset="${amount}" aria-label="Elegir certificado de ${amount} dólares" ${intakeOpen ? "" : "disabled"}>${intakeOpen ? `Elegir $${amount} USD ${icon("arrow-right")}` : "Sin disponibilidad"}</button></article>`;
         })
         .join("");
       $(".heading").outerHTML =
-        `<div class="heading gift-heading"><div><h1>Certificados de regalo</h1><p>Un detalle para tu familia.</p></div><button type="button" class="button" id="new-ticket">${icon("plus")}Ticket personalizado</button></div><section class="gift-catalog" aria-label="Montos disponibles"><div class="gift-grid">${cards}</div></section><h2 class="ticket-list-title">Solicitudes vigentes o en proceso</h2>`;
+        `<div class="heading gift-heading"><div><h1>Certificados de regalo</h1><p>Un detalle para tu familia.</p></div><button type="button" class="button" id="new-ticket" ${intakeOpen ? "" : "disabled"}>${icon("plus")}Ticket personalizado</button></div>${intakeOpen ? "" : '<div class="intake-unavailable notice" role="status"><strong>Capacidad de solicitudes alcanzada</strong><p>Por el momento no podemos recibir nuevos tickets. Los que ya están en proceso continúan normalmente. Vuelve a consultar más tarde.</p></div>'}<section class="gift-catalog" aria-label="Montos disponibles"><div class="gift-grid">${cards}</div></section><h2 class="ticket-list-title">Solicitudes vigentes o en proceso</h2>`;
       document.querySelectorAll("[data-preset]").forEach((button) => {
         button.onclick = () => newTicket(Number(button.dataset.preset));
       });
@@ -829,6 +832,13 @@ let CertificateModel = InitialCertificateModel;
     }
   }
   function newTicket(presetAmount) {
+    if (config.ticketIntakeOpen === false) {
+      toast(
+        "Se alcanzó la capacidad disponible de solicitudes. Intenta nuevamente más tarde.",
+      );
+      render();
+      return;
+    }
     main.className = "ticket-create-view";
     const requestKey = crypto.randomUUID();
     const conditions = CertificateModel.ticketConditions
@@ -1477,9 +1487,10 @@ let CertificateModel = InitialCertificateModel;
   }
   async function dashboard() {
     main.className = "admin-dashboard";
-    const [users, tickets] = await Promise.all([
+    const [users, tickets, intake] = await Promise.all([
       api("/api/admin/users"),
       api("/api/admin/tickets"),
+      api("/api/admin/ticket-intake"),
     ]);
     const count = (status) => users.filter((u) => u.status === status).length;
     const openTickets = tickets.filter(
@@ -1509,6 +1520,29 @@ let CertificateModel = InitialCertificateModel;
           .join("")
       : '<p class="empty compact">No hay solicitudes abiertas.</p>';
     main.innerHTML = `<div class="heading admin-heading"><div><h1>Resumen administrativo</h1><p>Revisa accesos y solicitudes que necesitan una decisión.</p></div><button class="button" data-dashboard-view="users">Administrar usuarios</button></div><div class="admin-metrics"><button class="metric-card" data-dashboard-view="users" data-user-filter="pending"><small>Pendientes</small><strong>${pending.length}</strong><span>Esperan aprobación manual</span></button><button class="metric-card" data-dashboard-view="users" data-user-filter="active"><small>Activas</small><strong>${count("active")}</strong><span>Pueden crear tickets</span></button><button class="metric-card" data-dashboard-view="users" data-user-filter="suspended"><small>Suspendidas</small><strong>${count("suspended")}</strong><span>No pueden crear tickets</span></button><button class="metric-card" data-dashboard-view="tickets"><small>Solicitudes abiertas</small><strong>${openTickets.length}</strong><span>Requieren seguimiento</span></button></div><div class="dashboard-grid"><section class="dashboard-section"><div class="section-heading"><div><h2>Cuentas que requieren atención</h2><p>Activación, corrección o revisión de una suspensión.</p></div><span>${needsAttention.length}</span></div><div class="admin-list">${userPreview}</div></section><section class="dashboard-section"><div class="section-heading"><div><h2>Solicitudes abiertas</h2><p>Ordenadas por su actividad más reciente.</p></div><span>${openTickets.length}</span></div><div class="admin-list">${ticketPreview}</div></section></div>`;
+    $(".admin-heading").insertAdjacentHTML(
+      "afterend",
+      `<section class="intake-control ${intake.open ? "open" : "paused"}" aria-labelledby="intake-title"><div><span class="intake-status">${intake.open ? "Disponible" : "Pausado"}</span><h2 id="intake-title">Recepción de nuevos tickets</h2><p>${intake.open ? "Los usuarios pueden crear nuevas solicitudes." : "Se alcanzó la capacidad disponible. Los tickets existentes siguen su curso."}</p></div><button type="button" class="button ${intake.open ? "warning" : "primary"}" id="intake-toggle" role="switch" aria-checked="${intake.open}">${intake.open ? "Pausar solicitudes" : "Reabrir solicitudes"}</button></section>`,
+    );
+    $("#intake-toggle").onclick = async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const result = await api("/api/admin/ticket-intake", {
+          open: !intake.open,
+        });
+        config.ticketIntakeOpen = result.open;
+        toast(
+          result.open
+            ? "La recepción de tickets está abierta."
+            : "La recepción de nuevos tickets quedó pausada.",
+        );
+        await dashboard();
+      } catch (error) {
+        button.disabled = false;
+        toast(error.message);
+      }
+    };
     document.querySelectorAll("[data-dashboard-view]").forEach(
       (button) =>
         (button.onclick = () => {

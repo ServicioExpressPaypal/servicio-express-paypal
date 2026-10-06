@@ -8,12 +8,13 @@ export default (function () {
   const version = "cuenta-revision-2026-10-05-v8";
   const reviewNotice =
     "Revisaremos tu solicitud en un plazo de hasta 2 días hábiles, de lunes a viernes, después de verificar tu correo y completar el formulario. Te notificaremos por correo si fue aprobada, rechazada o necesita aclaraciones. Hasta su aprobación no podrás crear tickets.";
-  const ticketConditionsVersion = "ticket-condiciones-2026-10-05-v9";
+  const ticketConditionsVersion = "ticket-condiciones-2026-10-05-v10";
   const extendedInternationalValidityVersions = new Set([
     "ticket-condiciones-2026-09-30-v5",
     "ticket-condiciones-2026-10-04-v6",
     "ticket-condiciones-2026-10-05-v7",
     "ticket-condiciones-2026-10-05-v8",
+    "ticket-condiciones-2026-10-05-v9",
     ticketConditionsVersion,
   ]);
   const title = "Certificado de regalo en efectivo";
@@ -30,6 +31,7 @@ export default (function () {
     "No se aceptan solicitudes de personas menores de edad.",
     "Un dato incorrecto puede atrasar o impedir la atención del ticket.",
     "El Método Express tiene un límite de USD 500 por ticket. Los montos mayores se clasifican como Método internacional.",
+    "La disponibilidad de nuevos tickets depende de la demanda y de la capacidad diaria de atención. Cuando se alcance la capacidad disponible, podemos pausar temporalmente la recepción de solicitudes y el portal lo indicará antes de crear el ticket. La pausa no cancela ni modifica los tickets que ya estén en proceso.",
     "Turnos: los tickets creados con estas condiciones se atienden por orden de creación. Cuando es el turno de tu ticket tienes 2 minutos para pagar; si hay otros tickets esperando y no se confirma el pago, tu ticket pasa al final de la fila. Si no hay otros tickets esperando, tu turno no vence.",
     "Express: vigencia de 24 horas desde la creación. Método internacional (más de USD 500): vigencia de 6 días hábiles desde la creación; al confirmar manualmente el pago durante la vigencia, el vencimiento pasa a 6 días hábiles desde esa confirmación. La entrega internacional se estima entre 2 y 6 días hábiles desde el pago confirmado. El contador usa lunes a viernes, hora de Nicaragua, sin ajuste por feriados. Vencer no confirma la entrega ni extingue una operación pagada pendiente.",
     "Revisa los datos y el importe antes de pagar. No se ofrecen reembolsos voluntarios por cambio de opinión ni por errores en datos suministrados por el comprador cuando el envío ya se ejecutó conforme a ellos. Antes del envío, solicita la revisión de cualquier error. Esta regla no excluye devoluciones por servicio no prestado, cobro duplicado, error atribuible al operador ni derechos irrenunciables o mecanismos de reclamación de PayPal. Crear un ticket no genera por sí mismo un cobro.",
