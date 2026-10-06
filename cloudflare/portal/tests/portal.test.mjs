@@ -143,8 +143,14 @@ test("portal versions its client bundle and can refresh changed ticket condition
     new URL("../public/app.js", import.meta.url),
     "utf8",
   );
-  assert.match(shell, /app\.js\?v=20261006-15/);
+  assert.match(shell, /app\.js\?v=20261006-16/);
   assert.match(app, /certificate\.js\?v=20261005-10/);
+  assert.match(app, /CertificateModel\.registration\(registration\)/);
+  assert.doesNotMatch(
+    app,
+    /const registration = \{[\s\S]{0,400}\n\s+name:/,
+    "browser validation must not submit the reserved profile name field",
+  );
   assert.match(app, /certificate\.js\?refresh=/);
   assert.match(app, /Actualizamos las condiciones en este formulario/);
 });

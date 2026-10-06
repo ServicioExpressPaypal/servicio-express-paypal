@@ -59,7 +59,7 @@ import {
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
 declare const TicketModel: typeof import("../../../_pilot/tickets/domain.js");
 declare const AccountModel: typeof import("../../../_pilot/tickets/accounts.js");
-const ASSET_VERSION = "20261006-15";
+const ASSET_VERSION = "20261006-16";
 type Profile = {
   user_id: string;
   status: string;
