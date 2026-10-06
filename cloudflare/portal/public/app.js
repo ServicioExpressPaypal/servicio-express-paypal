@@ -809,7 +809,14 @@ let CertificateModel = InitialCertificateModel;
           (b.onclick = () =>
             detail(b.dataset.ticket).catch((e) => toast(e.message))),
       );
-    if (!me.admin) {
+    if (me.admin) {
+      const snapshot = listSignature(rows);
+      watchTickets(
+        [],
+        async () => listSignature(await api("/api/admin/tickets")) !== snapshot,
+        "/api/admin/live",
+      );
+    } else {
       const snapshot = listSignature(
         [...rows, ...recent.items],
         rows.length + recent.total,
@@ -1036,9 +1043,9 @@ let CertificateModel = InitialCertificateModel;
     listSockets = [];
     listWatchMarker = null;
   }
-  function watchTickets(ids, hasChanged) {
+  function watchTickets(ids, hasChanged, livePath = null) {
     stopWatchingTickets();
-    if (!ids.length) return;
+    if (!ids.length && !livePath) return;
     const marker = (listWatchMarker = main.firstElementChild);
     const reload = () => {
       clearTimeout(listReloadTimer);
@@ -1068,11 +1075,16 @@ let CertificateModel = InitialCertificateModel;
       }, 5000);
     }
     if (!("WebSocket" in window)) return;
-    ids.slice(0, 6).forEach((id) => {
+    const paths = livePath
+      ? [livePath]
+      : ids
+          .slice(0, 6)
+          .map((id) => `/api/tickets/${encodeURIComponent(id)}/live`);
+    paths.forEach((path) => {
       const open = (delay = 1000) => {
         if (listWatchMarker !== marker) return;
         const socket = new WebSocket(
-          `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/tickets/${id}/live`,
+          `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`,
         );
         listSockets.push(socket);
         socket.onopen = () => {
@@ -1569,6 +1581,12 @@ let CertificateModel = InitialCertificateModel;
               toast(e.message),
             )),
       );
+    const snapshot = listSignature(tickets);
+    watchTickets(
+      [],
+      async () => listSignature(await api("/api/admin/tickets")) !== snapshot,
+      "/api/admin/live",
+    );
   }
   async function users() {
     main.className = "admin-users";

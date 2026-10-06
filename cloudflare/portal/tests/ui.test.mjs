@@ -305,18 +305,6 @@ test(
       );
       await page.click("#intake-toggle");
       await page.waitForSelector(".intake-control.open");
-      await page.getByRole("button", { name: "Contabilidad" }).click();
-      await page.waitForSelector(".accounting-summary");
-      // Empty state before any payment is confirmed.
-      assert.match(
-        await page.locator("main").innerText(),
-        /No hay pagos confirmados este día/,
-      );
-      assert.match(
-        await page.locator(".accounting-profit").innerText(),
-        /USD\s0\.00/,
-      );
-      // Confirming payment adds the ticket to today's accounting.
       const admin = await adminClient();
       const version = (await admin("/api/admin/tickets/" + expressId)).data
         .version;
@@ -329,7 +317,17 @@ test(
         ).status,
         200,
       );
-      await page.click("#accounting-today");
+      // The dashboard receives the server event and refreshes without a page reload.
+      await page.waitForFunction(
+        (id) =>
+          document
+            .querySelector(`[data-dashboard-ticket="${id}"]`)
+            ?.innerText.includes("Pago confirmado"),
+        expressId,
+        { timeout: 10000 },
+      );
+      await page.getByRole("button", { name: "Contabilidad" }).click();
+      await page.waitForSelector(".accounting-summary");
       await page.waitForSelector("#accounting-csv", { timeout: 10000 });
       // USD 164.00 Express: service commission 3% = USD 4.92.
       assert.match(
