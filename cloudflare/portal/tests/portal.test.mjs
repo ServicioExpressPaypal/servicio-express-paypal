@@ -143,7 +143,7 @@ test("portal versions its client bundle and can refresh changed ticket condition
     new URL("../public/app.js", import.meta.url),
     "utf8",
   );
-  assert.match(shell, /app\.js\?v=20261005-14/);
+  assert.match(shell, /app\.js\?v=20261006-15/);
   assert.match(app, /certificate\.js\?v=20261005-10/);
   assert.match(app, /certificate\.js\?refresh=/);
   assert.match(app, /Actualizamos las condiciones en este formulario/);
@@ -2499,6 +2499,13 @@ test("Turnstile rejects absent, invalid, wrong-host, wrong-action and reused tok
       0,
     );
     assert.equal(s.emails.length, 0);
+    const attemptsBeforeValidation = (
+      await s.db
+        .prepare(
+          "SELECT COALESCE(SUM(count),0) total FROM request_limits WHERE key LIKE 'signup-ip:%'",
+        )
+        .first()
+    ).total;
     const token = "valid:signup:" + crypto.randomUUID();
     // A valid challenge reaches consent validation without creating a user.
     assert.equal(
@@ -2510,6 +2517,17 @@ test("Turnstile rejects absent, invalid, wrong-host, wrong-action and reused tok
         })
       ).status,
       400,
+    );
+    assert.equal(
+      (
+        await s.db
+          .prepare(
+            "SELECT COALESCE(SUM(count),0) total FROM request_limits WHERE key LIKE 'signup-ip:%'",
+          )
+          .first()
+      ).total,
+      attemptsBeforeValidation,
+      "invalid customer fields do not consume a signup attempt",
     );
     assert.equal(
       (await s.client()(path, { ...body, turnstileToken: token })).status,
