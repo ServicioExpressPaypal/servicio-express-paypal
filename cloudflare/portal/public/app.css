@@ -993,6 +993,18 @@ footer {
   filter: none;
 }
 
+.button:disabled,
+.gift-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.gift-select:disabled {
+  border-color: var(--line);
+  background: #e9edf1;
+  color: var(--muted);
+}
+
 .button.danger {
   border-color: #d8a7aa;
   background: var(--white);
@@ -1510,6 +1522,68 @@ textarea {
 
 .admin-heading h1 {
   font-size: 30px;
+}
+
+.intake-unavailable {
+  margin: 0 0 24px;
+}
+
+.intake-unavailable strong,
+.intake-unavailable p {
+  display: block;
+  margin: 0;
+}
+
+.intake-unavailable p {
+  margin-top: 5px;
+}
+
+.intake-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 0 0 22px;
+  padding: 18px 20px;
+  border: 1px solid #b8c8bd;
+  border-radius: 8px;
+  background: #f3f8f4;
+}
+
+.intake-control.paused {
+  border-color: #dfbd8d;
+  background: #fff8ed;
+}
+
+.intake-control h2,
+.intake-control p {
+  margin: 0;
+}
+
+.intake-control h2 {
+  margin-top: 3px;
+  font-size: 18px;
+}
+
+.intake-control p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.intake-status {
+  color: #236245;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.intake-control.paused .intake-status {
+  color: #8b5000;
+}
+
+.intake-control .button {
+  flex: 0 0 auto;
 }
 
 .admin-metrics {
@@ -2108,4 +2182,186 @@ div.turn-now span {
   padding-left: 20px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+/* Theme control shared by the customer and administrator workspaces. */
+.app-header {
+  position: relative;
+}
+
+.session-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.theme-toggle {
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
+}
+
+.theme-toggle[aria-checked="true"] {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.chat-message-link {
+  color: var(--blue);
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  #navigation .session-actions {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    gap: 4px;
+  }
+
+  #navigation .session-actions .icon-button {
+    position: static;
+  }
+}
+
+html[data-theme="dark"] {
+  --ink: #f2f4f7;
+  --muted: #aab2bf;
+  --line: #343b46;
+  --paper: #0f1217;
+  --orange: #ff7a2f;
+  --blue: #ff9b63;
+  --brand: #ff7a2f;
+  --brand-soft: #352116;
+  --white: #181d24;
+  background: var(--paper);
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] .button:not(.primary):not(.danger):not(.warning),
+html[data-theme="dark"] .field input,
+html[data-theme="dark"] .field select,
+html[data-theme="dark"] .field textarea,
+html[data-theme="dark"] .chat-form textarea,
+html[data-theme="dark"] dialog {
+  border-color: #4a5361;
+  background: #171c23;
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .password-field {
+  border-color: #4a5361;
+}
+
+html[data-theme="dark"] .ticket-row:hover,
+html[data-theme="dark"] .admin-list-row:hover,
+html[data-theme="dark"] .metric-card:hover {
+  border-color: #515b69;
+  background: #20262e;
+}
+
+html[data-theme="dark"] .chat-message {
+  background: #20262e;
+}
+
+html[data-theme="dark"] .chat-message.own {
+  border-color: #704027;
+  background: #2d211a;
+}
+
+html[data-theme="dark"] .notice,
+html[data-theme="dark"] .turn-now,
+html[data-theme="dark"] .accounting-summary .accounting-profit,
+html[data-theme="dark"] .accounting-table tr.current td {
+  border-color: #9a6024;
+  background: #2c2418;
+  color: #f3d5a7;
+}
+
+html[data-theme="dark"] .turn-now time,
+html[data-theme="dark"] .accounting-summary .accounting-profit strong,
+html[data-theme="dark"] .accounting-table .profit,
+html[data-theme="dark"] .accounting-section .profit,
+html[data-theme="dark"] .ticket-expiry {
+  color: #ffad72 !important;
+}
+
+html[data-theme="dark"] .turn-now span,
+html[data-theme="dark"] .processing-window small {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .button.danger {
+  border-color: #98545a;
+  background: #27191c;
+  color: #ff9da4;
+}
+
+html[data-theme="dark"] .button.warning {
+  border-color: #876638;
+  background: #2a2319;
+  color: #f1c987;
+}
+
+html[data-theme="dark"] .gift-select:disabled {
+  border-color: #343b46;
+  background: #20262e;
+  color: #8f98a5;
+}
+
+html[data-theme="dark"] .intake-control {
+  border-color: #3e5f4c;
+  background: #17261e;
+}
+
+html[data-theme="dark"] .intake-control.paused {
+  border-color: #876638;
+  background: #2a2319;
+}
+
+html[data-theme="dark"] .intake-status {
+  color: #77d59e;
+}
+
+html[data-theme="dark"] .intake-control.paused .intake-status {
+  color: #f1c987;
+}
+
+@media (max-width: 640px) {
+  .intake-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .intake-control .button {
+    width: 100%;
+  }
+}
+
+html[data-theme="dark"] .accounting-table thead th,
+html[data-theme="dark"] .accounting-table tfoot th,
+html[data-theme="dark"] .accounting-table.accounting-stack tfoot tr,
+html[data-theme="dark"] .gift-summary {
+  background: #20262e;
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .recover-sent {
+  border-color: #4aa77a;
+  background: #172820;
+  color: #bce9d0;
+}
+
+html[data-theme="dark"] .status-filters button[aria-pressed="true"] {
+  border-color: #6e482f;
+  background: var(--brand-soft);
+}
+
+html[data-theme="dark"] dialog::backdrop {
+  background: rgb(0 0 0 / 68%);
 }

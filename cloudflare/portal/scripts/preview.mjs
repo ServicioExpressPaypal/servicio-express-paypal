@@ -13,6 +13,7 @@ const adminSecurityBinding =
 const assets = new Set([
   "index.html",
   "app-shell.html",
+  "theme-init.js",
   "app.js",
   "qrcode.js",
   "app.css",
@@ -104,6 +105,7 @@ for (const file of [
   "0015_ticket_images.sql",
   "0016_digital_certificate.sql",
   "0017_admin_pin.sql",
+  "0018_ticket_intake.sql",
 ]) {
   const sql = await readFile(
     new URL(`../migrations/${file}`, import.meta.url),
