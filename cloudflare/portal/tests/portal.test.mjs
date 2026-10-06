@@ -143,7 +143,7 @@ test("portal versions its client bundle and can refresh changed ticket condition
     new URL("../public/app.js", import.meta.url),
     "utf8",
   );
-  assert.match(shell, /app\.js\?v=20261005-13/);
+  assert.match(shell, /app\.js\?v=20261005-14/);
   assert.match(app, /certificate\.js\?v=20261005-10/);
   assert.match(app, /certificate\.js\?refresh=/);
   assert.match(app, /Actualizamos las condiciones en este formulario/);
@@ -2799,6 +2799,49 @@ test("ticket chat is delivered in real time over WebSockets to both participants
     assert.equal((await customer.req.socket(live)).status, 409);
     customerSocket.socket.close();
     adminSocket.socket.close();
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("admin ticket feed is protected and broadcasts generic real-time refreshes", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("admin-live@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(customer.id)
+      .run();
+    const live = "/api/admin/live";
+    assert.equal((await admin.req(live)).status, 426);
+    assert.equal(
+      (await admin.req.socket(live, { origin: "https://evil.example" })).status,
+      403,
+    );
+    assert.equal((await customer.req.socket(live)).status, 403);
+    assert.equal((await s.client().socket(live)).status, 401);
+
+    const feed = await admin.req.socket(live);
+    assert.equal(feed.status, 101);
+    const created = await customer.req("/api/tickets", ticket());
+    assert.equal(created.status, 201);
+    assert.deepEqual(await feed.next(), { type: "refresh" });
+
+    const message = await customer.req(
+      `/api/tickets/${created.data.id}/messages`,
+      { message: "¿Pueden revisar mi solicitud?" },
+    );
+    assert.equal(message.status, 201);
+    assert.deepEqual(await feed.next(), { type: "refresh" });
+
+    const detail = await admin.req("/api/admin/tickets/" + created.data.id);
+    const started = await admin.req(
+      `/api/admin/tickets/${created.data.id}/processing`,
+      { action: "start", version: detail.data.version },
+    );
+    assert.equal(started.status, 200);
+    assert.deepEqual(await feed.next(), { type: "refresh" });
+    feed.socket.close();
   } finally {
     await s.mf.dispose();
   }

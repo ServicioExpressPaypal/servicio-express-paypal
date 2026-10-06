@@ -35,7 +35,12 @@ import {
 } from "./security-events";
 import { purgeExpiredTicketData } from "./retention";
 import { AccountingError, accountingReport } from "./accounting";
-import { advanceQueue, queueInfo, settleQueue } from "./queue";
+import {
+  ADMIN_TICKET_ROOM,
+  advanceQueue,
+  queueInfo,
+  settleQueue,
+} from "./queue";
 import { eraseAccount, purgeDeletedDocuments } from "./customer-account";
 import {
   ticketStage,
@@ -53,7 +58,7 @@ import {
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
 declare const TicketModel: typeof import("../../../_pilot/tickets/domain.js");
 declare const AccountModel: typeof import("../../../_pilot/tickets/accounts.js");
-const ASSET_VERSION = "20261005-13";
+const ASSET_VERSION = "20261005-14";
 type Profile = {
   user_id: string;
   status: string;
@@ -289,6 +294,9 @@ function broadcastTicket(env: Env, ticketId: string, event: unknown) {
       body: JSON.stringify(event),
     })
     .catch(() => undefined);
+}
+function broadcastAdminTickets(env: Env) {
+  return broadcastTicket(env, ADMIN_TICKET_ROOM, { type: "refresh" });
 }
 async function ticketChanged(env: Env, ticketId: string) {
   const result = await advanceQueue(env);
@@ -1045,6 +1053,17 @@ async function handle(
         : "Acceso reservado al administrador.",
     );
 
+  if (path === "/api/admin/live") {
+    if (request.method !== "GET") fail(405, "Método no permitido.");
+    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
+      fail(426, "Se requiere una conexión WebSocket.");
+    if (request.headers.get("origin") !== env.APP_URL)
+      fail(403, "Origen no permitido.");
+    return ticketRoom(env, ADMIN_TICKET_ROOM).fetch("https://room/connect", {
+      headers: { upgrade: "websocket" },
+    });
+  }
+
   if (path === "/api/admin/ticket-intake") {
     if (request.method === "GET") return json(await ticketIntakeStatus(env));
     if (request.method !== "POST") fail(405, "Método no permitido.");
@@ -1064,6 +1083,7 @@ async function handle(
         body.open ? "ticket_intake_opened" : "ticket_intake_paused",
       ),
     ]);
+    ctx.waitUntil(broadcastAdminTickets(env));
     return json({ open: body.open, updatedAt: now });
   }
 
@@ -1552,7 +1572,10 @@ async function handle(
       image_id: imageId,
     };
     ctx.waitUntil(
-      broadcastTicket(env, target!.id, { type: "message", message: sent }),
+      Promise.all([
+        broadcastTicket(env, target!.id, { type: "message", message: sent }),
+        broadcastAdminTickets(env),
+      ]),
     );
     return json(sent, 201);
   }
@@ -1607,7 +1630,10 @@ async function handle(
       fail(409, "La conversación de este ticket ya está cerrada.");
     const sent = { id, author_role: role, body: message, created_at: now };
     ctx.waitUntil(
-      broadcastTicket(env, target!.id, { type: "message", message: sent }),
+      Promise.all([
+        broadcastTicket(env, target!.id, { type: "message", message: sent }),
+        broadcastAdminTickets(env),
+      ]),
     );
     return json(sent, 201);
   }

@@ -2,6 +2,7 @@
 // a short window to be paid. When the window lapses and others are waiting, the
 // ticket goes to the back. Administrators are never restricted by turns.
 export const DEFAULT_TURN_WINDOW_MS = 120_000;
+export const ADMIN_TICKET_ROOM = "__admin_ticket_updates__";
 const MAX_BROADCAST = 40;
 
 export type QueueEntry = {
@@ -129,14 +130,17 @@ export async function settleQueue(
       ...(options.extraIds ?? []),
     ]);
     const text = JSON.stringify({ type: "refresh" });
-    await Promise.all(
-      [...ids].map(async (id) => {
+    await Promise.all([
+      ...[...ids].map(async (id) => {
         if (local?.id === id) return local.send(text);
         await ticketRoomStub(env, id)
           .fetch("https://room/broadcast", { method: "POST", body: text })
           .catch(() => undefined);
       }),
-    );
+      ticketRoomStub(env, ADMIN_TICKET_ROOM)
+        .fetch("https://room/broadcast", { method: "POST", body: text })
+        .catch(() => undefined),
+    ]);
   }
   const head = queue[0];
   if (head && queue.length > 1 && head.turn_started_at != null) {
