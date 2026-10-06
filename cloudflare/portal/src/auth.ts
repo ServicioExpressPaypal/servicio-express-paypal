@@ -84,9 +84,9 @@ export function authOptions(
       window: 60,
       max: 30,
       customRules: {
-        "/sign-up/email": { window: 600, max: 3 },
+        "/sign-up/email": { window: 600, max: 5 },
         "/sign-in/email": { window: 60, max: 5 },
-        "/request-password-reset": { window: 600, max: 3 },
+        "/request-password-reset": { window: 600, max: 5 },
       },
     },
     plugins: [twoFactor({ issuer: "Saldo Express" })],
