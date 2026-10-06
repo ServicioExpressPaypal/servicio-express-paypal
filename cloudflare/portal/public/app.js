@@ -24,6 +24,66 @@ let CertificateModel = InitialCertificateModel;
           "'": "&#39;",
         })[c],
     );
+  const themeKey = "saldo-express-theme";
+  const currentTheme = () =>
+    document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  function updateThemeControl() {
+    const button = $("#theme-toggle");
+    if (!button) return;
+    const dark = currentTheme() === "dark";
+    const label = dark ? "Activar modo claro" : "Activar modo oscuro";
+    button.setAttribute("aria-checked", String(dark));
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.innerHTML = icon(dark ? "sun" : "moon");
+  }
+  function setTheme(theme, persist = true) {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    $("#theme-color")?.setAttribute(
+      "content",
+      theme === "dark" ? "#0f1217" : "#f5f6f8",
+    );
+    if (persist)
+      try {
+        localStorage.setItem(themeKey, theme);
+      } catch {}
+    updateThemeControl();
+    icons();
+  }
+  function bindThemeControl() {
+    const button = $("#theme-toggle");
+    if (!button) return;
+    updateThemeControl();
+    button.onclick = () =>
+      setTheme(currentTheme() === "dark" ? "light" : "dark");
+  }
+  function linkifyChatText(value) {
+    const text = String(value ?? "");
+    const pattern = /\b(?:https?:\/\/|www\.)[^\s<>"']+/gi;
+    let html = "";
+    let last = 0;
+    for (const match of text.matchAll(pattern)) {
+      let label = match[0];
+      let trailing = "";
+      while (/[.,!?;:]$/.test(label)) {
+        trailing = label.slice(-1) + trailing;
+        label = label.slice(0, -1);
+      }
+      const candidate = label.startsWith("www.") ? `https://${label}` : label;
+      let url;
+      try {
+        url = new URL(candidate);
+        if (!/^https?:$/.test(url.protocol)) continue;
+      } catch {
+        continue;
+      }
+      html += esc(text.slice(last, match.index));
+      html += `<a class="chat-message-link" href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>${esc(trailing)}`;
+      last = match.index + match[0].length;
+    }
+    return html + esc(text.slice(last));
+  }
   const money = (v, currency = "USD") =>
     new Intl.NumberFormat("es-NI", { style: "currency", currency }).format(
       v / 100,
@@ -103,7 +163,7 @@ let CertificateModel = InitialCertificateModel;
             sitekey: config.turnstileSiteKey,
             action,
             size: "flexible",
-            theme: "light",
+            theme: currentTheme(),
           });
       })
       .catch(() =>
@@ -227,7 +287,8 @@ let CertificateModel = InitialCertificateModel;
   function nav() {
     $("#navigation").innerHTML = !me
       ? ""
-      : `${me.admin ? '<button class="nav" data-view="dashboard">Resumen</button><button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="accounting">Contabilidad</button><button class="nav" data-view="users">Usuarios</button>' : '<button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="history">Historial</button><button class="nav" data-view="settings">Ajustes</button>'}<button class="icon-button" id="logout" title="Cerrar sesión" aria-label="Cerrar sesión">${icon("log-out")}</button>`;
+      : `${me.admin ? '<button class="nav" data-view="dashboard">Resumen</button><button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="accounting">Contabilidad</button><button class="nav" data-view="users">Usuarios</button>' : '<button class="nav" data-view="tickets">Solicitudes</button><button class="nav" data-view="history">Historial</button><button class="nav" data-view="settings">Ajustes</button>'}<span class="session-actions"><button class="icon-button theme-toggle" id="theme-toggle" type="button" role="switch" aria-checked="false"></button><button class="icon-button" id="logout" title="Cerrar sesión" aria-label="Cerrar sesión">${icon("log-out")}</button></span>`;
+    bindThemeControl();
     if ($("#logout"))
       $("#logout").onclick = async () => {
         await api("/api/auth/sign-out", {});
@@ -868,7 +929,7 @@ let CertificateModel = InitialCertificateModel;
       : message.author_role === "admin"
         ? "Saldo Express"
         : "Cliente";
-    return `<article class="chat-message ${own ? "own" : ""}" data-message-id="${esc(message.id)}"><div><strong>${author}</strong><time datetime="${new Date(message.created_at).toISOString()}">${dateTime(message.created_at)}</time></div><p>${esc(message.body)}</p>${message.image_id ? `<a class="chat-proof" href="${imageBase}${esc(message.image_id)}" target="_blank" rel="noopener"><img src="${imageBase}${esc(message.image_id)}" alt="Comprobante de pago" loading="lazy"></a>` : ""}</article>`;
+    return `<article class="chat-message ${own ? "own" : ""}" data-message-id="${esc(message.id)}"><div><strong>${author}</strong><time datetime="${new Date(message.created_at).toISOString()}">${dateTime(message.created_at)}</time></div><p>${linkifyChatText(message.body)}</p>${message.image_id ? `<a class="chat-proof" href="${imageBase}${esc(message.image_id)}" target="_blank" rel="noopener"><img src="${imageBase}${esc(message.image_id)}" alt="Comprobante de pago" loading="lazy"></a>` : ""}</article>`;
   }
   function addChatMessage(message) {
     const list = $(".chat-messages");

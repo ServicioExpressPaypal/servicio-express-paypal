@@ -143,7 +143,7 @@ test("portal versions its client bundle and can refresh changed ticket condition
     new URL("../public/app.js", import.meta.url),
     "utf8",
   );
-  assert.match(shell, /app\.js\?v=20261005-11/);
+  assert.match(shell, /app\.js\?v=20261005-12/);
   assert.match(app, /certificate\.js\?v=20261005-9/);
   assert.match(app, /certificate\.js\?refresh=/);
   assert.match(app, /Actualizamos las condiciones en este formulario/);

@@ -13,6 +13,7 @@ const adminSecurityBinding =
 const assets = new Set([
   "index.html",
   "app-shell.html",
+  "theme-init.js",
   "app.js",
   "qrcode.js",
   "app.css",

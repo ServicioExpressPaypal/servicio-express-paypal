@@ -77,6 +77,28 @@ test(
       await page.fill("input[type=password]", password);
       await page.click("button[type=submit]");
       await page.waitForSelector(".gift-catalog");
+      const themeToggle = page.locator("#theme-toggle");
+      assert.equal(await themeToggle.getAttribute("role"), "switch");
+      await themeToggle.click();
+      assert.equal(
+        await page.locator("html").getAttribute("data-theme"),
+        "dark",
+      );
+      assert.equal(
+        await page.evaluate(() => localStorage.getItem("saldo-express-theme")),
+        "dark",
+      );
+      await page.reload();
+      await page.waitForSelector(".gift-catalog");
+      assert.equal(
+        await page.locator("html").getAttribute("data-theme"),
+        "dark",
+      );
+      await page.locator("#theme-toggle").click();
+      assert.equal(
+        await page.locator("html").getAttribute("data-theme"),
+        "light",
+      );
       const active = () => page.locator(".customer-tickets > .ticket-list");
       const recent = () => page.locator("#recent-list");
       // Both seeded tickets are active; nothing finished yet (empty state).
@@ -85,6 +107,39 @@ test(
         await recent().innerText(),
         /Todavía no tienes certificados pagados, enviados o cancelados/,
       );
+      await page.locator(`[data-ticket="${expressId}"]`).click();
+      await page.waitForSelector("#message-form");
+      await page.fill(
+        "#ticket-message",
+        "Consulta https://example.com/cliente.",
+      );
+      await page.click("#message-form button[type=submit]");
+      await page.waitForSelector(
+        '.chat-message-link[href="https://example.com/cliente"]',
+      );
+      const admin = await adminClient();
+      assert.equal(
+        (
+          await admin(`/api/admin/tickets/${expressId}/messages`, {
+            message: "Respuesta en www.example.com/admin",
+          })
+        ).status,
+        201,
+      );
+      await page.waitForSelector(
+        '.chat-message-link[href="https://www.example.com/admin"]',
+      );
+      const links = page.locator(".chat-message-link");
+      assert.equal(await links.count(), 2);
+      for (let index = 0; index < 2; index++) {
+        assert.equal(await links.nth(index).getAttribute("target"), "_blank");
+        assert.equal(
+          await links.nth(index).getAttribute("rel"),
+          "noopener noreferrer",
+        );
+      }
+      await page.click("#back");
+      await page.waitForSelector(".gift-catalog");
       // Mobile: no horizontal overflow and nothing clipped.
       await page.setViewportSize({ width: 375, height: 800 });
       assert.ok(
@@ -93,7 +148,6 @@ test(
       );
       await page.setViewportSize({ width: 1000, height: 900 });
 
-      const admin = await adminClient();
       const version = async (id) =>
         (await admin("/api/admin/tickets/" + id)).data.version;
       // Admin confirms payment: the ticket stays under active requests but
