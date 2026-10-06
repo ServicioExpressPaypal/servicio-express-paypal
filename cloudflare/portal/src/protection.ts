@@ -105,6 +105,15 @@ export async function releaseSuccessfulLogin(
     .bind("auth-ip:" + key, count)
     .run();
 }
+export async function releaseSignupValidationAttempt(
+  env: Env,
+  key: string,
+  count: number,
+) {
+  await env.DB.prepare("DELETE FROM request_limits WHERE key=? AND count=?")
+    .bind("signup-ip:" + key, count)
+    .run();
+}
 export async function verifyBot(
   request: Request,
   env: Env,

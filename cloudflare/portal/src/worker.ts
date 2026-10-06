@@ -14,6 +14,7 @@ import {
   ipKey,
   reserveAttempt,
   releaseSuccessfulLogin,
+  releaseSignupValidationAttempt,
   verifyBot,
   ProtectionError,
   reserveAccountAttempt,
@@ -58,7 +59,7 @@ import {
 declare const SaldoCalculator: typeof import("../../../calculator-core.js");
 declare const TicketModel: typeof import("../../../_pilot/tickets/domain.js");
 declare const AccountModel: typeof import("../../../_pilot/tickets/accounts.js");
-const ASSET_VERSION = "20261005-14";
+const ASSET_VERSION = "20261006-15";
 type Profile = {
   user_id: string;
   status: string;
@@ -739,6 +740,8 @@ async function handle(
         data.fullName = checked.fullName;
         data.phone = checked.phone;
       } catch (error) {
+        if (key && reservation)
+          await releaseSignupValidationAttempt(env, key, reservation.count);
         fail(400, (error as Error).message);
       }
       data.name = "Cliente";

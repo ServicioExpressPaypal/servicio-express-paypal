@@ -441,7 +441,7 @@ let CertificateModel = InitialCertificateModel;
           return;
         }
         if (mode === "signup") {
-          await api("/api/auth/sign-up/email", {
+          const registration = {
             email: f.get("email"),
             password: f.get("password"),
             name: "Cliente",
@@ -450,7 +450,9 @@ let CertificateModel = InitialCertificateModel;
             legalAccepted: f.get("legalAccepted") === "on",
             legalVersion: CertificateModel.version,
             callbackURL: location.origin + "/",
-          });
+          };
+          CertificateModel.registration(registration);
+          await api("/api/auth/sign-up/email", registration);
           verification(f.get("email"));
           return;
         }
