@@ -1223,7 +1223,7 @@ test("deletion blocks live quotes, pending deliveries and admin; bad passwords l
       ).status,
       403,
     );
-    for (let n = 0; n < 3; n++)
+    for (let n = 0; n < 5; n++)
       assert.equal(
         (
           await u.req("/api/account/delete", {
@@ -2560,12 +2560,12 @@ test("Turnstile rejects absent, invalid, wrong-host, wrong-action and reused tok
     await s.mf.dispose();
   }
 });
-test("three attempts block only that IP, including concurrent requests and spoofed forwarding headers", async () => {
+test("five attempts block only that IP, including concurrent requests and spoofed forwarding headers", async () => {
   const s = await setup(true, { TURNSTILE_ENABLED: "true" });
   try {
     const req = s.client();
     const attempts = await Promise.all(
-      Array.from({ length: 6 }, () =>
+      Array.from({ length: 8 }, () =>
         req("/api/auth/sign-in/email", {
           email: "none@example.test",
           password: "incorrect-password",
@@ -2575,11 +2575,11 @@ test("three attempts block only that IP, including concurrent requests and spoof
     );
     assert.deepEqual(
       attempts.map((r) => r.status).sort(),
-      [403, 403, 403, 429, 429, 429],
+      [403, 403, 403, 403, 403, 429, 429, 429],
     );
     assert.equal(
       s.botChecks,
-      3,
+      5,
       "blocked IP cannot keep consuming verification calls",
     );
     const blocked = await req(
@@ -2597,6 +2597,90 @@ test("three attempts block only that IP, including concurrent requests and spoof
     await s.db.prepare("UPDATE request_limits SET expires_at=0").run();
     assert.equal((await req("/api/auth/sign-in/email", {})).status, 403);
     assert.equal(s.emails.length, 0);
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("active accounts can sign in despite a shared IP block", async () => {
+  const s = await setup();
+  try {
+    const user = await s.registered("active-limit@example.test");
+    await s.db
+      .prepare("UPDATE profiles SET status='active' WHERE user_id=?")
+      .bind(user.id)
+      .run();
+    const req = s.client();
+    assert.equal(
+      (
+        await req("/api/auth/sign-in/email", {
+          email: "active-limit@example.test",
+          password: "incorrect-password",
+        })
+      ).status,
+      401,
+    );
+    await s.db
+      .prepare("UPDATE request_limits SET count=5 WHERE key LIKE 'auth-ip:%'")
+      .run();
+    await s.db
+      .prepare("DELETE FROM request_limits WHERE key LIKE 'account:login:%'")
+      .run();
+    assert.equal(
+      (
+        await req("/api/auth/sign-in/email", {
+          email: "active-limit@example.test",
+          password: user.password,
+        })
+      ).status,
+      200,
+    );
+  } finally {
+    await s.mf.dispose();
+  }
+});
+test("account activation clears prior per-account attempts", async () => {
+  const s = await setup(true, { ADMIN_REQUIRE_MFA: "false" });
+  try {
+    const admin = await s.registered("admin@example.test");
+    const customer = await s.registered("activation-limit@example.test");
+    const login = s.client();
+    assert.equal(
+      (
+        await login("/api/auth/sign-in/email", {
+          email: "activation-limit@example.test",
+          password: "incorrect-password",
+        })
+      ).status,
+      401,
+    );
+    assert.equal(
+      (
+        await s.db
+          .prepare(
+            "SELECT COUNT(*) AS total FROM request_limits WHERE key LIKE 'account:login:%'",
+          )
+          .first()
+      ).total,
+      1,
+    );
+    const profile = await admin.req(`/api/admin/users/${customer.id}`);
+    assert.equal(profile.status, 200, JSON.stringify(profile.data));
+    const activated = await admin.req(`/api/admin/users/${customer.id}`, {
+      action: "activate",
+      reason: "Cuenta de prueba aprobada",
+      version: profile.data.version,
+    });
+    assert.equal(activated.status, 200, JSON.stringify(activated.data));
+    assert.equal(
+      (
+        await s.db
+          .prepare(
+            "SELECT COUNT(*) AS total FROM request_limits WHERE key LIKE 'account:login:%'",
+          )
+          .first()
+      ).total,
+      0,
+    );
   } finally {
     await s.mf.dispose();
   }

@@ -1,4 +1,5 @@
 const WINDOW = 15 * 60 * 1000;
+const MAX_IP_ATTEMPTS = 5;
 export class ProtectionError extends Error {
   constructor(
     public status: number,
@@ -61,22 +62,37 @@ export async function releaseAccountAttempt(
     .bind(reservation.key, reservation.count)
     .run();
 }
+export async function clearAccountAttempts(env: Env, email: unknown) {
+  if (typeof email !== "string" || email.length > 254) return;
+  const identity = await identityKey(
+    env,
+    "account",
+    email.trim().toLowerCase(),
+  );
+  await env.DB.batch(
+    ["login", "recover", "resend"].map((action) =>
+      env.DB.prepare("DELETE FROM request_limits WHERE key=?").bind(
+        `account:${action}:${identity}`,
+      ),
+    ),
+  );
+}
 export async function reserveAttempt(env: Env, key: string, signup = false) {
   const now = Date.now();
   const other = await env.DB.prepare(
-    "SELECT expires_at FROM request_limits WHERE key=? AND count>=3 AND expires_at>?",
+    "SELECT expires_at FROM request_limits WHERE key=? AND count>=? AND expires_at>?",
   )
-    .bind((signup ? "auth-ip:" : "signup-ip:") + key, now)
+    .bind((signup ? "auth-ip:" : "signup-ip:") + key, MAX_IP_ATTEMPTS, now)
     .first<{ expires_at: number }>();
   if (other)
     throw new ProtectionError(
       429,
-      "Se alcanzaron 3 intentos. Esta IP está bloqueada temporalmente.",
+      `Se alcanzaron ${MAX_IP_ATTEMPTS} intentos. Esta IP está bloqueada temporalmente.`,
       Math.ceil((other.expires_at - now) / 1000),
     );
   // Reserve before password hashing so concurrent requests cannot skip the limit.
   const row = await env.DB.prepare(
-    "INSERT INTO request_limits(key,count,expires_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN expires_at<=? THEN 1 ELSE count+1 END,expires_at=CASE WHEN expires_at<=? THEN ? WHEN count=2 THEN ? ELSE expires_at END WHERE expires_at<=? OR count<3 RETURNING count,expires_at",
+    "INSERT INTO request_limits(key,count,expires_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN expires_at<=? THEN 1 ELSE count+1 END,expires_at=CASE WHEN expires_at<=? THEN ? WHEN count=? THEN ? ELSE expires_at END WHERE expires_at<=? OR count<? RETURNING count,expires_at",
   )
     .bind(
       (signup ? "signup-ip:" : "auth-ip:") + key,
@@ -84,14 +100,16 @@ export async function reserveAttempt(env: Env, key: string, signup = false) {
       now,
       now,
       now + WINDOW,
+      MAX_IP_ATTEMPTS - 1,
       now + WINDOW,
       now,
+      MAX_IP_ATTEMPTS,
     )
     .first<{ count: number; expires_at: number }>();
   if (!row)
     throw new ProtectionError(
       429,
-      "Se alcanzaron 3 intentos. Esta IP está bloqueada durante 15 minutos.",
+      `Se alcanzaron ${MAX_IP_ATTEMPTS} intentos. Esta IP está bloqueada durante 15 minutos.`,
       900,
     );
   return row;

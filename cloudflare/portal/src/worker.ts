@@ -19,6 +19,7 @@ import {
   ProtectionError,
   reserveAccountAttempt,
   releaseAccountAttempt,
+  clearAccountAttempts,
 } from "./protection";
 import {
   encryptField,
@@ -714,7 +715,16 @@ async function handle(
     let accountReservation: Awaited<ReturnType<typeof reserveAccountAttempt>>;
     if (action) {
       key = await ipKey(request, env);
-      reservation = await reserveAttempt(env, key, action === "signup");
+      const activeLogin =
+        action === "login" &&
+        typeof data.email === "string" &&
+        !!(await env.DB.prepare(
+          "SELECT 1 FROM profiles p JOIN user u ON u.id=p.user_id WHERE p.status='active' AND lower(u.email)=lower(?) LIMIT 1",
+        )
+          .bind(data.email.trim())
+          .first());
+      if (!activeLogin)
+        reservation = await reserveAttempt(env, key, action === "signup");
       await verifyBot(request, env, data.turnstileToken, action);
       delete data.turnstileToken;
       if (["login", "recover", "resend"].includes(action)) {
@@ -1383,6 +1393,8 @@ async function handle(
     ]);
     if (!result[1].results.length)
       fail(409, "El expediente cambió. Recarga antes de decidir.");
+    if (account.status === "active")
+      await clearAccountAttempts(env, target!.email);
     ctx.waitUntil(notifyAccountDecision(env, noticeId));
     return json({ ok: true });
   }
