@@ -444,7 +444,6 @@ let CertificateModel = InitialCertificateModel;
           const registration = {
             email: f.get("email"),
             password: f.get("password"),
-            name: "Cliente",
             fullName: f.get("fullName"),
             phone: f.get("phone"),
             legalAccepted: f.get("legalAccepted") === "on",
