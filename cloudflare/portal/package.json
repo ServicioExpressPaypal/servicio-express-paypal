@@ -24,6 +24,6 @@
     "prettier": "3.9.9",
     "qrcode": "1.5.4",
     "typescript": "7.0.2",
-    "wrangler": "4.144.0"
+    "wrangler": "4.147.0"
   }
 }
