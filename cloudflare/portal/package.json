@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@better-auth/utils": "0.4.2",
-    "@types/node": "26.6.2",
+    "@types/node": "26.6.4",
     "esbuild": "0.28.2",
     "miniflare": "5.20260926.1-alpha",
     "playwright": "1.63.0",
