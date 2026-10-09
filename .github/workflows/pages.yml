@@ -44,9 +44,10 @@ jobs:
       - name: Assemble public files only
         run: |
           mkdir -p _site
-          cp index.html styles.css script.js calculator-core.js robots.txt sitemap.xml CNAME _site/
-          cp privacidad.html terminos.html legal.css _site/
-          cp -R assets _site/assets
+          cp maintenance.html _site/index.html
+          cp maintenance-404.html _site/404.html
+          cp CNAME _site/
+          printf 'User-agent: *\nDisallow: /\n' > _site/robots.txt
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: _site
