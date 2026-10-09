@@ -42,7 +42,7 @@
   ],
   "vars": {
     "APP_URL": "https://portal.saldoexpressnicaragua.com",
-    "MAINTENANCE_MODE": "false",
+    "MAINTENANCE_MODE": "true",
     "REGISTRATION_OPEN": "true",
     "ADMIN_SETUP_OPEN": "false",
     // PIN reforzado temporal. Cambiar a "totp" al activar el autenticador.
